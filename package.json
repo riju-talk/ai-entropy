@@ -6,9 +6,20 @@
     "dev:app": "turbo run dev --filter=@entropy/app",
     "dev:agent": "turbo run dev --filter=@entropy/ai-agent",
     "build": "cd apps/app && npm run build",
+    "build:all": "turbo run build",
     "lint": "turbo run lint",
+    "lint:fix": "turbo run lint -- --fix",
     "clean": "turbo run clean",
-    "setup:agent": "cd apps/ai-agent && python setup.py"
+    "setup:agent": "cd apps/ai-agent && python setup.py",
+    "test": "turbo run test",
+    "test:dev": "powershell -ExecutionPolicy Bypass -File ./test-dev.ps1",
+    "test:prod": "powershell -ExecutionPolicy Bypass -File ./test-production.ps1",
+    "test:quick": "powershell -ExecutionPolicy Bypass -File ./quick-test.ps1",
+    "db:generate": "cd apps/app && npm run db:generate",
+    "db:push": "cd apps/app && npm run db:push",
+    "db:studio": "cd apps/app && npm run db:studio",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\""
   },
   "devDependencies": {
     "turbo": "latest"

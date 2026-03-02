@@ -97,17 +97,17 @@ export function EditProfileModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] sm:max-h-[90vh] overflow-y-auto mx-4 sm:mx-auto">
         <DialogHeader>
-          <DialogTitle>Edit Profile</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg sm:text-xl">Edit Profile</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm">
             Update your profile information. Your profile picture is managed by
             your account provider.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Full Name</Label>
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 py-3 sm:py-4">
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label htmlFor="name" className="text-sm">Full Name</Label>
             <Input
               id="name"
               type="text"
@@ -116,11 +116,12 @@ export function EditProfileModal({
               onChange={(e) =>
                 setFormData({ ...formData, name: e.target.value })
               }
+              className="text-sm sm:text-base"
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="bio">Bio</Label>
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label htmlFor="bio" className="text-sm">Bio</Label>
             <Textarea
               id="bio"
               placeholder="Tell us about yourself..."
@@ -129,12 +130,13 @@ export function EditProfileModal({
                 setFormData({ ...formData, bio: e.target.value })
               }
               rows={4}
+              className="text-sm sm:text-base resize-none"
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="university">University</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="university" className="text-sm">University</Label>
               <Input
                 id="university"
                 type="text"
@@ -143,11 +145,12 @@ export function EditProfileModal({
                 onChange={(e) =>
                   setFormData({ ...formData, university: e.target.value })
                 }
+                className="text-sm sm:text-base"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="course">Course/Major</Label>
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="course" className="text-sm">Course/Major</Label>
               <Input
                 id="course"
                 type="text"
@@ -156,19 +159,20 @@ export function EditProfileModal({
                 onChange={(e) =>
                   setFormData({ ...formData, course: e.target.value })
                 }
+                className="text-sm sm:text-base"
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="year">Year of Study</Label>
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label htmlFor="year" className="text-sm">Year of Study</Label>
             <Select
               value={formData.year}
               onValueChange={(value) =>
                 setFormData({ ...formData, year: value })
               }
             >
-              <SelectTrigger id="year">
+              <SelectTrigger id="year" className="text-sm sm:text-base">
                 <SelectValue placeholder="Select your year" />
               </SelectTrigger>
               <SelectContent>
@@ -182,23 +186,24 @@ export function EditProfileModal({
             </Select>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={loading}
+              className="w-full sm:w-auto order-2 sm:order-1"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} className="w-full sm:w-auto order-1 sm:order-2">
               {loading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
+                  <Loader2 className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                  <span className="text-sm">Saving...</span>
                 </>
               ) : (
-                "Save Changes"
+                <span className="text-sm">Save Changes</span>
               )}
             </Button>
           </DialogFooter>

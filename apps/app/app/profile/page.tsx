@@ -90,6 +90,9 @@ export default function ProfilePage() {
   const answersSentinelRef = useRef<HTMLDivElement | null>(null)
   const [loading, setLoading] = useState(true)
   const [editModalOpen, setEditModalOpen] = useState(false)
+  const [achievements, setAchievements] = useState<any[]>([])
+  const [badges, setBadges] = useState<any[]>([])
+  const [achievementsLoading, setAchievementsLoading] = useState(true)
 
   useEffect(() => {
     // Middleware handles auth redirect, so just wait for session
@@ -97,6 +100,7 @@ export default function ProfilePage() {
 
     if (status === "authenticated" && session?.user?.email) {
       checkProfileAndFetch(session.user.email)
+      fetchAchievements()
     }
   }, [status, session, router])
 
@@ -189,6 +193,22 @@ export default function ProfilePage() {
       console.error("loadAnswersPage error:", err)
     } finally {
       setAnswersLoadingMore(false)
+    }
+  }
+
+  async function fetchAchievements() {
+    setAchievementsLoading(true)
+    try {
+      const res = await fetch("/api/users/me/achievements")
+      if (res.ok) {
+        const json = await res.json()
+        setAchievements(json.achievements || [])
+        setBadges(json.badges || [])
+      }
+    } catch (err) {
+      console.error("Failed to fetch achievements:", err)
+    } finally {
+      setAchievementsLoading(false)
     }
   }
 
@@ -331,8 +351,8 @@ export default function ProfilePage() {
             <CardContent className="pt-6">
               <div className="flex flex-col items-center text-center">
                 <Award className="h-8 w-8 mb-2 text-primary" />
-                <div className="text-base font-medium">Gamification & rewards</div>
-                <div className="text-xs text-muted-foreground mt-1">Badges & rewards coming soon</div>
+                <div className="text-3xl font-bold">{achievements.length + badges.length}</div>
+                <div className="text-xs text-muted-foreground mt-1">Achievements & Badges</div>
               </div>
             </CardContent>
           </Card>
@@ -352,13 +372,68 @@ export default function ProfilePage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-12">
-              <Trophy className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
-              <h3 className="text-lg font-semibold mb-2">Coming Soon</h3>
-              <p className="text-sm text-muted-foreground">
-                Earn badges and achievements by contributing to the community
-              </p>
-            </div>
+            {achievementsLoading ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <Skeleton key={i} className="h-24 w-full rounded-lg" />
+                  ))}
+                </div>
+              </div>
+            ) : achievements.length === 0 && badges.length === 0 ? (
+              <div className="text-center py-12">
+                <Trophy className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
+                <h3 className="text-lg font-semibold mb-2">No Achievements Yet</h3>
+                <p className="text-sm text-muted-foreground">
+                  Earn badges and achievements by contributing to the community
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Achievements */}
+                {achievements.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold mb-3 uppercase tracking-wider text-muted-foreground">Achievements ({achievements.length})</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {achievements.slice(0, 8).map((achievement) => (
+                        <div
+                          key={achievement.id}
+                          className="flex flex-col items-center p-4 rounded-xl bg-secondary/30 border border-white/5 hover:border-white/10 transition-all group cursor-pointer"
+                        >
+                          <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">{achievement.icon}</div>
+                          <h5 className="text-xs font-bold text-center line-clamp-2 group-hover:text-primary transition-colors">{achievement.name}</h5>
+                          <Badge className="mt-2 text-[10px]" variant="secondary">
+                            {achievement.rarity}
+                          </Badge>
+                          <div className="text-[10px] text-muted-foreground mt-1">+{achievement.points} pts</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Badges */}
+                {badges.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold mb-3 uppercase tracking-wider text-muted-foreground">Badges ({badges.length})</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {badges.slice(0, 8).map((badge) => (
+                        <div
+                          key={badge.id}
+                          className="flex flex-col items-center p-4 rounded-xl bg-secondary/30 border border-white/5 hover:border-white/10 transition-all group cursor-pointer"
+                        >
+                          <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">{badge.icon}</div>
+                          <h5 className="text-xs font-bold text-center line-clamp-2 group-hover:text-primary transition-colors">{badge.name}</h5>
+                          <Badge className="mt-2 text-[10px] bg-blue-500/20 text-blue-400 border-blue-500/30" variant="outline">
+                            {badge.type}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 

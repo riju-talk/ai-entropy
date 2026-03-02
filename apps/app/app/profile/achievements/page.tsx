@@ -120,12 +120,7 @@ export default function AchievementsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/auth/signin")
-      return
-    }
-
-    if (status === "authenticated") {
+    if (status === "authenticated" || status === "unauthenticated") {
       // Simulate loading
       setTimeout(() => setLoading(false), 500)
     }
@@ -221,18 +216,20 @@ export default function AchievementsPage() {
                         <p className="text-sm text-muted-foreground mb-2">
                           {achievement.description}
                         </p>
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Progress</span>
-                            <span>
-                              {achievement.progress}/{achievement.total}
-                            </span>
+                        {status === "authenticated" && (
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>Progress</span>
+                              <span>
+                                {achievement.progress}/{achievement.total}
+                              </span>
+                            </div>
+                            <Progress
+                              value={(achievement.progress / achievement.total) * 100}
+                              className="h-2"
+                            />
                           </div>
-                          <Progress
-                            value={(achievement.progress / achievement.total) * 100}
-                            className="h-2"
-                          />
-                        </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -243,36 +240,38 @@ export default function AchievementsPage() {
         ))}
 
         {/* Stats Preview */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Achievement Stats</CardTitle>
-            <CardDescription>Overview of your progress</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 border rounded-lg">
-                <Trophy className="h-6 w-6 mx-auto mb-2 text-primary" />
-                <div className="text-2xl font-bold">0</div>
-                <div className="text-xs text-muted-foreground">Unlocked</div>
+        {status === "authenticated" && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Achievement Stats</CardTitle>
+              <CardDescription>Overview of your progress</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-4 border rounded-lg">
+                  <Trophy className="h-6 w-6 mx-auto mb-2 text-primary" />
+                  <div className="text-2xl font-bold">0</div>
+                  <div className="text-xs text-muted-foreground">Unlocked</div>
+                </div>
+                <div className="text-center p-4 border rounded-lg">
+                  <Target className="h-6 w-6 mx-auto mb-2 text-primary" />
+                  <div className="text-2xl font-bold">6</div>
+                  <div className="text-xs text-muted-foreground">Total</div>
+                </div>
+                <div className="text-center p-4 border rounded-lg">
+                  <Zap className="h-6 w-6 mx-auto mb-2 text-primary" />
+                  <div className="text-2xl font-bold">0%</div>
+                  <div className="text-xs text-muted-foreground">Completion</div>
+                </div>
+                <div className="text-center p-4 border rounded-lg">
+                  <Star className="h-6 w-6 mx-auto mb-2 text-primary" />
+                  <div className="text-2xl font-bold">0</div>
+                  <div className="text-xs text-muted-foreground">Rare+</div>
+                </div>
               </div>
-              <div className="text-center p-4 border rounded-lg">
-                <Target className="h-6 w-6 mx-auto mb-2 text-primary" />
-                <div className="text-2xl font-bold">6</div>
-                <div className="text-xs text-muted-foreground">Total</div>
-              </div>
-              <div className="text-center p-4 border rounded-lg">
-                <Zap className="h-6 w-6 mx-auto mb-2 text-primary" />
-                <div className="text-2xl font-bold">0%</div>
-                <div className="text-xs text-muted-foreground">Completion</div>
-              </div>
-              <div className="text-center p-4 border rounded-lg">
-                <Star className="h-6 w-6 mx-auto mb-2 text-primary" />
-                <div className="text-2xl font-bold">0</div>
-                <div className="text-xs text-muted-foreground">Rare+</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

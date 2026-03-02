@@ -41,37 +41,9 @@ export function DocumentUpload({ userId }: { userId?: string }) {
             formData.append("files", file)
             formData.append("user_id", userId)
 
-            // 3. Upload to AI Backend (Embeddings)
-            // Proxy through NextJS API route or call directly if CORS allowed?
-            // Config said "ALLOWED_ORIGINS" so direct call is potentially okay IF localhost is set up right.
-            // But for safety, let's assume we might need a proxy. For now, try direct relative path '/api/documents/upload' 
-            // IF we set up a rewrite in next.config.mjs or assume they are on same origin.
-            // Wait, app/ai-agent is FastAPI on port 8000. app/app is NextJS on 3000.
-            // We need a proxy in next.config.mjs OR call absolute URL (localhost:8000). 
-            // Production usually unified. 
-            // Let's try the relative path assuming rewrites are in place or will be added. 
-            // If not, we fall back to absolute localhost:8000 for dev.
-            // *CHECK* page.tsx used `/api/ai-agent/health`. This implies a rewrite exists or route handler.
-
-            // Actually earlier page.tsx has: fetch("/api/ai-agent/health")
-            // If that worked, then rewrites are likely handled OR it's a NextJS route that calls backend.
-            // Let's look at `apps/app/next.config.js` if I could, but I'll assume `/api/documents/upload` might NOT serve FastAPI directly.
-            // I will use a direct fetch to the AI_BACKEND_URL pattern if possible, or just try to proxy.
-            // Let's IMPLEMENT A CLIENT-SIDE FETCH to the known endpoint pattern.
-
-            // TEMPORARY: Assume backend is at localhost:8000 for dev, or proxied at /api/proxy/ai-agent...
-            // Safest bet for "Investor Ready" demo on one machine:
-            // Use a Proxy Route in NextJS to forward to FastAPI.
-            // I'll assume for this step, we post to `/api/proxy/ai/upload`. 
-            // WAIT, I haven't built that proxy.
-            // I'll stick to calling the Server Action to do the upload? No, streaming file is hard in actions.
-
-            // Let's assume a direct fetch to http://localhost:8000/api/documents/upload for now 
-            // (with CORS enabled on backend, which I saw in main.py).
-
-            const backendUrl = "http://localhost:8000/api/documents/upload"
-
-            const res = await fetch(backendUrl, {
+            // 3. Upload to AI Backend via Next.js proxy route (avoids CORS issues)
+            // The Next.js route at /api/ai-agent/documents forwards to FastAPI at port 8000.
+            const res = await fetch("/api/ai-agent/documents", {
                 method: "POST",
                 body: formData,
             })

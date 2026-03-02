@@ -1,129 +1,109 @@
 """
-Q&A endpoint — now backed by LangChainService (RAG) + ChatService (Follow-ups)
+Q&A endpoint — backed by NOVYRA Reasoning Engine (no LangChain)
+
+Legacy path kept at /api/qa so the frontend proxy continues to work.
+Internally delegates to reasoning_service which calls Gemini directly.
+
+Response includes a `cognitive_trace` block so the frontend CognitiveTraceCard
+can render real data instead of mock values.
 """
 
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Request
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
-from pathlib import Path
-import os
-from datetime import datetime
+from pydantic import BaseModel, Field, model_validator
 import logging
-import json
-import aiofiles
+import time
+import math
+
+from app.services import reasoning_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-from app.core.config import settings
-
-# Local history storage (disabled unless persistence is enabled)
-QA_STORAGE_PATH = Path("./data/qa_history")
-if getattr(settings, 'ENABLE_PERSISTENCE', False):
-    QA_STORAGE_PATH.mkdir(parents=True, exist_ok=True)
-
-# ---- Services ---- #
-try:
-    from app.services.chat_service import ChatService
-    chat_service = ChatService()
-    logger.info("ChatService loaded.")
-except Exception as e:
-    logger.error("Failed to load ChatService: %s", e)
-    chat_service = None
-
-try:
-    from app.services.langchain_service import langchain_service
-    logger.info("LangChainService loaded.")
-except Exception as e:
-    logger.error("Failed to load LangChainService: %s", e)
-    langchain_service = None
-
 
 class QAInput(BaseModel):
-    # Frontend sends 'question' usually, but earlier code used 'user_prompt'. 
-    # To be safe and flexible, we accept both or alias them.
-    # But since we control backend, let's stick to 'question' as primary.
-    question: str = Field(..., description="User question")
-    userId: Optional[str] = "anonymous"
+    # Primary field
+    question: str = Field(default="", description="User question")
+    # Aliases sent by the Next.js proxy
+    user_prompt: Optional[str] = None
+    system_prompt: Optional[str] = None
+
+    userId: Optional[str] = None
+    language: Optional[str] = "en"
     collection_name: Optional[str] = "default"
     conversation_history: Optional[List[Dict[str, Any]]] = None
-    system_prompt: Optional[str] = Field(default="You are a helpful AI tutor.", description="System instructions")
-    filter: Optional[Dict[str, Any]] = None
+
+    @model_validator(mode="after")
+    def resolve_question(self) -> "QAInput":
+        """Accept user_prompt as alias for question (sent by Next.js proxy)."""
+        if not self.question and self.user_prompt:
+            self.question = self.user_prompt
+        return self
 
 
 @router.get("/greeting")
 async def get_greeting():
-    return {"greeting": "Hi! I'm Spark ⚡ — your AI study buddy! Ask me anything!"}
+    return {"greeting": "Hi! I'm NOVYRA ⚡ — your adaptive AI tutor. Ask me anything!"}
 
 
 @router.get("/health")
 async def qa_health():
-    return {
-        "status": "healthy",
-        "chat_service": bool(chat_service),
-        "langchain_service": bool(langchain_service)
-    }
+    return {"status": "healthy", "backend": "NOVYRA Reasoning Engine (Gemini)"}
 
 
-# ------------------------------------------------------------
-# MAIN Q&A ENDPOINT
-# ------------------------------------------------------------
+@router.post("/", summary="Ask a question (legacy /api/qa)")
+async def post_qa(payload: QAInput):
+    if not payload.question.strip():
+        raise HTTPException(status_code=400, detail="Question cannot be empty")
 
-@router.post("/", summary="Post QA", response_description="AI response payload")
-async def post_qa(payload: QAInput, request: Request):
-    if not langchain_service:
-        raise HTTPException(503, "LangChainService unavailable (dependencies ok?).")
-
+    t0 = time.time()
     try:
-        user_msg = payload.question.strip()
-        if not user_msg:
-            raise HTTPException(400, "Question cannot be empty")
-
-        # 1. Generate Answer (RAG or Direct) via LangChainService
-        # Note: langchain_service.chat_with_fallback handles RAG logic if collection exists/documents are found
-        
-        # Determine strict collection name (e.g. user_id namespace)
-        namespace = payload.userId if payload.collection_name == "default" else payload.collection_name
-
-        response_data = await langchain_service.chat_with_fallback(
-            message=user_msg,
-            collection_name=namespace,
-            conversation_history=payload.conversation_history,
-            system_prompt=payload.system_prompt
+        result = await reasoning_service.reason(
+            question=payload.question.strip(),
+            user_id=payload.userId,
+            language=payload.language or "en",
+            include_hints=True,
         )
-        
-        answer = response_data.get("answer", "")
-        sources = response_data.get("sources", [])
-        mode = response_data.get("mode", "direct")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception:
+        logger.exception("QA reasoning failed")
+        raise HTTPException(status_code=500, detail="Reasoning engine error")
 
-        # 2. Generate Follow-ups (using ChatService helper)
-        followups = []
-        if chat_service and answer:
-            try:
-                # generate_followups is private in ChatService (_generate_followups), 
-                # but we can access it or use the prompt directly. 
-                followups = await chat_service._generate_followups(answer)
-            except Exception as e:
-                logger.warning("Follow-up generation failed: %s", e)
+    inference_ms = round((time.time() - t0) * 1000)
 
-        # 3. Persistence (Optional)
-        qa_id = None
-        if getattr(settings, 'ENABLE_PERSISTENCE', False):
-            qa_id = f"qa_{int(datetime.now().timestamp() * 1000)}"
-            # save logic... omit for speed unless critical
-            pass
+    # Pull cognitive trace fields from metadata (set by reasoning engine)
+    meta = result.metadata or {}
+    intent_detected: str = meta.get("intent_detected", "Learning")
+    difficulty_level: int = int(meta.get("difficulty_level") or 5)
 
-        return {
-            "answer": answer,
-            "sources": sources,
-            "mode": mode,
-            "follow_up_questions": followups,
-            "qaId": qa_id
-        }
+    # Normalise difficulty to 0-1 scale (Gemini returns 1-10)
+    difficulty_norm = round(min(1.0, max(0.0, difficulty_level / 10.0)), 2)
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("QA handling failed")
-        raise HTTPException(500, f"Internal error: {str(e)}")
+    # Estimate mastery_impact (1-5 XP) from confidence score
+    mastery_impact = max(1, min(5, math.ceil(result.confidence_score * 5)))
+
+    return {
+        # ── Primary answer ──────────────────────────────────────────────────
+        "answer": result.final_solution,
+        "concept": result.concept,
+        "prerequisites": result.prerequisites,
+        "stepwise_reasoning": result.stepwise_reasoning,
+        "hint_ladder": result.hint_ladder,
+        "confidence_score": result.confidence_score,
+        "related_concepts": result.related_concepts,
+        "sources": [],
+        "mode": "reasoning_engine",
+        "follow_up_questions": result.related_concepts[:3],
+
+        # ── Cognitive trace (consumed by CognitiveTraceCard) ─────────────
+        "cognitive_trace": {
+            "intent": intent_detected,
+            "concept": result.concept,
+            "difficulty": difficulty_norm,
+            "mastery_impact": mastery_impact,
+            "language": result.language,
+            "inference_ms": inference_ms,
+            "reasoning_layers": 7,
+        },
+    }

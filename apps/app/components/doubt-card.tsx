@@ -161,27 +161,27 @@ export function DoubtCard({ doubt }: DoubtCardProps) {
 
   return (
     <div
-      className="flex gap-4 p-5 border rounded-2xl mb-4 bg-background/50 backdrop-blur-md border-white/5 hover:border-cyan-500/30 transition-all duration-300 hover:shadow-[0_0_30px_rgba(6,182,212,0.1)] relative cursor-pointer group"
+      className="flex flex-col sm:flex-row gap-3 sm:gap-4 p-4 sm:p-5 border rounded-2xl mb-3 sm:mb-4 bg-background/50 backdrop-blur-md border-white/5 hover:border-cyan-500/30 transition-all duration-300 hover:shadow-[0_0_30px_rgba(6,182,212,0.1)] relative cursor-pointer group"
       onClick={handleCardClick}
     >
       {/* Vote Column */}
       <div
-        className="flex flex-col items-center gap-1 min-w-[50px]"
+        className="flex sm:flex-col items-center sm:items-center gap-3 sm:gap-1 sm:min-w-[50px] order-2 sm:order-1 border-t sm:border-t-0 pt-3 sm:pt-0"
         onClick={(e) => e.stopPropagation()}
       >
         <Button
           variant="ghost"
           size="sm"
-          className={`h-8 w-8 p-0 rounded-full hover:bg-cyan-500/10 hover:text-cyan-400 transition-colors ${userVote === "UP" ? "text-cyan-400 bg-cyan-500/10 shadow-[0_0_15px_rgba(6,182,212,0.3)]" : "text-muted-foreground"
+          className={`h-7 w-7 sm:h-8 sm:w-8 p-0 rounded-full hover:bg-cyan-500/10 hover:text-cyan-400 transition-colors ${userVote === "UP" ? "text-cyan-400 bg-cyan-500/10 shadow-[0_0_15px_rgba(6,182,212,0.3)]" : "text-muted-foreground"
             }`}
           onClick={(e) => handleVote("UP", e)}
           disabled={isVoting || loadingVote}
         >
-          <ArrowUp className="h-5 w-5" />
+          <ArrowUp className="h-4 w-4 sm:h-5 sm:w-5" />
         </Button>
 
         <span
-          className={`text-lg font-black font-mono tracking-tight ${netVotes > 0
+          className={`text-base sm:text-lg font-black font-mono tracking-tight px-2 sm:px-0 ${netVotes > 0
             ? "text-cyan-400"
             : netVotes < 0
               ? "text-purple-400"
@@ -194,40 +194,40 @@ export function DoubtCard({ doubt }: DoubtCardProps) {
         <Button
           variant="ghost"
           size="sm"
-          className={`h-8 w-8 p-0 rounded-full hover:bg-purple-500/10 hover:text-purple-400 transition-colors ${userVote === "DOWN" ? "text-purple-400 bg-purple-500/10 shadow-[0_0_15px_rgba(168,85,247,0.3)]" : "text-muted-foreground"
+          className={`h-7 w-7 sm:h-8 sm:w-8 p-0 rounded-full hover:bg-purple-500/10 hover:text-purple-400 transition-colors ${userVote === "DOWN" ? "text-purple-400 bg-purple-500/10 shadow-[0_0_15px_rgba(168,85,247,0.3)]" : "text-muted-foreground"
             }`}
           onClick={(e) => handleVote("DOWN", e)}
           disabled={isVoting || loadingVote}
         >
-          <ArrowDown className="h-5 w-5" />
+          <ArrowDown className="h-4 w-4 sm:h-5 sm:w-5" />
         </Button>
       </div>
 
       {/* Content Column */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <h3 className="text-xl font-bold text-foreground group-hover:text-cyan-400 transition-colors line-clamp-2 leading-tight flex-1 tracking-tight">
+      <div className="flex-1 min-w-0 order-1 sm:order-2">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-3 mb-2">
+          <h3 className="text-lg sm:text-xl font-bold text-foreground group-hover:text-cyan-400 transition-colors line-clamp-2 leading-tight flex-1 tracking-tight">
             {doubt.title}
           </h3>
 
           {/* Answer count badge */}
           <div
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold shrink-0 border transition-colors uppercase tracking-wider ${hasAnswers
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] font-bold shrink-0 border transition-colors uppercase tracking-wider w-fit ${hasAnswers
               ? "bg-cyan-950/30 text-cyan-400 border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.1)]"
               : "bg-white/5 text-muted-foreground border-transparent"
               }`}
           >
-            <MessageSquare className="h-3.5 w-3.5" />
+            <MessageSquare className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
             <span>{doubt._count?.answers || 0}</span>
           </div>
         </div>
 
-        <p className="text-sm text-muted-foreground/80 mb-4 line-clamp-2 leading-relaxed font-medium">
+        <p className="text-xs sm:text-sm text-muted-foreground/80 mb-3 sm:mb-4 line-clamp-2 leading-relaxed font-medium">
           {doubt.content.substring(0, 180)}...
         </p>
 
         {/* Tags and Meta */}
-        <div className="flex items-center justify-between gap-4 flex-wrap border-t border-white/5 pt-3 mt-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-t border-white/5 pt-3 mt-2">
           <div
             className="flex flex-wrap gap-2"
             onClick={(e) => e.stopPropagation()}
@@ -244,29 +244,29 @@ export function DoubtCard({ doubt }: DoubtCardProps) {
           </div>
 
           {/* Author Info */}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground font-medium">
             {doubt.isAnonymous ? (
-              <div className="flex items-center gap-2 bg-white/5 px-2 py-1 rounded-lg border border-white/5">
-                <User className="h-3.5 w-3.5" />
-                <span className="text-[10px] uppercase tracking-wider font-bold">Anon</span>
+              <div className="flex items-center gap-1.5 sm:gap-2 bg-white/5 px-2 py-1 rounded-lg border border-white/5">
+                <User className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                <span className="text-[9px] sm:text-[10px] uppercase tracking-wider font-bold">Anon</span>
               </div>
             ) : (
-              <div className="flex items-center gap-2 group/author px-2 py-1 rounded-lg hover:bg-white/5 transition-colors">
-                <Avatar className="h-5 w-5 ring-1 ring-white/10 group-hover/author:ring-cyan-500/50 transition-all">
+              <div className="flex items-center gap-1.5 sm:gap-2 group/author px-2 py-1 rounded-lg hover:bg-white/5 transition-colors">
+                <Avatar className="h-4 w-4 sm:h-5 sm:w-5 ring-1 ring-white/10 group-hover/author:ring-cyan-500/50 transition-all">
                   <AvatarImage src={doubt.author?.image || undefined} />
-                  <AvatarFallback className="text-[9px] bg-gradient-to-br from-cyan-500 to-blue-600 text-white font-bold">
+                  <AvatarFallback className="text-[8px] sm:text-[9px] bg-gradient-to-br from-cyan-500 to-blue-600 text-white font-bold">
                     {doubt.author?.name?.charAt(0) ||
                       doubt.author?.email?.charAt(0) ||
                       "U"}
                   </AvatarFallback>
                 </Avatar>
-                <span className="group-hover/author:text-cyan-300 transition-colors font-semibold">
+                <span className="group-hover/author:text-cyan-300 transition-colors font-semibold text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none">
                   {doubt.author?.name || doubt.author?.email?.split("@")[0]}
                 </span>
               </div>
             )}
-            <span className="opacity-30">|</span>
-            <span className="text-[10px] uppercase tracking-wider opacity-70">
+            <span className="opacity-30 hidden sm:inline">|</span>
+            <span className="text-[9px] sm:text-[10px] uppercase tracking-wider opacity-70">
               {formatDistanceToNow(getValidDate(doubt.createdAt), { addSuffix: true })}
             </span>
           </div>

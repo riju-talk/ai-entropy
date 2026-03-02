@@ -1,4 +1,4 @@
-const CACHE_NAME = "entropy-v1"
+const CACHE_NAME = "novyra-v1"
 const STATIC_CACHE_URLS = [
   "/",
   "/ask",

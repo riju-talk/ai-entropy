@@ -93,15 +93,15 @@ export default async function HomePage() {
     : 0
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
+    <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 py-4 md:py-6">
       {/* Hero Section - Only for first-time visitors */}
       <HeroSection totalQuestions={total} totalAnswers={totalAnswers} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Main Feed */}
-        <div className="lg:col-span-2">
-          <h2 className="text-lg font-semibold mb-4">All Questions</h2>
-          <div className="max-h-[calc(100vh-4rem)] overflow-y-auto">
+        <div className="lg:col-span-2 order-2 lg:order-1">
+          <h2 className="text-base md:text-lg font-semibold mb-3 md:mb-4 text-foreground">All Questions</h2>
+          <div className="max-h-[calc(100vh-4rem)] overflow-y-auto scrollbar-thin">
             <DoubtsFeed
               initialDoubts={doubts}
               currentPage={1}
@@ -112,14 +112,14 @@ export default async function HomePage() {
         </div>
 
         {/* Sidebar - New Communities */}
-        <div className="lg:col-span-1">
-          <Card>
+        <div className="lg:col-span-1 order-1 lg:order-2">
+          <Card className="border-white/5 bg-card/60 backdrop-blur-sm shadow-[0_0_15px_rgba(6,182,212,0.05)]">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                <Users className="h-4 w-4 md:h-5 md:w-5 text-cyan-400" />
                 New Communities
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs md:text-sm">
                 Recently created communities
               </CardDescription>
             </CardHeader>
@@ -130,10 +130,10 @@ export default async function HomePage() {
                     <Link
                       key={community.id}
                       href={`/communities/${community.id}`}
-                      className="block p-3 rounded-lg border hover:bg-accent transition-colors"
+                      className="block p-3 rounded-lg border border-white/5 hover:bg-accent hover:border-cyan-500/30 transition-all duration-300 hover:shadow-[0_0_15px_rgba(6,182,212,0.1)]"
                     >
                       <div className="flex items-start gap-2 mb-1">
-                        <div className="w-8 h-8 rounded bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 via-pink-600 to-cyan-500 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-[0_0_10px_rgba(168,85,247,0.3)]">
                           {community.name?.[0]?.toUpperCase() || "?"}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -154,7 +154,7 @@ export default async function HomePage() {
                       </div>
                     </Link>
                   ))}
-                  <Button variant="outline" className="w-full" asChild>
+                  <Button variant="outline" className="w-full border-white/10 hover:border-cyan-500/30 hover:bg-cyan-500/5 transition-all" asChild>
                     <Link href="/communities">
                       View All Communities
                       <ArrowRight className="ml-2 h-4 w-4" />

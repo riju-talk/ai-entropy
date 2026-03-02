@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 NOVYRA Event Bus - Central Event Dispatcher
 

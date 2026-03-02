@@ -3,17 +3,16 @@
 import { useState } from "react"
 import { NotebookLayout } from "@/components/ai-agent/notebook/notebook-layout"
 import { ChatAgent } from "@/components/ai-agent/chat-agent"
+import { QuizAgent } from "@/components/ai-agent/quiz-agent"
 import { MindMapAgent } from "@/components/ai-agent/mindmap-agent"
-import { AssessmentsAgent } from "@/components/ai-agent/assessments-agent"
 import { ChartsAgent } from "@/components/ai-agent/charts-agent"
-import { Sparkles } from "lucide-react"
 
 export default function AIAgentPage() {
   const [activeTab, setActiveTab] = useState("qa")
   const [selectedDoc, setSelectedDoc] = useState<any | null>(null)
 
   return (
-    <div className="fixed inset-0 pt-16 bg-background">
+    <div className="fixed inset-0 pt-16 bg-[#0a0a0f]">
       <NotebookLayout
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -22,13 +21,13 @@ export default function AIAgentPage() {
       >
         <div className="h-full w-full">
           {activeTab === "qa" && <ChatAgent contextDoc={selectedDoc} />}
+          {activeTab === "assessments" && <QuizAgent />}
+          {activeTab === "flashcards" && <QuizAgent />}
           {activeTab === "mindmap" && <MindMapAgent contextDoc={selectedDoc} />}
-          {(activeTab === "assessments" || activeTab === "flashcards") && (
-            <AssessmentsAgent contextDoc={selectedDoc} />
-          )}
           {activeTab === "charts" && <ChartsAgent contextDoc={selectedDoc} />}
         </div>
       </NotebookLayout>
     </div>
   )
 }
+

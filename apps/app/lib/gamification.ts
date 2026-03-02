@@ -242,56 +242,133 @@ async function checkScholarOath(userId: string, currentStreak: number) {
     }
 }
 
-export async function checkAchievements(userId: string, eventType: PointEventType) {
+/**
+ * Check user progress against all achievements and unlock if criteria met.
+ * Matches criteria.requirementType from database:
+ * - DOUBTS_ASKED, ANSWERS_POSTED, COURSES_COMPLETED, DOUBTS_RESOLVED
+ * - CODING_PROBLEMS_SOLVED, HELPFUL_ANSWERS, STUDENTS_HELPED, REPUTATION
+ * - RESEARCH_ARTICLES, SUBJECTS_MASTERED, AI_MASTERY, CONSECUTIVE_DAYS
+ */
+export async function checkAchievements(userId: string, eventType?: PointEventType) {
     const stats = await prisma.userStat.findUnique({
         where: { userId },
-        include: { user: { include: { achievementUnlocks: true, achievementProgress: true } } },
+        include: { user: { include: { achievementUnlocks: true } } },
     });
 
     if (!stats) return [];
 
-    const unlockedIds = new Set((stats as any).user.achievementUnlocks.map((u: any) => u.achievementId));
+    const user = (stats as any).user;
+    const unlockedIds = new Set(user.achievementUnlocks.map((u: any) => u.achievementId));
     const newUnlocks: string[] = [];
 
     const achievements = await prisma.achievement.findMany();
 
     for (const achievement of achievements) {
+        // Skip if already unlocked
         if (unlockedIds.has(achievement.id)) continue;
 
-        let criterionMet = false;
         const criteria = achievement.criteria as any;
-
-        // Progress Tracking
+        const { requirementType, target } = criteria;
         let currentProgress = 0;
-        switch (achievement.type) {
-            case AchievementType.FIRST_DOUBT:
-                currentProgress = stats.doubtsAsked;
+        let criterionMet = false;
+
+        // Map requirementType to actual user stats
+        switch (requirementType) {
+            case "DOUBTS_ASKED":
+                currentProgress = stats.doubtsAsked || 0;
                 break;
-            case AchievementType.PROBLEM_SOLVER:
-                currentProgress = stats.doubtsResolved;
+            case "ANSWERS_POSTED":
+                currentProgress = stats.answersPosted || 0;
                 break;
-            case AchievementType.STREAK_MASTER:
+            case "COURSES_COMPLETED":
+                currentProgress = stats.coursesCompleted || 0;
+                break;
+            case "DOUBTS_RESOLVED":
+                currentProgress = stats.doubtsResolved || 0;
+                break;
+            case "CODING_PROBLEMS_SOLVED":
+                currentProgress = stats.codingProblemsSolved || 0;
+                break;
+            case "HELPFUL_ANSWERS":
+                currentProgress = stats.helpfulAnswers || 0;
+                break;
+            case "STUDENTS_HELPED":
+                currentProgress = stats.studentsHelped || 0;
+                break;
+            case "REPUTATION":
+                currentProgress = user.totalReputation || 0;
+                break;
+            case "RESEARCH_ARTICLES":
+                currentProgress = stats.researchArticles || 0;
+                break;
+            case "SUBJECTS_MASTERED":
+                currentProgress = stats.subjectsMastered || 0;
+                break;
+            case "AI_MASTERY":
+                currentProgress = stats.aiMastery || 0;
+                break;
+            case "CONSECUTIVE_DAYS":
                 const streak = await prisma.streak.findUnique({ where: { userId } });
                 currentProgress = streak?.currentStreak || 0;
                 break;
         }
 
+        // Update progress tracking
         if (currentProgress > 0) {
-            await (prisma as any).achievementProgress.upsert({
+            await prisma.achievementProgress.upsert({
                 where: { userId_achievementId: { userId, achievementId: achievement.id } },
-                create: { userId, achievementId: achievement.id, current: currentProgress, target: criteria.count || 1 },
-                update: { current: currentProgress, lastUpdated: new Date() }
+                create: {
+                    userId,
+                    achievementId: achievement.id,
+                    current: currentProgress,
+                    target,
+                    uniqueUsers: [],
+                    validatedCount: 0,
+                    firstDate: new Date(),
+                    lastDate: new Date(),
+                    daySpan: 0,
+                },
+                update: { current: currentProgress, lastDate: new Date() },
             });
 
-            if (currentProgress >= (criteria.count || 1)) criterionMet = true;
+            // Check if target reached
+            if (currentProgress >= target) {
+                criterionMet = true;
+            }
         }
 
+        // Unlock achievement if criterion met
         if (criterionMet) {
-            await awardXP(userId, PointEventType.ACHIEVEMENT_UNLOCKED, { description: `Unlocked Achievement: ${achievement.name}` });
-            await prisma.achievementUnlock.create({
-                data: { userId, achievementId: achievement.id },
-            });
-            newUnlocks.push(achievement.name);
+            try {
+                await prisma.achievementUnlock.create({
+                    data: {
+                        userId,
+                        achievementId: achievement.id,
+                        unlockedAt: new Date(),
+                    },
+                });
+
+                // Award credits for achievement
+                await prisma.user.update({
+                    where: { id: userId },
+                    data: { credits: { increment: achievement.points } },
+                });
+
+                // Log in ledger
+                await prisma.pointsLedger.create({
+                    data: {
+                        userId,
+                        eventType: PointEventType.ACHIEVEMENT_UNLOCKED,
+                        points: achievement.points,
+                        description: `🎉 Unlocked: ${achievement.name} (+${achievement.points} credits)`,
+                    },
+                });
+
+                newUnlocks.push(achievement.name);
+            } catch (error) {
+                // Achievement likely already unlocked (race condition)
+                console.log(`Achievement ${achievement.id} already unlocked for user ${userId}`);
+            }
         }
     }
 
@@ -299,7 +376,7 @@ export async function checkAchievements(userId: string, eventType: PointEventTyp
 }
 
 /**
- * Economy Sink: Deduct Entropy Coins for feature usage.
+ * Economy Sink: Deduct Novyra Coins for feature usage.
  */
 export async function deductCredits(userId: string, amount: number, description: string) {
     return await prisma.$transaction(async (tx) => {
@@ -309,7 +386,7 @@ export async function deductCredits(userId: string, amount: number, description:
         });
 
         if (!user || user.credits < amount) {
-            throw new Error("Insufficient Entropy Coins. Perform more academic actions to earn more!");
+            throw new Error("Insufficient Novyra Coins. Perform more academic actions to earn more!");
         }
 
         await tx.user.update({
@@ -332,19 +409,100 @@ export async function deductCredits(userId: string, amount: number, description:
 }
 
 export async function getLeaderboard(period: "all" | "weekly" | "monthly") {
-    return await prisma.userStat.findMany({
-        orderBy: { totalPoints: "desc" },
-        take: 20,
-        include: {
-            user: {
-                select: {
-                    id: true,
-                    name: true,
-                    image: true,
-                    tier: true,
-                    reputation: true,
+    try {
+        const users = await prisma.user.findMany({
+            // Order by primary metric: totalXP (earned through activities)
+            // Secondary: credits (coins)
+            // Tertiary: totalReputation
+            orderBy: [
+                { totalXP: "desc" },
+                { credits: "desc" },
+                { totalReputation: "desc" },
+            ],
+            take: 100, // Top 100 users
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+                tier: true,
+                totalReputation: true,
+                totalXP: true,
+                credits: true, // Novyra Coins
+                reputation: true, // Legacy field
+                streaks: {
+                    select: {
+                        currentStreak: true,
+                        longestStreak: true,
+                    },
+                },
+                achievementUnlocks: {
+                    select: {
+                        achievement: {
+                            select: {
+                                id: true,
+                                name: true,
+                                rarity: true,
+                                points: true,
+                                icon: true,
+                            },
+                        },
+                        unlockedAt: true,
+                    },
+                    orderBy: { unlockedAt: "desc" },
+                    take: 5, // Latest 5 achievements
+                },
+                badgeGrants: {
+                    select: {
+                        badge: {
+                            select: {
+                                id: true,
+                                name: true,
+                                type: true,
+                                icon: true,
+                                color: true,
+                            },
+                        },
+                        grantedAt: true,
+                    },
+                    orderBy: { grantedAt: "desc" },
+                    take: 5, // Latest 5 badges
                 },
             },
-        },
-    });
+            // Filter out shadow-banned users
+            where: {
+                isShadowBanned: false,
+                isSuspended: false,
+            },
+        });
+
+        return users.map((user, index) => ({
+            rank: index + 1,
+            id: user.id,
+            name: user.name,
+            image: user.image,
+            tier: user.tier,
+            totalReputation: user.totalReputation || user.reputation || 0,
+            totalXP: user.totalXP || 0,
+            credits: user.credits || 0, // Novyra Coins
+            streakInfo: user.streaks,
+            achievements: user.achievementUnlocks.map((au) => ({
+                ...au.achievement,
+                unlockedAt: au.unlockedAt,
+            })),
+            badges: user.badgeGrants.map((bg) => ({
+                ...bg.badge,
+                grantedAt: bg.grantedAt,
+            })),
+            totalAchievements: user.achievementUnlocks.length,
+            totalBadges: user.badgeGrants.length,
+            totalAchievementPoints: user.achievementUnlocks.reduce(
+                (sum, au) => sum + (au.achievement?.points || 0),
+                0
+            ),
+        }));
+    } catch (error) {
+        console.error("Error fetching leaderboard:", error);
+        throw error;
+    }
 }

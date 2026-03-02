@@ -1,29 +1,37 @@
 """
-Document upload → immediate embeddings → return count
-No vector store, no chunking, no persistence.
+Document upload → chunk → embed to Pinecone → return count.
+GET /api/documents        → list documents (metadata only, from Pinecone index stats)
+POST /api/documents/upload → upload + embed documents
 """
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from app.core.config import settings
 from typing import Optional, List
 from pathlib import Path
-import uuid
 import logging
 
 from langchain_core.documents import Document
-from app.services.langchain_service import langchain_service  # uses your Gemini embeddings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-UPLOAD_DIR = Path("./data/uploads")
-MAX_FILE_SIZE = 10 * 1024 * 1024      # 10 MB
-ALLOWED_EXT = {".pdf", ".txt", ".doc", ".docx"}
+MAX_FILE_SIZE = 10 * 1024 * 1024       # 10 MB
+ALLOWED_EXT = {".pdf", ".txt", ".md", ".doc", ".docx"}
 MAX_FILES_PER_UPLOAD = 10
 
 
-def _ensure_dir(p: Path):
-    p.mkdir(parents=True, exist_ok=True)
+def _get_langchain_service():
+    """Lazily fetch the langchain_service singleton; raises 503 if unavailable."""
+    from app.services.langchain_service import langchain_service
+    if langchain_service is None:
+        raise HTTPException(
+            503,
+            detail=(
+                "Document embedding service is unavailable. "
+                "Check PINECONE_API_KEY and GOOGLE_API_KEY in .env."
+            ),
+        )
+    return langchain_service
 
 
 def _is_allowed_file(filename: str) -> bool:
@@ -31,28 +39,31 @@ def _is_allowed_file(filename: str) -> bool:
 
 
 async def _read_file_content(file: UploadFile) -> str:
-    """Convert file to text. Minimal fallback loaders."""
+    """Convert uploaded file bytes to plain text."""
     content = await file.read()
 
     if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(400, f"File too large: {file.filename}")
+        raise HTTPException(400, f"File too large: {file.filename} (max 10 MB)")
 
-    suffix = Path(file.filename).suffix.lower()
+    suffix = Path(file.filename or "").suffix.lower()
 
     if suffix == ".pdf":
         try:
             from langchain_community.document_loaders import PyPDFLoader
-            import tempfile
+            import tempfile, os
 
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                 tmp.write(content)
                 tmp_path = tmp.name
 
-            loader = PyPDFLoader(tmp_path)
-            docs = loader.load()
-            return "\n".join([d.page_content for d in docs])
-        except Exception:
-            logger.warning("PDF loader failed; falling back to raw text")
+            try:
+                loader = PyPDFLoader(tmp_path)
+                docs = loader.load()
+                return "\n".join([d.page_content for d in docs])
+            finally:
+                os.unlink(tmp_path)
+        except Exception as exc:
+            logger.warning("PyPDFLoader failed (%s); falling back to raw decode", exc)
             return content.decode(errors="ignore")
 
     elif suffix in (".txt", ".md"):
@@ -60,20 +71,48 @@ async def _read_file_content(file: UploadFile) -> str:
 
     elif suffix in (".doc", ".docx"):
         try:
-            import docx2txt
-            import tempfile
+            import docx2txt, tempfile, os
 
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                 tmp.write(content)
                 tmp_path = tmp.name
 
-            return docx2txt.process(tmp_path) or ""
-        except Exception:
-            logger.warning("docx loader failed; fallback text used")
+            try:
+                return docx2txt.process(tmp_path) or ""
+            finally:
+                os.unlink(tmp_path)
+        except Exception as exc:
+            logger.warning("docx2txt failed (%s); falling back to raw decode", exc)
             return content.decode(errors="ignore")
 
-    # fallback for unknown extensions
+    # Generic fallback
     return content.decode(errors="ignore")
+
+
+@router.get("/")
+async def list_documents():
+    """
+    Return document count / index stats from Pinecone.
+    Used by the Next.js proxy GET /api/ai-agent/documents.
+    """
+    try:
+        svc = _get_langchain_service()
+        # Describe index to get total vector count
+        index = svc.pc.Index(svc.index_name)
+        stats = index.describe_index_stats()
+        namespaces = stats.get("namespaces", {}) if isinstance(stats, dict) else {}
+        total_vectors = stats.get("total_vector_count", 0) if isinstance(stats, dict) else 0
+        return {
+            "status": "ok",
+            "index": svc.index_name,
+            "total_vectors": total_vectors,
+            "namespaces": list(namespaces.keys()),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to describe Pinecone index: %s", exc)
+        return {"status": "unavailable", "error": str(exc)}
 
 
 @router.post("/upload")
@@ -82,63 +121,75 @@ async def upload_documents(
     user_id: Optional[str] = Form(None),
 ):
     """
-    Upload documents → convert directly to embeddings → return only count.
-    No vector store. No persistence.
+    Upload documents → chunk → embed to Pinecone.
+
+    - Checks ENABLE_PERSISTENCE setting (default True)
+    - Falls back gracefully if LangChain service is unavailable
+    - Returns number of successfully embedded documents
     """
-    # Reject uploads when persistence is disabled (no data directory / no storage)
-    if not getattr(settings, 'ENABLE_PERSISTENCE', False):
-        raise HTTPException(403, "Document upload is disabled in this deployment (persistence disabled).")
+    if not settings.ENABLE_PERSISTENCE:
+        raise HTTPException(
+            403,
+            detail="Document upload is disabled in this deployment (ENABLE_PERSISTENCE=false).",
+        )
 
-    try:
-        if not files or len(files) == 0:
-            raise HTTPException(400, "No files uploaded")
+    svc = _get_langchain_service()
 
-        if len(files) > MAX_FILES_PER_UPLOAD:
-            raise HTTPException(400, f"Maximum {MAX_FILES_PER_UPLOAD} files allowed")
+    if not files or len(files) == 0:
+        raise HTTPException(400, "No files uploaded.")
 
-        logger.info("[UPLOAD] Received %d files for embedding", len(files))
+    if len(files) > MAX_FILES_PER_UPLOAD:
+        raise HTTPException(400, f"Maximum {MAX_FILES_PER_UPLOAD} files per upload.")
 
-        embedded_count = 0
+    logger.info("[UPLOAD] Received %d file(s) from user=%s", len(files), user_id or "anonymous")
 
-        # process one-by-one
-        for f in files:
-            if not _is_allowed_file(f.filename):
-                raise HTTPException(400, f"Unsupported file type: {f.filename}")
+    namespace = user_id if user_id else "anonymous"
+    embedded_count = 0
+    errors: List[str] = []
 
+    for f in files:
+        if not f.filename:
+            continue
+        if not _is_allowed_file(f.filename):
+            raise HTTPException(400, f"Unsupported file type: {f.filename}. Allowed: {', '.join(ALLOWED_EXT)}")
+
+        try:
             text = await _read_file_content(f)
-
             if not text.strip():
-                logger.warning("Skipping empty file: %s", f.filename)
+                logger.warning("[UPLOAD] Skipping empty file: %s", f.filename)
                 continue
 
-            # --- 🔥 CHUNK & UPSERT TO PINECONE HERE ---
-            try:
-                # 1. Create Document object
-                doc = Document(page_content=text, metadata={"source": f.filename, "user_id": user_id or "anonymous"})
-                
-                # 2. Split chunks
-                chunks = langchain_service.split_documents([doc])
-                
-                # 3. Upsert to Pinecone - Use user_id as namespace (or specialized collection name)
-                # If user_id is provided, we use it as the namespace to isolate user data
-                namespace = user_id if user_id else "anonymous"
-                
-                await langchain_service.upsert_documents(chunks, collection_name=namespace)
-                
-                embedded_count += 1
-            except Exception as e:
-                logger.error("Embedding/Upsert failed for %s: %s", f.filename, e)
-                raise HTTPException(500, f"Embedding failed for file {f.filename}: {str(e)}")
+            # Build LangChain Document
+            doc = Document(
+                page_content=text,
+                metadata={
+                    "source": f.filename,
+                    "user_id": namespace,
+                    "content_type": f.content_type or "unknown",
+                },
+            )
 
-        logger.info("[UPLOAD] Successfully embedded %d documents", embedded_count)
+            # Chunk and upsert
+            chunks = svc.split_documents([doc])
+            logger.info("[UPLOAD] %s → %d chunks → namespace=%s", f.filename, len(chunks), namespace)
+            await svc.upsert_documents(chunks, collection_name=namespace)
+            embedded_count += 1
 
-        return {
-            "count": embedded_count,
-            "message": f"Successfully embedded {embedded_count} document(s) to cloud storage"
-        }
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.error("[UPLOAD] Failed to embed %s: %s", f.filename, exc)
+            errors.append(f"{f.filename}: {str(exc)}")
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Unexpected upload error: %s", e)
-        raise HTTPException(500, "Internal server error during document upload")
+    if errors and embedded_count == 0:
+        raise HTTPException(500, f"All uploads failed: {'; '.join(errors)}")
+
+    logger.info("[UPLOAD] Embedded %d/%d document(s)", embedded_count, len(files))
+
+    return {
+        "count": embedded_count,
+        "namespace": namespace,
+        "message": f"Successfully embedded {embedded_count} document(s) to vector store.",
+        "errors": errors,
+    }
+

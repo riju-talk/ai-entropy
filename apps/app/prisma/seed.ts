@@ -9,7 +9,7 @@ async function main() {
         {
             type: AchievementType.FIRST_DOUBT,
             name: "Curious Minds",
-            description: "Ask your first ever doubt on Entropy.",
+            description: "Ask your first ever doubt on Novyra.",
             points: 50,
             rarity: AchievementRarity.COMMON,
             criteria: { count: 1 },

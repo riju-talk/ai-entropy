@@ -75,7 +75,7 @@ export default function SignInPage() {
             <span className="text-white font-bold text-xl">E</span>
           </div>
         </div>
-        <h1 className="text-2xl font-bold">Welcome to Entropy</h1>
+        <h1 className="text-2xl font-bold">Welcome to Novyra</h1>
         <p className="text-muted-foreground">Join our academic community</p>
       </div>
 

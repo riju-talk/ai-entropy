@@ -34,28 +34,44 @@ class Settings(BaseSettings):
     # Groq API (Legacy/Fallback)
     GROQ_API_KEY: Optional[str] = None
 
-    # Google Gemini API (Primary)
+    # Google Gemini API (Legacy — kept for fallback compatibility)
     GOOGLE_API_KEY: Optional[str] = None
 
-    # Pinecone API
+    # Pinecone API (Legacy — kept for fallback compatibility)
     PINECONE_API_KEY: Optional[str] = None
-    PINECONE_ENV: str = "us-east-1" # default, can be overridden
+    PINECONE_ENV: str = "us-east-1"
     PINECONE_INDEX_NAME: str = "spark-ai"
 
+    # ── AWS Configuration ─────────────────────────────────────────────────────
+    AWS_REGION: str = "ap-northeast-1"
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+
+    # Amazon Bedrock — Claude 3 Sonnet
+    BEDROCK_CLAUDE_MODEL: str = "anthropic.claude-3-sonnet-20240229-v1:0"
+    BEDROCK_TITAN_EMBED: str  = "amazon.titan-embed-text-v2:0"
+
+    # S3 Document Store
+    S3_BUCKET_NAME: str = "novyra-documents"
+    S3_PRESIGN_EXPIRY_SECS: int = 3600
+
+    # AI Provider: "bedrock" | "gemini" | "groq"
+    # Set to "bedrock" for AWS deployment.
+    AI_PROVIDER: str = os.getenv("AI_PROVIDER", "bedrock")
+
     # LLM Configuration
-    # LLM Configuration
-    LLM_MODEL: str = os.getenv("LLM_MODEL", "gemini-1.5-flash")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "anthropic.claude-3-sonnet-20240229-v1:0")
     LLM_TEMPERATURE: float = 0.7
-    LLM_MAX_TOKENS: int = 2000
+    LLM_MAX_TOKENS: int = 2048
 
     # Server Configuration
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
-    # Embedding Model
-    EMBEDDING_MODEL: str = "models/embedding-001"
+    # Embedding Model (Bedrock Titan by default; Gemini fallback)
+    EMBEDDING_MODEL: str = "amazon.titan-embed-text-v2:0"
 
-    # Vector Store
+    # Vector Store (local Chroma for dev; PostgreSQL pgvector in prod)
     CHROMA_PERSIST_DIR: str = "./data/chroma_db"
 
     # File Upload

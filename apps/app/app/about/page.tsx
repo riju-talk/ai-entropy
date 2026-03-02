@@ -17,12 +17,12 @@ export default function AboutPage() {
                 <Sparkles className="h-8 w-8 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-4xl md:text-5xl font-bold mb-2">About entropy</h1>
+                <h1 className="text-4xl md:text-5xl font-bold mb-2">About Novyra</h1>
                 <p className="text-muted-foreground text-lg">Revolutionizing academic collaboration since 2024</p>
               </div>
             </div>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              entropy is a comprehensive platform designed for students, educators, and researchers to collaborate,
+              Novyra is a comprehensive platform designed for students, educators, and researchers to collaborate,
               share knowledge, and solve academic challenges together.
             </p>
           </div>
@@ -62,7 +62,7 @@ export default function AboutPage() {
 
         {/* Features Section */}
         <section className="mb-16">
-          <h2 className="text-3xl font-bold text-center mb-12">Why Choose entropy?</h2>
+          <h2 className="text-3xl font-bold text-center mb-12">Why Choose Novyra?</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <Card>
               <CardContent className="p-8 text-center">
@@ -138,7 +138,7 @@ export default function AboutPage() {
         <section className="text-center">
           <Card className="bg-primary/5 border-primary/20">
             <CardContent className="p-12">
-              <h2 className="text-3xl font-bold mb-4">Ready to Join entropy?</h2>
+              <h2 className="text-3xl font-bold mb-4">Ready to Join Novyra?</h2>
               <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
                 Start your learning journey today and become part of a global community of curious minds.
               </p>

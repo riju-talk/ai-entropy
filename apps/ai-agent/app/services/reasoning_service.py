@@ -65,7 +65,7 @@ async def reason(
     
     # Legacy reasoning (fallback)
     logger.info("Using legacy reasoning engine")
-    
+
     # --- 1. Translate to English if needed ---
     working_question = question
     if language != "en":

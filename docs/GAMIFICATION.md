@@ -1,61 +1,69 @@
-# Entropy Gamification Guide
+# Gamification — NOVYRA
 
-Entropy is designed to turn academic collaboration into a rewarding, high-stakes experience. This document outlines the core mechanics of our gamification engine.
+This document explains how gamification integrates with NOVYRA's mastery and rubric systems. Gamification provides measurable incentives (XP, tokens, badges) derived from `ConceptAttempt`, `MasteryRecord`, and `RubricEvaluation` events.
 
-## 🪙 Entropy Coins
-Entropy Coins are the primary currency of the platform. They grant access to premium features, including advanced AI study tools.
+## Principles
 
-- **Daily Login**: Earn **+1 Entropy Coin** every day simply by logging in.
-- **Contributions**: Quality answers and resolving doubts can earn you coins from the community and system bonuses.
+- Align rewards with learning objectives — mastery gains and rubric improvements should yield higher rewards than simple activity.
+- Make rewards auditable and reversible — store events in append-only tables to allow rollbacks and audits.
+- Decouple reward computation from UI — compute rewards in backend jobs to avoid client-side manipulation.
 
-## 📈 Levels & XP
-Your **Level** represents your academic authority. Every action on the platform earns you Experience Points (XP).
+## Core Entities
 
-### Level Progression
-The XP required for each level follows an exponential curve to ensure consistent challenge:
-- **Base XP**: 100
-- **Multiplier**: 1.5x per level
-- **Formula**: `XP = 100 * (1.5 ^ (Level - 2))`
+- `ConceptAttempt` (Postgres): records each attempt with fields: `userId`, `conceptId`, `correct`, `confidence`, `hintsUsed`, `timeTaken`, `llmPrompt`, `llmResponse`.
+- `MasteryRecord` (Postgres): per-user-per-concept snapshot capturing `score`, `level`, `updatedAt`.
+- `RubricEvaluation` (Postgres): JSON evaluation stored along with a `weighted_total` for leaderboard calculations.
+- `GamificationLedger` (Postgres): append-only ledger of rewards issued: `{ userId, type: 'xp'|'token'|'badge', amount, reason, metadata, createdAt }`.
 
-| Level | XP Required | Rank Title |
-|-------|-------------|------------|
-| 1     | 0           | Freshman   |
-| 2     | 100         | Scholar    |
-| 5     | 506         | Researcher |
-| 10    | 3,844       | Expert     |
-| 50    | 12.7M       | Sage       |
+## Reward Rules (examples)
 
-## 🎯 Reward Actions (XP)
-Every contribution feeds your growth. Here are the point values for various activities:
+- XP on Correct Attempt: base XP = 10; multiplier = 1 + (1 - difficulty/10). If attempt is correct and confidence >= 0.8, grant XP = base * multiplier * 1.5.
+- Mastery Delta Bonus: when `MasteryRecord.score` increases by >= 0.05, award a one-time bonus XP proportional to delta.
+- Rubric Improvement: if `RubricEvaluation.weighted_total` increases over previous evaluation, award XP = floor(delta * 100).
+- Hints Penalty: deduct XP proportional to `hintsUsed` to encourage independent attempts.
+- Badges: milestone badges (First Mastery, 10 Concepts Mastered, Subject Master) awarded when thresholds met.
 
-| Activity | XP Points |
-|----------|-----------|
-| **Doubt Created** | +10 |
-| **Answer Accepted** | +20 |
-| **Doubt Resolved** | +15 |
-| **Upvote Received** | +5 |
-| **Comment Created** | +2 |
-| **Daily Login Bonus** | +1 |
-| **Achievement Unlocked** | +50 |
-| **Streak Bonus** | +5 |
+## Computation Flow
 
-## 🔥 Daily Streaks
-Streaks encourage consistent learning. 
-- **Active Streak**: Log in and perform any action (ask, answer, vote) to keep your streak alive.
-- **Streak Bonus**: Earn extra points for every 5 days of consecutive activity.
-- **Visuals**: Your streak is featured prominently in the Header and on the Leaderboard with a pulsating flame icon.
+1. User submits attempt → API writes `ConceptAttempt`.
+2. Background worker recomputes mastery and writes `MasteryRecord`.
+3. Reward engine computes delta vs previous `MasteryRecord` and writes to `GamificationLedger`.
+4. Leaderboards and user-facing totals are materialised from `GamificationLedger`.
 
-## 🏆 Hall of Fame (Leaderboard)
-The Leaderboard features the top students globally.
-- **Podium**: The Top 3 contributors are displayed on the elevated hall of fame with **Crown**, **Medal**, and **Award** icons.
-- **Dynamic Updates**: Rankings are calculated in real-time based on your total accumulated points.
+Notes:
 
-## 🏅 Achievements & Badges
-Unlock unique honors for hitting specific milestones:
-- **First Doubt**: Your first step into the community.
-- **Problem Solver**: Resolve 50 doubts to earn the Brain badge.
-- **Streak Master**: Maintain a 30-day streak.
-- **Mentor**: Help 100 students through accepted answers.
+- Steps 2–3 should be idempotent and resilient; use unique attempt IDs to avoid double-processing.
+- Consider using job queues (Redis/RQ or Celery) for scalable background processing.
+
+## Storage and Indexing
+
+- Index `GamificationLedger(userId, createdAt)` for fast per-user balance queries.
+- Materialised view `user_xp_totals` to precompute totals for leaderboards; refresh incrementally.
+
+## Anti-Fraud and Integrity
+
+- Keep server-side reward issuance; do not trust client input for reward calculation.
+- Audit trail: store raw LLM prompts/responses and evaluation artifacts to support investigations.
+
+## Leaderboards & Privacy
+
+- Support opt-out for public leaderboards; store `leaderboard_opt_out` on `User`.
+- Use caching and rate-limits on leaderboard endpoints to avoid exposing PII at scale.
+
+## Extensibility
+
+- Token economy: tokens minted on mastery unlocks and spendable on hints or learning resources.
+- Time-limited events and seasonal leaderboards can be supported by tagging `GamificationLedger` entries with `eventId`.
 
 ---
-*Stay Curious. Stay Competitive. Increase your Entropy.*
+
+## Quick Implementation Checklist
+
+- Add `GamificationLedger` table to Prisma schema and generate migration.
+- Implement background job to compute mastery deltas and ledger entries.
+- Add endpoints to fetch user balances and leaderboards (read from materialised views).
+- Ensure all reward computations are covered by unit tests.
+
+---
+
+Contact product/gamification owners to codify reward numbers and thresholds before production rollout.
