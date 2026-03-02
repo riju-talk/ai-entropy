@@ -1,0 +1,864 @@
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "asyncio"
+  recursive_type_depth = 5
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model User {
+  id                   String                @id @default(cuid())
+  name                 String?
+  email                String                @unique
+  emailVerified        DateTime?
+  image                String?
+  role                 Role                  @default(STUDENT)
+  bio                  String?
+  university           String?
+  course               String?
+  year                 Int?
+  reputation           Int                   @default(0)
+  credits              Int                   @default(100)
+  subscriptionTier     String                @default("FREE")
+  documentCount        Int                   @default(0)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  
+  // NEW: Trust & moderation
+  trustScoreCache      Float                 @default(0.5)
+  isShadowBanned       Boolean               @default(false)
+  isSuspended          Boolean               @default(false)
+  suspendedUntil       DateTime?
+  leaderboardOptOut    Boolean               @default(false)
+  lastActiveAt         DateTime              @default(now())
+  
+  // NEW: Accumulated totals (denormalized for performance)
+  totalXP              Int                   @default(0)
+  totalReputation      Int                   @default(0)
+  
+  accounts             Account[]
+  achievementUnlocks   AchievementUnlock[]
+  aiRecommendations    AIRecommendation[]
+  answerVotes          AnswerVote[]          @relation("AnswerVotes")
+  answers              Answer[]
+  badgeGrants          BadgeGrant[]
+  communities          Community[]
+  addedDoubts          CommunityDoubt[]
+  communityMemberships CommunityMember[]
+  conversations        Conversation[]
+  doubtVotes           DoubtVote[]           @relation("DoubtVotes")
+  doubts               Doubt[]
+  leaderboardSnapshots LeaderboardSnapshot[] @relation("UserLeaderboardSnapshots")
+  pointsLedger         PointsLedger[]
+  streaks              Streak?
+  userStats            UserStat?
+  discounts            UserDiscount[]
+  achievementProgress  AchievementProgress[]
+  documents            Document[]
+  tier                 String                @default("INITIATE")
+  
+  // NOVYRA AI Engine relations
+  conceptAttempts      ConceptAttempt[]
+  masteryRecords       MasteryRecord[]
+  rubricEvaluations    RubricEvaluation[]
+  
+  // NEW: Advanced system relations
+  xpLedger             XPLedger[]            @relation("XPLedger")
+  trustScore           TrustScore?
+  abuseFlags           AbuseFlag[]           @relation("AbuseFlags")
+  flagsReviewed        AbuseFlag[]           @relation("ReviewedFlags")
+  moderationsGiven     ModerationLog[]       @relation("ModerationsGiven")
+  moderationsReceived  ModerationLog[]       @relation("ModerationsReceived")
+  factCheckLogs        FactCheckLog[]
+  eventLogs            EventLog[]
+  reputationLedger     ReputationLedger[]
+  contentEmbeddings    ContentEmbedding[]
+  votesGiven           VoteGraph[]           @relation("VotesGiven")
+  votesReceived        VoteGraph[]           @relation("VotesReceived")
+
+  @@index([createdAt])
+  @@index([trustScoreCache])
+  @@index([totalXP])
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Document {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  type      String   @default("PDF") // PDF, TXT, DOCX
+  size      Int      @default(0)
+  pageCount Int      @default(0)
+  url       String?  // Optional URL if we store the file blob somewhere
+  pineconeId String? // Optional specific ID if we want to link
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("documents")
+}
+
+model Doubt {
+  id              String           @id @default(cuid())
+  title           String
+  content         String
+  tags            String[]
+  isAnonymous     Boolean          @default(false)
+  authorId        String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  subject         String           @default("OTHER")
+  downvotes       Int              @default(0)
+  upvotes         Int              @default(0)
+  isResolved      Boolean          @default(false)
+  isInCommunity   Boolean          @default(false)
+  answers         Answer[]
+  communityDoubts CommunityDoubt[]
+  votes           DoubtVote[]
+  author          User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@index([subject])
+  @@index([isInCommunity])
+  @@map("doubts")
+}
+
+model Answer {
+  id         String       @id @default(cuid())
+  content    String
+  doubtId    String
+  authorId   String
+  createdAt  DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  isAnswered   String?      @unique @db.Uuid
+  isAiAssisted Boolean      @default(false)
+  votes        AnswerVote[]
+  author     User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  doubt      Doubt        @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+
+  @@index([doubtId])
+  @@index([authorId])
+  @@index([createdAt])
+  @@map("answers")
+}
+
+model DoubtVote {
+  id        String   @id @default(cuid())
+  type      VoteType
+  userId    String
+  doubtId   String
+  createdAt DateTime @default(now())
+  doubt     Doubt    @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+  user      User     @relation("DoubtVotes", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, doubtId])
+  @@index([userId])
+  @@index([doubtId])
+  @@map("doubt_votes")
+}
+
+model AnswerVote {
+  id        String   @id @default(cuid())
+  type      VoteType
+  userId    String
+  answerId  String
+  createdAt DateTime @default(now())
+  answer    Answer   @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  user      User     @relation("AnswerVotes", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, answerId])
+  @@index([userId])
+  @@index([answerId])
+  @@map("answer_votes")
+}
+
+model UserStat {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  totalPoints       Int      @default(0)
+  currentLevel      Int      @default(1)
+  doubtsAsked       Int      @default(0)
+  doubtsResolved    Int      @default(0)
+  commentsPosted    Int      @default(0)
+  acceptedAnswers   Int      @default(0)
+  upvotesReceived   Int      @default(0)
+  downvotesReceived Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([totalPoints])
+  @@index([currentLevel])
+  @@map("user_stats")
+}
+
+model PointsLedger {
+  id          String         @id @default(cuid())
+  userId      String
+  eventType   PointEventType
+  points      Int
+  description String?
+  createdAt   DateTime       @default(now())
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([eventType])
+  @@map("points_ledger")
+}
+
+model Level {
+  id        String   @id @default(cuid())
+  level     Int      @unique
+  name      String
+  minPoints Int
+  maxPoints Int?
+  icon      String?
+  color     String?
+  createdAt DateTime @default(now())
+
+  @@index([minPoints])
+  @@map("levels")
+}
+
+model Achievement {
+  id          String              @id @default(cuid())
+  type        AchievementType
+  name        String              @unique
+  description String
+  criteria    Json
+  points      Int
+  rarity      AchievementRarity
+  icon        String?
+  createdAt   DateTime            @default(now())
+  unlocks     AchievementUnlock[]
+  progress    AchievementProgress[]
+
+  @@map("achievements")
+}
+
+model AchievementUnlock {
+  id            String      @id @default(cuid())
+  userId        String
+  achievementId String
+  unlockedAt    DateTime    @default(now())
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId, unlockedAt])
+  @@map("achievement_unlocks")
+}
+
+model Badge {
+  id          String       @id @default(cuid())
+  type        BadgeType
+  name        String       @unique
+  description String
+  icon        String?
+  color       String?
+  createdAt   DateTime     @default(now())
+  grants      BadgeGrant[]
+
+  @@map("badges")
+}
+
+model BadgeGrant {
+  id        String   @id @default(cuid())
+  userId    String
+  badgeId   String
+  grantedAt DateTime @default(now())
+  badge     Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([userId, grantedAt])
+  @@map("badge_grants")
+}
+
+model Streak {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  currentStreak    Int       @default(0)
+  longestStreak    Int       @default(0)
+  lastActivityDate DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([lastActivityDate])
+  @@map("streaks")
+}
+
+model LeaderboardSnapshot {
+  id          String            @id @default(cuid())
+  userId      String
+  period      LeaderboardPeriod
+  scope       LeaderboardScope
+  points      Int
+  rank        Int
+  periodStart DateTime
+  periodEnd   DateTime
+  createdAt   DateTime          @default(now())
+  user        User              @relation("UserLeaderboardSnapshots", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, period, scope, periodStart])
+  @@index([period, scope, periodStart])
+  @@index([period, scope, rank, periodStart])
+  @@map("leaderboard_snapshots")
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String?
+  context   Json?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@index([userId, createdAt])
+  @@map("conversations")
+}
+
+model AIRecommendation {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  content   String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("ai_recommendations")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  role           String
+  content        String
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+model UserDiscount {
+  id               String       @id @default(cuid())
+  userId           String
+  discountPercent  Int
+  isActive         Boolean      @default(true)
+  unlockedAt       DateTime     @default(now())
+  expiresAt        DateTime?
+  source           String?      // e.g. "Scholar's Oath Achievement"
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_discounts")
+}
+
+model AchievementProgress {
+  id              String      @id @default(cuid())
+  userId          String
+  achievementId   String
+  current         Int         @default(0)
+  target          Int
+  lastUpdated     DateTime    @default(now())
+  
+  // NEW: Anti-gaming validation
+  uniqueUsers     String[]    // Track unique user interactions
+  firstDate       DateTime?   // Track time span
+  lastDate        DateTime?
+  daySpan         Int         @default(0)
+  validatedCount  Int         @default(0)  // Count of validated contributions
+  
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement     Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@map("achievement_progress")
+}
+
+model Community {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  subject     Subject?
+  isPublic    Boolean  @default(true)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User?    @relation(fields: [createdBy], references: [id])
+
+  @@index([createdBy])
+  @@index([isPublic])
+  @@index([subject])
+  @@map("communities")
+}
+
+model CommunityMember {
+  id          String        @id @default(cuid())
+  userId      String
+  communityId String
+  role        CommunityRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, communityId])
+  @@index([userId])
+  @@index([communityId])
+  @@map("community_members")
+}
+
+model CommunityDoubt {
+  id          String   @id @default(cuid())
+  communityId String
+  addedBy     String?
+  addedAt     DateTime @default(now())
+  doubtId     String
+  adder       User?    @relation(fields: [addedBy], references: [id])
+  doubt       Doubt    @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, doubtId])
+  @@index([communityId])
+  @@index([doubtId])
+  @@map("community_doubts")
+}
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum Subject {
+  COMPUTER_SCIENCE
+  MATHEMATICS
+  PHYSICS
+  CHEMISTRY
+  BIOLOGY
+  ENGINEERING
+  BUSINESS
+  LITERATURE
+  HISTORY
+  PSYCHOLOGY
+  OTHER
+}
+
+enum VoteType {
+  UP
+  DOWN
+}
+
+enum PointEventType {
+  DOUBT_CREATED
+  COMMENT_CREATED
+  UPVOTE_RECEIVED
+  DOWNVOTE_RECEIVED
+  ANSWER_ACCEPTED
+  DOUBT_RESOLVED
+  DAILY_LOGIN
+  STREAK_BONUS
+  ACHIEVEMENT_UNLOCKED
+  BADGE_EARNED
+}
+
+enum AchievementType {
+  FIRST_DOUBT
+  FIRST_COMMENT
+  PROBLEM_SOLVER
+  STREAK_MASTER
+  MENTOR
+  TOP_CONTRIBUTOR
+  SUBJECT_EXPERT
+  COMMUNITY_LEADER
+  RISING_STAR
+  KNOWLEDGE_SEEKER
+}
+
+enum AchievementRarity {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+enum BadgeType {
+  AI_MASTER
+  PHYSICS_GURU
+  MATH_WIZARD
+  CODE_NINJA
+  BIO_EXPERT
+  PROBLEM_SOLVER
+  HELPER
+  INNOVATOR
+  TUTOR
+  RESEARCH_STAR
+}
+
+enum LeaderboardPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  ALL_TIME
+}
+
+enum LeaderboardScope {
+  GLOBAL
+  SUBJECT_CS
+  SUBJECT_MATH
+  SUBJECT_PHYSICS
+  SUBJECT_CHEMISTRY
+  SUBJECT_BIOLOGY
+  SUBJECT_ENGINEERING
+}
+
+enum CommunityRole {
+  ADMIN
+  MODERATOR
+  MEMBER
+}
+
+// ============================================================
+// NOVYRA AI Engine — Knowledge Graph, Mastery & Evaluation
+// ============================================================
+
+model Concept {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  domain      String?
+  difficulty  Int      @default(1)
+  
+  // NEW: AI Brain integration
+  embedding   Json?    // Vector embedding for similarity search
+  synonyms    String[] // Alternative names
+  keywords    String[] // For search
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  prerequisites   ConceptPrerequisite[] @relation("ConceptPrerequisites")
+  dependents      ConceptPrerequisite[] @relation("DependentConcepts")
+  masteryRecords  MasteryRecord[]
+  attempts        ConceptAttempt[]
+  xpEntries       XPLedger[]
+
+  @@index([domain])
+  @@index([difficulty])
+  @@index([isActive])
+  @@map("concepts")
+}
+
+model ConceptPrerequisite {
+  id             String  @id @default(cuid())
+  conceptId      String
+  prerequisiteId String
+  concept        Concept @relation("ConceptPrerequisites", fields: [conceptId], references: [id], onDelete: Cascade)
+  prerequisite   Concept @relation("DependentConcepts",   fields: [prerequisiteId], references: [id], onDelete: Cascade)
+
+  @@unique([conceptId, prerequisiteId])
+  @@map("concept_prerequisites")
+}
+
+model ConceptAttempt {
+  id                 String   @id @default(cuid())
+  userId             String
+  conceptId          String
+  isCorrect          Boolean
+  timeTakenSeconds   Int?
+  hintsUsed          Int      @default(0)
+  masteryScoreBefore Float    @default(0)
+  masteryScoreAfter  Float    @default(0)
+  createdAt          DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concept Concept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  @@index([userId, conceptId])
+  @@map("concept_attempts")
+}
+
+model MasteryRecord {
+  id                String   @id @default(cuid())
+  userId            String
+  conceptId         String
+  totalAttempts     Int      @default(0)
+  correctAttempts   Int      @default(0)
+  masteryScore      Float    @default(0)
+  confidenceWeight  Float    @default(1)
+  lastSeen          DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concept Concept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conceptId])
+  @@index([userId])
+  @@map("mastery_records")
+}
+
+model RubricEvaluation {
+  id              String   @id @default(cuid())
+  userId          String
+  concept         String?
+  submission      String   @db.Text
+  rubricJson      Json
+  criterionScores Json
+  weightedTotal   Float
+  gradeLevel      String
+  overallFeedback String   @db.Text
+  improvementPlan Json
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("rubric_evaluations")
+}
+
+// ============================================================
+// Advanced Gamification & Trust System
+// ============================================================
+
+model XPLedger {
+  id              String   @id @default(cuid())
+  userId          String
+  eventType       String   // XPEvent enum
+  conceptId       String?
+  
+  // XP breakdown
+  baseXP          Int
+  masteryMult     Float    @default(1.0)
+  trustMult       Float    @default(1.0)
+  factCheckMult   Float    @default(1.0)
+  timeDecay       Float    @default(1.0)
+  finalXP         Int
+  
+  // Audit
+  reason          String
+  metadata        Json?
+  flagged         Boolean  @default(false)
+  
+  createdAt       DateTime @default(now())
+  
+  user            User     @relation("XPLedger", fields: [userId], references: [id], onDelete: Cascade)
+  concept         Concept? @relation(fields: [conceptId], references: [id], onDelete: SetNull)
+  
+  @@index([userId, createdAt])
+  @@index([eventType])
+  @@index([conceptId])
+  @@index([flagged])
+  @@map("xp_ledger")
+}
+
+model TrustScore {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  
+  // Overall score
+  score                 Float    @default(0.5)
+  
+  // Component breakdown
+  masteryReliability    Float    @default(0.5)
+  nliTrackRecord        Float    @default(0.7)
+  communityValidation   Float    @default(0.5)
+  accountAgeTrust       Float    @default(0.5)
+  interactionEntropy    Float    @default(1.0)
+  votePatternScore      Float    @default(1.0)
+  
+  // Penalties
+  similarityFlags       Int      @default(0)
+  abuseFlags            Int      @default(0)
+  ipClusteringRisk      Float    @default(0.0)
+  
+  // Metadata
+  lastUpdated           DateTime @default(now())
+  historicalLow         Float    @default(0.5)
+  historicalHigh        Float    @default(0.5)
+  
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([score])
+  @@map("trust_scores")
+}
+
+enum AbuseFlagType {
+  SIMILARITY_HIGH
+  VOTE_TRADING
+  LOW_ENTROPY
+  IP_CLUSTERING
+  STREAK_FRAUD
+  XP_FARMING
+  SPAM_POSTING
+  SOCKPUPPET
+}
+
+model AbuseFlag {
+  id            String        @id @default(cuid())
+  userId        String
+  flagType      AbuseFlagType
+  severity      Int           // 1-10
+  details       Json
+  autoDetected  Boolean       @default(true)
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  status        String        @default("PENDING")  // PENDING | CONFIRMED | FALSE_POSITIVE
+  createdAt     DateTime      @default(now())
+  
+  user          User          @relation("AbuseFlags", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer      User?         @relation("ReviewedFlags", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  
+  @@index([userId, status])
+  @@index([flagType, createdAt])
+  @@index([status, severity])
+  @@map("abuse_flags")
+}
+
+model ModerationLog {
+  id          String   @id @default(cuid())
+  adminId     String
+  targetUserId String
+  action      String   // WARNING | SUSPEND | BAN | RESTORE
+  reason      String
+  details     Json?
+  createdAt   DateTime @default(now())
+  
+  admin       User     @relation("ModerationsGiven", fields: [adminId], references: [id])
+  targetUser  User     @relation("ModerationsReceived", fields: [targetUserId], references: [id])
+  
+  @@index([targetUserId, createdAt])
+  @@index([adminId])
+  @@map("moderation_logs")
+}
+
+model FactCheckLog {
+  id                  String   @id @default(cuid())
+  userId              String?
+  generatedText       String   @db.Text
+  contextUsed         String   @db.Text
+  claimsChecked       Int
+  entailmentCount     Int
+  contradictionCount  Int
+  neutralCount        Int
+  overallConfidence   Float
+  safeToDisplay       Boolean
+  checks              Json     // Array of ClaimCheck
+  actionTaken         String?  // DISPLAY | DISPLAY_WITH_WARNING | BLOCK | REGENERATE
+  createdAt           DateTime @default(now())
+  
+  user                User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@index([userId, createdAt])
+  @@index([safeToDisplay])
+  @@index([contradictionCount])
+  @@map("fact_check_logs")
+}
+
+model EventLog {
+  id          String   @id @default(cuid())
+  eventType   String   // e.g., "ANSWER_ACCEPTED", "MASTERY_UPDATED"
+  userId      String?
+  targetId    String?  // ID of affected resource (answer, doubt, etc.)
+  metadata    Json
+  emittedAt   DateTime @default(now())
+  processedAt DateTime?
+  
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@index([eventType, emittedAt])
+  @@index([userId, emittedAt])
+  @@index([processedAt])
+  @@map("event_logs")
+}
+
+model ReputationLedger {
+  id          String   @id @default(cuid())
+  userId      String
+  eventType   String   // ReputationEvent enum
+  change      Int      // Can be negative
+  reason      String
+  sourceId    String?  // ID of vote/answer that caused change
+  voterTrust  Float?   // Trust weight of voter
+  createdAt   DateTime @default(now())
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, createdAt])
+  @@index([eventType])
+  @@map("reputation_ledger")
+}
+
+model ContentEmbedding {
+  id          String   @id @default(cuid())
+  contentType String   // "answer" | "doubt"
+  contentId   String
+  userId      String
+  embedding   Json     // Store as JSON array
+  text        String   @db.Text
+  createdAt   DateTime @default(now())
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([contentType, contentId])
+  @@index([userId])
+  @@map("content_embeddings")
+}
+
+model VoteGraph {
+  id              String   @id @default(cuid())
+  voterId         String
+  targetUserId    String
+  voteCount       Int      @default(0)
+  upvoteCount     Int      @default(0)
+  downvoteCount   Int      @default(0)
+  reciprocity     Float    @default(0.0)
+  lastVoteAt      DateTime @default(now())
+  
+  voter           User     @relation("VotesGiven", fields: [voterId], references: [id], onDelete: Cascade)
+  targetUser      User     @relation("VotesReceived", fields: [targetUserId], references: [id], onDelete: Cascade)
+  
+  @@unique([voterId, targetUserId])
+  @@index([reciprocity])
+  @@map("vote_graph")
+}

@@ -1,0 +1,28 @@
+{
+  "name": "entropy-community-forum",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "dev:app": "turbo run dev --filter=@entropy/app",
+    "dev:agent": "turbo run dev --filter=@entropy/ai-agent",
+    "build": "cd apps/app && npm run build",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean",
+    "setup:agent": "cd apps/ai-agent && python setup.py"
+  },
+  "devDependencies": {
+    "turbo": "latest"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "npm@10.0.0",
+  "workspaces": [
+    "apps/app",
+    "apps/ai-agent"
+  ],
+  "dependencies": {
+    "@mermaid-js/mermaid-mindmap": "^9.3.0",
+    "mermaid": "^10.9.5"
+  }
+}

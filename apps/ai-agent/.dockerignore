@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# Virtualenvs
+.venv/
+venv/
+env/
+ENV/
+
+# Git
+.git
+.gitignore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local data and caches
+data/
+wheels/
+dist/
+build/
+
+# Editor / IDE
+.vscode/
+.idea/
+
+# Node / frontend artifacts (if present)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Next.js build output (monorepo)
+apps/app/.next
+apps/app/node_modules

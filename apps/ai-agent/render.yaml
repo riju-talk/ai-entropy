@@ -1,0 +1,29 @@
+# Render.com deployment configuration for AI Agent backend
+services:
+  - type: web
+    name: entropy-ai-agent
+    env: python
+    runtime: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt && python setup.py
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: AI_BACKEND_TOKEN
+        sync: false
+      - key: DEBUG
+        value: false
+      - key: ALLOWED_ORIGINS
+        # include the Netlify frontend origin so Cross-Origin requests from the site are allowed
+        value: "https://your-app.netlify.app,https://entropy-communtiy.netlify.app"
+      - key: LLM_MODEL
+        value: llama3-8b-8192
+      - key: LLM_TEMPERATURE
+        value: 0.7
+      - key: LLM_MAX_TOKENS
+        value: 2000
+      - key: EMBEDDING_MODEL
+        value: gpt4all

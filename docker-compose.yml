@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  nextjs:
+    env_file: ./.env
+    build:
+      context: ./apps/app
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - GITHUB_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_SECRET=${GITHUB_CLIENT_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - AI_AGENT_BACKEND_URL=http://ai-agent:8000
+      - NEXT_PUBLIC_AI_BACKEND_TOKEN=${NEXT_PUBLIC_AI_BACKEND_TOKEN}
+    depends_on:
+      ai-agent:
+        condition: service_healthy
+    volumes:
+      - ./apps/app:/app
+      - /app/node_modules
+      - /app/.next
+    restart: unless-stopped
+
+  ai-agent:
+    env_file: ./.env
+    build:
+      context: ./apps/ai-agent
+      dockerfile: Dockerfile
+    volumes:
+      - ./apps/ai-agent:/app
+      - ai_agent_data:/app/data
+    ports:
+      - "8000:8000"
+    environment:
+      - AI_BACKEND_TOKEN=${NEXT_PUBLIC_AI_BACKEND_TOKEN}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - DEBUG=true
+      - ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5000
+      - CHROMA_PERSIST_DIR=/app/data/chroma_db
+      - UPLOAD_DIR=/app/data/uploads
+      - LLM_MODEL=${LLM_MODEL:-llama3-8b-8192}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.7}
+      - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-2000}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-gpt4all}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+volumes:
+  ai_agent_data:

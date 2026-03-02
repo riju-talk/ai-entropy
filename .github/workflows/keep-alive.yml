@@ -1,0 +1,49 @@
+name: Keep Server Alive
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ping /docs (HTML check)
+        run: |
+          DOCS_URL="https://entropy-community-forum.onrender.com/docs"
+          echo "Pinging $DOCS_URL ..."
+          
+          status=$(curl -s -o docs.html -w "%{http_code}" "$DOCS_URL")
+          echo "Status: $status"
+
+          if grep -qi "<html" docs.html; then
+            echo "✅ /docs returned HTML."
+          else
+            echo "❌ /docs did not return HTML!"
+            head -c 200 docs.html
+          fi
+
+      - name: Ping /health (JSON health check)
+        run: |
+          HEALTH_URL="https://entropy-community-forum.onrender.com/health"
+          echo "Pinging $HEALTH_URL ..."
+
+          response=$(curl -s -o health.json -w "%{http_code}" "$HEALTH_URL")
+          echo "Status: $response"
+
+          expected='{"status":"healthy","groq_configured":true,"cwd":"/opt/render/project/src/apps/ai-agent","python_version":"3.13.4 (main, Jun  4 2025, 14:54:08) [GCC 12.2.0]","groq_model":"llama-3.1-8b-instant","embeddings":"GPT4All (local)","vector_store":"Chroma"}'
+
+          received=$(cat health.json)
+
+          if [ "$received" = "$expected" ]; then
+            echo "✅ /health returned expected JSON."
+          else
+            echo "⚠️ /health JSON mismatch!"
+            echo "Received:"
+            echo "$received"
+          fi
+
+      - name: Log timestamp
+        run: echo "Pinged at $(date -u)"

@@ -1,0 +1,306 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* "Entropy" Light Mode - Slick/Clean Tech */
+    --background: 210 20% 96%;
+    /* Slightly shaded cool grey */
+    --foreground: 222 47% 11%;
+    /* Slate 900 */
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 190 100% 45%;
+    /* Vivid Cyan */
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 260 100% 60%;
+    /* Vivid Violet */
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 190 100% 50%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 190 100% 45%;
+
+    --radius: 1rem;
+
+    --font-heading: 'Outfit', sans-serif;
+    --font-body: 'Outfit', sans-serif;
+  }
+
+  .dark {
+    /* "Entropy" Deep Space - NotebookLM Professional Aesthetic */
+    --background: 240 6% 10%;
+    /* #18191b - Deep Charcoal */
+    --foreground: 210 20% 98%;
+
+    --card: 240 6% 12%;
+    /* #1d1e21 - Slightly lighter than bg */
+    --card-foreground: 210 20% 98%;
+
+    --popover: 240 6% 10%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 191 91% 45%;
+    /* Cyan-500 equivalent */
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 240 5% 15%;
+    /* Muted control bg */
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 240 5% 15%;
+    --muted-foreground: 240 5% 65%;
+
+    --accent: 191 91% 45%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 240 5% 18%;
+    /* Subtle divider #2d2e31 */
+    --input: 240 5% 18%;
+    --ring: 191 91% 45%;
+  }
+
+  html {
+    font-family: 'Outfit', sans-serif;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+}
+
+.code-editor {
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+}
+
+/* Custom color classes */
+.bg-slate-blue {
+  background-color: hsl(var(--slate-blue));
+}
+
+.text-slate-blue {
+  color: hsl(var(--slate-blue));
+}
+
+.bg-antique-gold {
+  background-color: hsl(var(--antique-gold));
+}
+
+.text-antique-gold {
+  color: hsl(var(--antique-gold));
+}
+
+.bg-sage-green {
+  background-color: hsl(var(--sage-green));
+}
+
+.text-sage-green {
+  color: hsl(var(--sage-green));
+}
+
+.bg-warm-gray {
+  background-color: hsl(var(--warm-gray));
+}
+
+.text-warm-gray {
+  color: hsl(var(--warm-gray));
+}
+
+.bg-dusty-rose {
+  background-color: hsl(var(--dusty-rose));
+}
+
+.text-dusty-rose {
+  color: hsl(var(--dusty-rose));
+}
+
+/* Custom utility classes */
+.bg-sage-100 {
+  background-color: #f0f4ea;
+}
+
+.text-sage-700 {
+  color: #4d5d39;
+}
+
+.prose {
+  max-width: none;
+  @apply text-foreground;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  @apply text-foreground;
+}
+
+.prose p {
+  @apply text-foreground;
+}
+
+.prose code {
+  @apply bg-muted px-1 py-0.5 rounded text-sm;
+}
+
+.prose pre {
+  @apply bg-muted p-4 rounded-lg overflow-x-auto;
+}
+
+.prose blockquote {
+  @apply border-l-4 border-primary pl-4 italic;
+}
+
+/* Custom animations for gamification */
+@keyframes bounce-in {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
+
+  70% {
+    transform: scale(0.9);
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+  }
+
+  50% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.8), 0 0 30px rgba(59, 130, 246, 0.6);
+  }
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.6s ease-out;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8, #1e40af);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Scrollbar styling (WebKit + Firefox) */
+:root {
+  --scrollbar-track: hsl(var(--card));
+  --scrollbar-thumb: hsl(var(--border));
+  --scrollbar-thumb-hover: hsl(var(--primary));
+  scroll-behavior: smooth;
+}
+
+.dark {
+  --scrollbar-track: hsl(var(--card));
+  --scrollbar-thumb: hsl(var(--muted));
+  --scrollbar-thumb-hover: hsl(var(--primary));
+}
+
+/* Reddit-style smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* WebKit browsers - Reddit-style sleek scrollbars */
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 0.2s ease;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+  border: 2px solid transparent;
+}
+
+/* Thin scrollbar for sidebar */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(6, 182, 212, 0.3);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* Utility class to apply the consistent scrollbar to specific containers if needed */
+.scrollbar-consistent {
+  scrollbar-width: thin;
+}
