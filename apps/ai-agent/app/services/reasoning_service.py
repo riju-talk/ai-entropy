@@ -1,24 +1,22 @@
 """
-NOVYRA — Structured Reasoning Engine
+Entropy AI â€” Structured Reasoning Engine
 
 Enhanced with 8-layer AI Brain architecture.
 
 Flow:
   1. Detect language of question
-  2. If non-English → translate to English
+  2. If non-English â†’ translate to English
   3. Assemble context (Layers 1-5: intent, concepts, graph, cognitive state)
   4. Call enhanced reasoning engine (Layer 6)
-  5. NLI validation (Layer 7) ✅
-  6. Trust scoring (Layer 8) ✅
-  7. If non-English → translate final_solution back
+  5. NLI validation (Layer 7) âœ…
+  6. Trust scoring (Layer 8) âœ…
+  7. If non-English â†’ translate final_solution back
   8. Return ReasoningResponse
 """
 from __future__ import annotations
 import json
 import logging
 from typing import Optional
-
-from google.genai.errors import ClientError
 
 from app.core.llm import generate_json
 from app.core.prompts import REASONING_SYSTEM, REASONING_PROMPT
@@ -37,6 +35,7 @@ async def reason(
     user_id: Optional[str] = None,
     language: str = "en",
     include_hints: bool = True,
+    system_prompt: Optional[str] = None,
 ) -> ReasoningResponse:
     """
     Core reasoning entry-point.
@@ -54,12 +53,12 @@ async def reason(
                 question=question,
                 user_id=user_id,
                 language=language,
-                include_hints=include_hints
+                include_hints=include_hints,
+                system_prompt=system_prompt
             )
         except ImportError as e:
             logger.warning(f"Enhanced reasoning not available: {e}. Falling back to legacy.")
-        except ClientError:
-            raise  # quota / auth errors — don't waste another call on legacy
+
         except Exception as e:
             logger.error(f"Enhanced reasoning failed: {e}. Falling back to legacy.")
     
@@ -70,7 +69,7 @@ async def reason(
     working_question = question
     if language != "en":
         working_question = await ml.to_english(question, source_lang=language)
-        logger.info("Translated question: %s → %s", question[:60], working_question[:60])
+        logger.info("Translated question: %s â†’ %s", question[:60], working_question[:60])
 
     # --- 2. Fetch graph context ---
     graph_context = "No graph context available."
@@ -95,7 +94,7 @@ async def reason(
     )
 
     # --- 4. Call LLM ---
-    raw: dict = await generate_json(prompt, system_prompt=REASONING_SYSTEM)
+    raw: dict = await generate_json(prompt, system_prompt=system_prompt or REASONING_SYSTEM)
 
     # --- 5. Validate ---
     # Strip hint_ladder if caller doesn't want it

@@ -1,6 +1,6 @@
 from __future__ import annotations
 """
-NOVYRA Event Bus - Central Event Dispatcher
+Entropy AI Event Bus - Central Event Dispatcher
 
 All system events flow through this bus to ensure decoupled architecture.
 """
@@ -61,7 +61,7 @@ class EventBus:
         """
         self._events_emitted += 1
         
-        # Log event toдatabase
+        # Log event toÐ´atabase
         await self._log_event(event)
         
         # Get handlers for this event type

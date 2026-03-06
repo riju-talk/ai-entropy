@@ -45,7 +45,7 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
   .dark {
-    --background: 0 0% 3.9%;
+    --background: 240 14% 4%;
     --foreground: 0 0% 98%;
     --card: 0 0% 3.9%;
     --card-foreground: 0 0% 98%;
@@ -87,4 +87,50 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ── Floating bubble animations ───────────────────────────────────── */
+@keyframes float-a {
+  0%   { transform: translate(0px, 0px) scale(1); }
+  25%  { transform: translate(60px, -80px) scale(1.08); }
+  50%  { transform: translate(-40px, -140px) scale(0.95); }
+  75%  { transform: translate(-80px, -60px) scale(1.05); }
+  100% { transform: translate(0px, 0px) scale(1); }
+}
+@keyframes float-b {
+  0%   { transform: translate(0px, 0px) scale(1); }
+  20%  { transform: translate(-70px, 50px) scale(1.06); }
+  50%  { transform: translate(50px, 110px) scale(0.93); }
+  80%  { transform: translate(90px, -30px) scale(1.1); }
+  100% { transform: translate(0px, 0px) scale(1); }
+}
+@keyframes float-c {
+  0%   { transform: translate(0px, 0px) scale(1); }
+  33%  { transform: translate(80px, 80px) scale(1.12); }
+  66%  { transform: translate(-60px, 50px) scale(0.9); }
+  100% { transform: translate(0px, 0px) scale(1); }
+}
+@keyframes float-d {
+  0%   { transform: translate(0px, 0px) scale(1); }
+  30%  { transform: translate(-50px, -70px) scale(1.07); }
+  60%  { transform: translate(70px, -40px) scale(0.96); }
+  100% { transform: translate(0px, 0px) scale(1); }
+}
+@keyframes float-e {
+  0%   { transform: translate(0px, 0px) scale(1); }
+  40%  { transform: translate(40px, 90px) scale(1.04); }
+  70%  { transform: translate(-90px, 60px) scale(1.09); }
+  100% { transform: translate(0px, 0px) scale(1); }
+}
+
+.bubble-a { animation: float-a 18s ease-in-out infinite; }
+.bubble-b { animation: float-b 22s ease-in-out infinite; }
+.bubble-c { animation: float-c 27s ease-in-out infinite; }
+.bubble-d { animation: float-d 20s ease-in-out infinite; }
+.bubble-e { animation: float-e 24s ease-in-out infinite; }
+
+/* ── Dot grid background ───────────────────────────────────────────── */
+.bg-dot-grid {
+  background-image: radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
 }

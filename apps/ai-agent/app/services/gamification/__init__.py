@@ -1,1 +1,1 @@
-"""NOVYRA Gamification Services"""
+"""Entropy AI Gamification Services"""

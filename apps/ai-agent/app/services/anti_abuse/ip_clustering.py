@@ -1,5 +1,5 @@
 """
-NOVYRA Anti-Abuse - IP Clustering Detector
+Entropy AI Anti-Abuse - IP Clustering Detector
 
 Detects sock puppet accounts through IP/device clustering.
 Reference: docs/TRUST_AND_ABUSE_MODEL.md

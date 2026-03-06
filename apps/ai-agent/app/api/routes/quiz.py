@@ -56,6 +56,7 @@ class QuizRequest(BaseModel):
     difficulty: Optional[str] = "medium"
     userId: Optional[str] = "anonymous"
     customPrompt: Optional[str] = None
+    system_prompt: Optional[str] = None
 
     @model_validator(mode="after")
     def resolve_count(self) -> "QuizRequest":
@@ -92,7 +93,7 @@ async def generate_quiz(req: QuizRequest):
     )
 
     try:
-        raw: dict = await generate_json(prompt, system_prompt=_QUIZ_SYSTEM)
+        raw: dict = await generate_json(prompt, system_prompt=req.system_prompt or _QUIZ_SYSTEM)
         raw_questions = raw.get("questions", [])
 
         if not raw_questions:

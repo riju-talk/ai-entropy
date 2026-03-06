@@ -5,10 +5,7 @@ import { useAuthModal } from "@/hooks/use-auth-modal"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
-import { Home, HelpCircle, Users, Trophy, Calendar, LogOut, Plus, User, Sparkles } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Home, HelpCircle, Users, Trophy, Calendar, LogOut, User, Sparkles, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function Sidebar() {
@@ -78,6 +75,11 @@ export function Sidebar() {
       label: "Happenings",
       icon: Calendar,
     },
+    {
+      href: "/about",
+      label: "About",
+      icon: Info,
+    },
   ]
 
   const handleProtectedClick = (e: React.MouseEvent, href: string, isProtected?: boolean) => {
@@ -100,117 +102,97 @@ export function Sidebar() {
   const displayName = session?.user?.name ?? session?.user?.email ?? ""
 
   return (
-    <aside className="hidden lg:flex w-56 xl:w-64 border-r border-white/5 bg-background/60 backdrop-blur-xl flex-col min-h-full px-4 xl:px-6 py-6 xl:py-8 relative overflow-y-auto group/sidebar">
-      {/* Sidebar specific glow - Visible only in Dark Mode */}
-      <div className="absolute top-0 right-0 w-[50%] h-[50%] bg-primary/5 blur-[80px] pointer-events-none -z-10 hidden dark:block" />
-
+    <aside className="hidden lg:flex w-52 xl:w-60 border-r border-white/[0.06] bg-[#08080f]/70 backdrop-blur-xl flex-col min-h-full px-3 xl:px-4 py-6 xl:py-8 relative overflow-y-auto font-mono">
       {/* Main Navigation */}
-      <div className="space-y-4 xl:space-y-6">
-        <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-3 xl:pl-4">
-          Explore
-        </h2>
-        <div className="space-y-1.5 xl:space-y-2">
-          {navItems.map((item) => {
-            const Icon = item.icon
-            const isActive = item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href)
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={(e) => handleProtectedClick(e, item.href, item.protected)}
-                className="block group"
+      <div className="space-y-1">
+        <div className="text-[9px] uppercase tracking-[0.25em] text-white/20 px-3 mb-3">// EXPLORE</div>
+        {navItems.map((item) => {
+          const Icon = item.icon
+          const isActive = item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href)
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={(e) => handleProtectedClick(e, item.href, item.protected)}
+              className="block group"
+            >
+              <div
+                className={cn(
+                  "relative flex items-center gap-3 w-full px-3 py-2 rounded-lg transition-all duration-200",
+                  isActive
+                    ? "text-cyan-400 bg-cyan-500/8"
+                    : "text-white/35 hover:text-white/70 hover:bg-white/[0.03]"
+                )}
               >
-                <div
-                  className={cn(
-                    "flex items-center gap-2 xl:gap-3 w-full px-3 xl:px-4 py-2.5 xl:py-3 rounded-xl xl:rounded-2xl transition-all duration-300 relative overflow-hidden",
-                    isActive
-                      ? "bg-gradient-to-r from-cyan-500/10 to-blue-500/10 text-cyan-400 font-bold shadow-[0_0_20px_rgba(6,182,212,0.15)] border border-cyan-500/20"
-                      : "text-muted-foreground hover:text-foreground hover:bg-white/5 hover:translate-x-1"
-                  )}
-                >
-                  <Icon className={cn("h-4 w-4 xl:h-5 xl:w-5 transition-transform group-hover:scale-110", isActive && "text-cyan-400")} />
-                  <span className="text-xs xl:text-sm tracking-tight truncate">{item.label}</span>
-                  {item.comingSoon && (
-                    <Badge variant="outline" className="ml-auto text-[8px] xl:text-[9px] bg-purple-500/10 text-purple-400 border-purple-500/20 uppercase tracking-widest shrink-0">
-                      Soon
-                    </Badge>
-                  )}
-                </div>
-              </Link>
-            )
-          })}
-        </div>
+                {isActive && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
+                )}
+                <Icon className={cn("h-[15px] w-[15px] shrink-0", isActive ? "text-cyan-400" : "text-white/30 group-hover:text-white/60")} />
+                <span className={cn("text-[11px] tracking-wide truncate", isActive ? "font-bold text-cyan-300" : "font-medium")}>{item.label}</span>
+              </div>
+            </Link>
+          )
+        })}
       </div>
 
+      {/* Divider */}
+      <div className="my-5 h-px bg-white/[0.05]" />
+
       {/* Communities Section */}
-      <div className="mt-6 xl:mt-8">
-        <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-3 xl:pl-4">
-          Communities
-        </h2>
-        <div className="space-y-1.5 xl:space-y-2 mt-3 xl:mt-4">
-          {communities.length > 0 ? (
-            communities.slice(0, 5).map((community: any) => (
-              <Link
-                key={community.id}
-                href={`/communities/${community.id}`}
-                className="block group"
-              >
-                <div className="flex items-center gap-2 xl:gap-3 w-full px-3 xl:px-4 py-2 rounded-lg xl:rounded-xl text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all relative">
-                  <div className="w-7 h-7 xl:w-8 xl:h-8 rounded-lg bg-white/5 flex items-center justify-center text-[9px] xl:text-[10px] font-bold text-cyan-400 border border-white/5 group-hover:border-cyan-500/30 group-hover:bg-cyan-500/10 transition-all shrink-0">
-                    {community.name?.[0]?.toUpperCase()}
-                  </div>
-                  <span className="text-xs xl:text-sm font-medium truncate group-hover:text-cyan-200 transition-colors">{community.name}</span>
+      <div className="space-y-1 flex-1">
+        <div className="text-[9px] uppercase tracking-[0.25em] text-white/20 px-3 mb-3">// COMMUNITIES</div>
+        {communities.length > 0 ? (
+          communities.slice(0, 5).map((community: any) => (
+            <Link key={community.id} href={`/communities/${community.id}`} className="block group">
+              <div className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-white/35 hover:text-white/70 hover:bg-white/[0.03] transition-all">
+                <div className="w-5 h-5 rounded bg-white/5 border border-white/[0.08] flex items-center justify-center text-[9px] font-bold text-cyan-400/70 group-hover:text-cyan-400 group-hover:border-cyan-500/20 transition-all shrink-0">
+                  {community.name?.[0]?.toUpperCase()}
                 </div>
-              </Link>
-            ))
-          ) : (
-            <div className="px-3 xl:px-4 text-[10px] xl:text-xs text-muted-foreground/50 italic">No communities yet</div>
-          )}
-        </div>
+                <span className="text-[11px] font-medium truncate group-hover:text-white/70 transition-colors">{community.name}</span>
+              </div>
+            </Link>
+          ))
+        ) : (
+          <div className="px-3 text-[10px] text-white/15 italic">No communities yet</div>
+        )}
       </div>
 
       {/* User Section */}
-      <div className="mt-auto pt-4 xl:pt-6">
+      <div className="mt-auto pt-5 border-t border-white/[0.05]">
         {isAuthenticated ? (
-          <Card className="bg-gradient-to-br from-background to-white/5 border-white/10 overflow-hidden relative group hover:border-cyan-500/30 transition-all duration-500">
-            <CardContent className="p-2.5 xl:p-3 space-y-2.5 xl:space-y-3 relative z-10">
-              <div className="flex items-center gap-2 xl:gap-3">
-                <div className="h-9 w-9 xl:h-10 xl:w-10 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-lg xl:rounded-xl flex items-center justify-center text-white text-xs xl:text-sm font-bold shadow-lg shadow-cyan-500/20 shrink-0">
-                  {userInitial}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs xl:text-sm font-bold truncate text-foreground">{displayName}</p>
-                  <p className="text-[9px] xl:text-[10px] text-muted-foreground font-medium flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.8)] animate-pulse" />
-                    Explorer
-                  </p>
-                </div>
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center text-white text-xs font-black shrink-0">
+                {userInitial}
               </div>
-              <div className="flex items-center justify-between text-[10px] xl:text-xs bg-black/40 rounded-lg p-1.5 xl:p-2 border border-white/5">
-                <span className="text-muted-foreground font-medium">Credits</span>
-                <span className="font-mono font-bold text-cyan-400">{credits}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-bold truncate text-white/80">{displayName}</p>
+                <p className="text-[9px] text-white/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Online
+                </p>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full h-7 xl:h-8 text-[9px] xl:text-[10px] uppercase tracking-wider hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                onClick={handleSignOut}
-              >
-                <LogOut className="h-3 w-3 mr-1.5 xl:mr-2" />
-                Sign out
-              </Button>
-            </CardContent>
-          </Card>
+            </div>
+            <div className="flex items-center justify-between text-[10px] bg-black/30 rounded-lg px-2.5 py-1.5 border border-white/[0.05]">
+              <span className="text-white/30 uppercase tracking-widest text-[9px]">Credits</span>
+              <span className="font-mono font-bold text-cyan-400">{credits}</span>
+            </div>
+            <button
+              className="w-full flex items-center justify-center gap-1.5 text-[9px] uppercase tracking-[0.15em] text-white/25 hover:text-red-400 hover:bg-red-500/5 py-1.5 rounded-lg transition-all"
+              onClick={handleSignOut}
+            >
+              <LogOut className="h-3 w-3" />
+              Sign out
+            </button>
+          </div>
         ) : (
-          <Button
-            variant="default"
-            size="sm"
-            className="w-full h-10 xl:h-11 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] transition-all duration-300 rounded-xl text-xs xl:text-sm"
+          <button
+            className="w-full flex items-center justify-center gap-2 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] uppercase tracking-[0.15em] font-bold hover:bg-cyan-500/15 hover:border-cyan-400/30 hover:shadow-[0_0_15px_rgba(6,182,212,0.15)] transition-all"
             onClick={openAuthModal}
           >
-            <User className="h-4 w-4 xl:h-5 xl:w-5 mr-1.5 xl:mr-2" />
+            <User className="h-3.5 w-3.5" />
             Join Community
-          </Button>
+          </button>
         )}
       </div>
     </aside>

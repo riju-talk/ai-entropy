@@ -1,5 +1,5 @@
 """
-NOVYRA Streak Manager
+Entropy AI Streak Manager
 
 Manages daily activity streaks with anti-gaming measures.
 Reference: docs/GAME_ENGINE_ARCHITECTURE.md

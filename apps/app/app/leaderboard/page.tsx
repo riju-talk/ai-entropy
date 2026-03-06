@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
@@ -123,7 +123,7 @@ export default function LeaderboardPage() {
 					<h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
 						Leaderboard
 					</h1>
-					<p className="text-muted-foreground italic">Compete, learn, and climb the ranks in the NOVYRA community</p>
+					<p className="text-muted-foreground italic">Compete, learn, and climb the ranks in the ENTROPY community</p>
 				</div>
 
 				<Tabs defaultValue="leaderboard" className="w-full" value={selectedTab} onValueChange={setSelectedTab}>
@@ -193,7 +193,7 @@ export default function LeaderboardPage() {
 												<div className="text-3xl font-extrabold text-yellow-400 tracking-tighter tabular-nums">
 													{stats.credits?.toLocaleString() || 0}
 												</div>
-												<div className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Novyra Coins</div>
+												<div className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Entropy Coins</div>
 												<div className="text-2xl font-extrabold text-cyan-400 tracking-tighter tabular-nums">
 													{stats.totalXP?.toLocaleString() || 0}
 												</div>

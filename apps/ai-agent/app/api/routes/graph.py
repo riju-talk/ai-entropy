@@ -1,11 +1,11 @@
 """
-NOVYRA — Knowledge Graph API Routes
-POST /api/graph/concept        → add concept node
-POST /api/graph/prerequisite   → link prerequisite
-GET  /api/graph/nodes          → all nodes + edges (LiveKnowledgeGraph feed)
-GET  /api/graph/context/{concept}        → fetch concept context
-GET  /api/graph/weak/{user_id}           → get user weak nodes
-GET  /api/graph/path/{user_id}/{concept} → recommended learning path
+Entropy AI â€” Knowledge Graph API Routes
+POST /api/graph/concept        â†’ add concept node
+POST /api/graph/prerequisite   â†’ link prerequisite
+GET  /api/graph/nodes          â†’ all nodes + edges (LiveKnowledgeGraph feed)
+GET  /api/graph/context/{concept}        â†’ fetch concept context
+GET  /api/graph/weak/{user_id}           â†’ get user weak nodes
+GET  /api/graph/path/{user_id}/{concept} â†’ recommended learning path
 """
 from fastapi import APIRouter, HTTPException
 from typing import Optional
@@ -45,7 +45,7 @@ async def add_prerequisite(request: AddPrerequisiteRequest) -> dict:
         await kg.link_prerequisite(request.concept, request.prerequisite)
         return {
             "status": "ok",
-            "message": f"{request.prerequisite} → PREREQUISITE_OF → {request.concept}",
+            "message": f"{request.prerequisite} â†’ PREREQUISITE_OF â†’ {request.concept}",
         }
     except Exception as exc:
         logger.exception("add_prerequisite failed: %s", exc)

@@ -1,5 +1,5 @@
 """
-NOVYRA — Rubric Evaluation API Routes
+Entropy AI â€” Rubric Evaluation API Routes
 POST /api/evaluation/evaluate
 """
 from fastapi import APIRouter, HTTPException

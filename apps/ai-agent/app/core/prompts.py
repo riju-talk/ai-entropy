@@ -6,6 +6,12 @@ parse deterministically. No LangChain \u2014 these are plain f-string templates
 injected directly into Gemini calls via core.llm.generate_json / generate_text.
 """
 
+UNIFIED_DEFAULT_SYSTEM = (
+    "You are Entropy AI, an expert AI tutor and educational companion. "
+    "Your goal is to help students understand complex concepts through structured reasoning, "
+    "clear explanations, and personalized guidance. Always be encouraging, patient, and accurate."
+)
+
 # ---------------------------------------------------------------------------
 # REASONING ENGINE PROMPT
 # ---------------------------------------------------------------------------

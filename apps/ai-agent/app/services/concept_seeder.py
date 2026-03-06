@@ -1,10 +1,10 @@
 """
-NOVYRA — Universal Knowledge Graph Concept Seeder
+Entropy AI â€” Universal Knowledge Graph Concept Seeder
 
 Seeds a comprehensive, production-quality concept dependency graph.
-This creates the "brain" of NOVYRA that judges will see in action.
+This creates the "brain" of Entropy AI that judges will see in action.
 
-🎓 Domains Covered (200+ concepts across 25+ disciplines):
+ðŸŽ“ Domains Covered (200+ concepts across 25+ disciplines):
 
 STEM Fields:
 - Computer Science (Data Structures, Algorithms, Machine Learning)
@@ -43,7 +43,7 @@ Creative Arts:
 - Visual Arts (Drawing, Painting, Digital Art, Sculpture, Art History)
 - Music (Theory, Composition, Performance, Ear Training, History)
 
-This demonstrates NOVYRA as a true universal learning platform,
+This demonstrates Entropy AI as a true universal learning platform,
 capable of guiding learners through ANY academic discipline with
 intelligent prerequisite tracking and adaptive pathways.
 """
@@ -364,9 +364,9 @@ async def seed_knowledge_graph() -> Dict[str, int]:
             )
             stats["concepts_created"] += 1
             stats["domains"].add(domain)
-            logger.debug(f"✓ Created concept: {name}")
+            logger.debug(f"âœ“ Created concept: {name}")
         except Exception as exc:
-            logger.error(f"✗ Failed to create concept {name}: {exc}")
+            logger.error(f"âœ— Failed to create concept {name}: {exc}")
     
     # Step 2: Create prerequisite relationships
     for name, _, _, _, prerequisites in CONCEPTS:
@@ -374,9 +374,9 @@ async def seed_knowledge_graph() -> Dict[str, int]:
             try:
                 await kg.link_prerequisite(concept=name, prerequisite=prereq)
                 stats["prerequisites_linked"] += 1
-                logger.debug(f"✓ Linked: {prereq} → {name}")
+                logger.debug(f"âœ“ Linked: {prereq} â†’ {name}")
             except Exception as exc:
-                logger.error(f"✗ Failed to link {prereq} → {name}: {exc}")
+                logger.error(f"âœ— Failed to link {prereq} â†’ {name}: {exc}")
     
     stats["domains"] = list(stats["domains"])
     
@@ -417,7 +417,7 @@ async def simulate_user_learning_journey(
     Simulate a learning journey for demo purposes.
     Shows mastery progression from prerequisites to target concept.
     """
-    logger.info(f"Simulating learning journey for user {user_id} → {target_concept}")
+    logger.info(f"Simulating learning journey for user {user_id} â†’ {target_concept}")
     
     # Get the prerequisite path
     path = await kg.get_recommended_path(user_id, target_concept)

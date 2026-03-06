@@ -10,8 +10,6 @@ services:
     startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
-      - key: GROQ_API_KEY
-        sync: false
       - key: AI_BACKEND_TOKEN
         sync: false
       - key: DEBUG

@@ -1,5 +1,5 @@
 """
-NOVYRA AI Brain - Layer 1: Intent Detection
+Entropy AI AI Brain - Layer 1: Intent Detection
 
 Classifies user questions into intent categories for appropriate handling.
 Reference: docs/AI_BRAIN_ARCHITECTURE.md Layer 1

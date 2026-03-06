@@ -1,7 +1,7 @@
 """
-NOVYRA — Knowledge Graph Service (Neo4j)
+Entropy AI â€” Knowledge Graph Service (Neo4j)
 
-This is the brain of NOVYRA. Every concept lives as a node.
+This is the brain of Entropy AI. Every concept lives as a node.
 Prerequisites, mastery, and relationships are graph edges.
 
 Node labels:  Concept, User
@@ -28,7 +28,7 @@ async def get_driver() -> AsyncDriver:
             settings.NEO4J_URI,
             auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD),
         )
-        logger.info("Neo4j driver initialised → %s", settings.NEO4J_URI)
+        logger.info("Neo4j driver initialised â†’ %s", settings.NEO4J_URI)
     return _driver
 
 
@@ -90,7 +90,7 @@ async def link_prerequisite(concept: str, prerequisite: str) -> bool:
             pre=prerequisite,
             con=concept,
         )
-    logger.debug("Linked prerequisite: %s → %s", prerequisite, concept)
+    logger.debug("Linked prerequisite: %s â†’ %s", prerequisite, concept)
     return True
 
 

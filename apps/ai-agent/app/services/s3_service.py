@@ -1,11 +1,11 @@
 """
-NOVYRA S3 Document Service
+Entropy AI S3 Document Service
 ==========================
 Handles document upload, presigned URL generation, and retrieval.
 
 Bucket layout:
-  documents/{user_id}/{filename}          ← uploaded originals
-  processed/{user_id}/{doc_id}.txt        ← extracted text (for RAG)
+  documents/{user_id}/{filename}          â† uploaded originals
+  processed/{user_id}/{doc_id}.txt        â† extracted text (for RAG)
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import os
 import uuid
 from datetime import datetime
 from functools import lru_cache
-from typing import BinaryIO, Dict, Optional
+from typing import Any, BinaryIO, Dict, Optional
 
 import boto3
 from botocore.config import Config
@@ -25,11 +25,11 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger(__name__)
 
 AWS_REGION       = os.getenv("AWS_REGION",       "ap-northeast-1")
-S3_BUCKET_NAME   = os.getenv("S3_BUCKET_NAME",   "novyra-documents")
+S3_BUCKET_NAME   = os.getenv("S3_BUCKET_NAME",   "Entropy AI-documents")
 PRESIGN_EXPIRY   = int(os.getenv("S3_PRESIGN_EXPIRY_SECS", "3600"))  # 1 hour
 
 
-# ── client singleton ──────────────────────────────────────────────────────────
+# â”€â”€ client singleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @lru_cache(maxsize=1)
 def _get_s3() -> Any:  # type: ignore[name-defined]
@@ -42,9 +42,9 @@ def _s3():
     return _get_s3()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # S3Service
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class S3Service:
     """
@@ -62,7 +62,7 @@ class S3Service:
     def __init__(self, bucket: str = S3_BUCKET_NAME):
         self.bucket = bucket
 
-    # ── Upload ────────────────────────────────────────────────────────────────
+    # â”€â”€ Upload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def upload_file(
         self,
@@ -77,7 +77,7 @@ class S3Service:
         if metadata:
             extra["Metadata"] = metadata
         _s3().upload_file(local_path, self.bucket, s3_key, ExtraArgs=extra)
-        logger.info("Uploaded %s → s3://%s/%s", local_path, self.bucket, s3_key)
+        logger.info("Uploaded %s â†’ s3://%s/%s", local_path, self.bucket, s3_key)
         return s3_key
 
     def upload_fileobj(
@@ -107,11 +107,11 @@ class S3Service:
                 "Metadata": {"user_id": user_id, "doc_id": doc_id, "original_name": filename},
             },
         )
-        logger.info("Uploaded fileobj → s3://%s/%s", self.bucket, s3_key)
+        logger.info("Uploaded fileobj â†’ s3://%s/%s", self.bucket, s3_key)
         url = self.get_presigned_url(s3_key)
         return {"s3_key": s3_key, "doc_id": doc_id, "bucket": self.bucket, "url": url}
 
-    # ── Presigned URLs ────────────────────────────────────────────────────────
+    # â”€â”€ Presigned URLs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def get_presigned_url(self, s3_key: str, expiry: int = PRESIGN_EXPIRY) -> str:
         """Generate a presigned GET URL for download."""
@@ -138,7 +138,7 @@ class S3Service:
         logger.debug("Presigned PUT: %s (expires %ds)", s3_key, expiry)
         return url
 
-    # ── Lifecycle ────────────────────────────────────────────────────────────
+    # â”€â”€ Lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def delete_file(self, s3_key: str) -> bool:
         """Delete a file. Returns True on success."""
@@ -158,7 +158,7 @@ class S3Service:
         except ClientError:
             return False
 
-    # ── RAG Processed Text ───────────────────────────────────────────────────
+    # â”€â”€ RAG Processed Text â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def store_processed_text(self, user_id: str, doc_id: str, text: str) -> str:
         """
@@ -173,7 +173,7 @@ class S3Service:
             Body=text.encode("utf-8"),
             ContentType="text/plain; charset=utf-8",
         )
-        logger.info("Stored processed text → s3://%s/%s", self.bucket, s3_key)
+        logger.info("Stored processed text â†’ s3://%s/%s", self.bucket, s3_key)
         return s3_key
 
     def get_processed_text(self, user_id: str, doc_id: str) -> Optional[str]:
@@ -188,9 +188,9 @@ class S3Service:
             raise
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Singleton accessor
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @lru_cache(maxsize=1)
 def get_s3_service() -> S3Service:

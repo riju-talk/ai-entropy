@@ -1,5 +1,5 @@
 """
-NOVYRA AI Brain - Layer 5: Context Assembly
+Entropy AI AI Brain - Layer 5: Context Assembly
 
 Assembles rich context for LLM prompt from all previous layers.
 Reference: docs/AI_BRAIN_ARCHITECTURE.md Layer 5

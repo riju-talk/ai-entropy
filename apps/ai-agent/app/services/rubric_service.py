@@ -1,5 +1,5 @@
 """
-NOVYRA — Rubric-Aware Evaluation Engine
+Entropy AI â€” Rubric-Aware Evaluation Engine
 
 No LangChain. Direct Gemini call with structured JSON enforcement.
 
@@ -39,13 +39,13 @@ async def evaluate(request: EvaluationRequest) -> EvaluationResponse:
         rubric_json=rubric_json,
     )
 
-    raw: dict = await generate_json(prompt, system_prompt=RUBRIC_SYSTEM)
+    raw: dict = await generate_json(prompt, system_prompt=request.system_prompt or RUBRIC_SYSTEM)
 
     # Parse criterion scores
     criteria_raw = raw.get("criterion_scores", [])
     criterion_scores = [CriterionScore(**c) for c in criteria_raw]
 
-    # Recompute weighted_total ourselves — don't trust LLM arithmetic
+    # Recompute weighted_total ourselves â€” don't trust LLM arithmetic
     weighted_total = sum(c.score * c.weight * 100 for c in criterion_scores)
 
     # Map grade level

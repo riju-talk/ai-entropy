@@ -10,6 +10,7 @@ from typing import List
 
 from app.core.llm import generate_response
 from app.schemas.chat import ChatResponse
+from app.core.prompts import UNIFIED_DEFAULT_SYSTEM
 from app.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -32,7 +33,7 @@ class ChatService:
     def __init__(self):
         pass  # No hidden state, no LLM stored globally.
 
-    async def chat(self, user_id: str, message: str, system_prompt: str) -> ChatResponse:
+    async def chat(self, user_id: str, message: str, system_prompt: Optional[str] = None) -> ChatResponse:
         """
         Core chat:
         - Uses the provided system_prompt strictly (no injection of extra personality)
@@ -41,8 +42,9 @@ class ChatService:
         """
 
         # ----- 1. Generate answer deterministically -----
+        sys_prompt = (system_prompt or UNIFIED_DEFAULT_SYSTEM).strip()
         answer_prompt = (
-            f"{system_prompt.strip()}\n\n"
+            f"{sys_prompt}\n\n"
             f"User: {message.strip()}\n"
             "Assistant:"
         )

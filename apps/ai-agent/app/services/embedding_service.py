@@ -1,10 +1,57 @@
 """
-Embedding Service
-Routes to Titan Embeddings V2 (Bedrock) or Gemini based on AI_PROVIDER.
-
-  AI_PROVIDER=bedrock  → Amazon Titan Embed Text V2 (1536-dim)
-  AI_PROVIDER=gemini   → Google Gemini Embeddings
+Embedding Service — delegates to BedrockService (Titan Embeddings V2)
 """
+
+from __future__ import annotations
+
+import logging
+from functools import lru_cache
+from typing import List
+
+import numpy as np
+
+from app.services.bedrock_service import get_bedrock_service
+
+logger = logging.getLogger(__name__)
+
+
+class EmbeddingService:
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
+    def __init__(self):
+        if self._initialized:
+            return
+        self._svc = get_bedrock_service()
+        logger.info("EmbeddingService: Titan Embeddings V2 via BedrockService")
+        self._initialized = True
+
+    def encode(self, text: str) -> np.ndarray:
+        """Generate embedding for a single text string."""
+        if not text or not text.strip():
+            raise ValueError("Cannot embed empty text string")
+        return self._svc.embed(text)
+
+    def encode_batch(self, texts: List[str]) -> np.ndarray:
+        """Generate embeddings for multiple texts."""
+        if not texts:
+            raise ValueError("encode_batch expects a non-empty list")
+        return self._svc.embed_batch(texts)
+
+    def similarity(self, text1: str, text2: str) -> float:
+        """Cosine similarity between two text embeddings."""
+        return self._svc.similarity(text1, text2)
+
+
+@lru_cache()
+def get_embedding_service() -> EmbeddingService:
+    return EmbeddingService()
+
 
 from __future__ import annotations
 
@@ -18,8 +65,6 @@ from typing import List
 from app.config import settings
 
 logger = logging.getLogger(__name__)
-
-_PROVIDER = getattr(settings, "AI_PROVIDER", "gemini").lower()
 
 
 class EmbeddingService:
@@ -35,10 +80,7 @@ class EmbeddingService:
         if self._initialized:
             return
 
-        if _PROVIDER == "bedrock":
-            self._init_bedrock()
-        else:
-            self._init_gemini()
+        self._init_bedrock()
 
         self._initialized = True
 
@@ -74,19 +116,13 @@ class EmbeddingService:
         """Generate embedding for a single text string."""
         if not text or not text.strip():
             raise ValueError("Cannot embed empty text string")
-        if self._provider == "bedrock":
-            return self._encode_bedrock(text)
-        emb = self.model.embed_query(text)
-        return np.array(emb, dtype=np.float32)
+        return self._encode_bedrock(text)
 
     def encode_batch(self, texts: List[str]) -> np.ndarray:
         """Generate embeddings for multiple texts."""
         if not texts:
             raise ValueError("encode_batch expects a non-empty list")
-        if self._provider == "bedrock":
-            return np.stack([self._encode_bedrock(t) for t in texts])
-        embeddings = self.model.embed_documents(texts)
-        return np.array(embeddings, dtype=np.float32)
+        return np.stack([self._encode_bedrock(t) for t in texts])
 
     def similarity(self, text1: str, text2: str) -> float:
         """Cosine similarity between two text embeddings."""

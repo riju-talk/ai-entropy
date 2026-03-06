@@ -21,85 +21,84 @@ if _DEBUG_LANGCHAIN:
 
 # Import with latest LangChain API - NO DEPRECATED CHAINS
 try:
-    logger.info("Importing ChatGoogleGenerativeAI...")
-    from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-    logger.info("Importing core messages...")
     from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-    logger.info("Importing documents...")
     from langchain_core.documents import Document
-    logger.info("Importing prompts...")
     from langchain_core.prompts import ChatPromptTemplate
-    logger.info("Importing text splitters...")
+    from langchain_core.embeddings import Embeddings as LCEmbeddings
     from langchain_text_splitters import RecursiveCharacterTextSplitter
-    logger.info("Importing Pinecone...")
     from langchain_pinecone import PineconeVectorStore
     from pinecone import Pinecone, ServerlessSpec
-    logger.info("Importing config...")
     from app.core.config import settings
-    logger.info("Importing MINDMAP_PROMPT...")
-    from app.core.prompts import MINDMAP_PROMPT  # new import
-    
+    from app.core.prompts import MINDMAP_PROMPT
+    from app.services.bedrock_service import get_bedrock_service
+
     logger.info("✅ All imports successful (langchain_service)")
 except Exception as e:
     logger.exception("Import error in langchain_service: %s", e)
-    raise
+    # Do NOT re-raise — let the module load so FastAPI routers still register.
+    # langchain_service singleton will be None; routes return 503 gracefully.
+
+
+class _BedrockEmbeddingsAdapter(LCEmbeddings):
+    """Wraps BedrockService.embed() as a LangChain Embeddings object for Pinecone."""
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        svc = get_bedrock_service()
+        return [svc.embed(t).tolist() for t in texts]
+
+    def embed_query(self, text: str) -> List[float]:
+        return get_bedrock_service().embed(text).tolist()
 
 SPARK_PERSONALITY = """You are Spark, an enthusiastic AI learning companion! 🌟
 Format responses in clean Markdown with headings, lists, code blocks, and emphasis."""
 
 
 class LangChainService:
-    """Core LangChain service with modern API - Gemini & Pinecone"""
+    """Core LangChain service with RAG capabilities — Bedrock + Pinecone"""
     
     def __init__(self):
         try:
             logger.info("🔧 Initializing LangChain service...")
             
-            # Validate API keys
-            if not settings.GOOGLE_API_KEY:
-                raise ValueError("Missing GOOGLE_API_KEY!")
+            # Validate required config
             if not settings.PINECONE_API_KEY:
                 raise ValueError("Missing PINECONE_API_KEY!")
             
-            # Initialize LLM (Gemini)
-            logger.info(f"Initializing Gemini ({settings.LLM_MODEL})...")
-            self.llm = ChatGoogleGenerativeAI(
-                model=settings.LLM_MODEL,
-                google_api_key=settings.GOOGLE_API_KEY,
-                temperature=settings.LLM_TEMPERATURE,
-                convert_system_message_to_human=True # Gemini sometimes prefers this
-            )
-            logger.info("✅ Gemini initialized")
+            # LLM: use BedrockService directly (via adapter for LangChain invoke())
+            self._bedrock_svc = get_bedrock_service()
+            logger.info("✅ BedrockService ready")
 
-            # Initialize Embeddings (Gemini)
-            logger.info("Initializing Gemini Embeddings...")
-            self.embeddings = GoogleGenerativeAIEmbeddings(
-                model=settings.EMBEDDING_MODEL,
-                google_api_key=settings.GOOGLE_API_KEY
-            )
-            logger.info("✅ Gemini Embeddings initialized")
+            # Embeddings adapter (LangChain-compatible wrapper around BedrockService.embed)
+            self.embeddings = _BedrockEmbeddingsAdapter()
+            logger.info("✅ Bedrock Titan Embeddings adapter ready")
 
             # Initialize Pinecone Client
             logger.info("Initializing Pinecone...")
             self.pc = Pinecone(api_key=settings.PINECONE_API_KEY)
             self.index_name = settings.PINECONE_INDEX_NAME
-            
-            # Create index if not exists (serverless spec)
-            existing_indexes = [i.name for i in self.pc.list_indexes()]
-            if self.index_name not in existing_indexes:
-                logger.info(f"Creating Pinecone index '{self.index_name}'...")
-                self.pc.create_index(
-                    name=self.index_name,
-                    dimension=768, # Gemini embedding-001 dimension
-                    metric='cosine',
-                    spec=ServerlessSpec(
-                        cloud='aws',
-                        region=settings.PINECONE_ENV
-                    )
-                )
-                logger.info("✅ Pinecone Index Created")
+
+            # Connect via host if configured (faster, skips list_indexes call)
+            if settings.PINECONE_HOST:
+                self.pinecone_index = self.pc.Index(host=settings.PINECONE_HOST)
+                logger.info(f"✅ Pinecone index connected via host: {settings.PINECONE_HOST}")
             else:
-                logger.info(f"✅ Pinecone Index '{self.index_name}' found")
+                # Create index if not exists (serverless spec)
+                existing_indexes = [i.name for i in self.pc.list_indexes()]
+                if self.index_name not in existing_indexes:
+                    logger.info(f"Creating Pinecone index '{self.index_name}'...")
+                    self.pc.create_index(
+                        name=self.index_name,
+                        dimension=settings.EMBEDDING_DIMENSIONS,  # matches EMBEDDING_DIMENSIONS in config
+                        metric='cosine',
+                        spec=ServerlessSpec(
+                            cloud='aws',
+                            region=settings.PINECONE_ENV
+                        )
+                    )
+                    logger.info("✅ Pinecone Index Created")
+                else:
+                    logger.info(f"✅ Pinecone Index '{self.index_name}' found")
+                self.pinecone_index = self.pc.Index(self.index_name)
 
             # Initialize text splitter
             self.text_splitter = RecursiveCharacterTextSplitter(
@@ -157,12 +156,10 @@ class LangChainService:
             # Format context from documents
             context = "\n\n".join([doc.page_content for doc in docs])
             
-            # Create prompt
-            prompt_text = system_prompt or SPARK_PERSONALITY
-            prompt_text += f"\n\nContext:\n{context}\n\nQuestion: {message}\n\nAnswer:"
-            
-            # Invoke LLM
-            response = self.llm.invoke([HumanMessage(content=prompt_text)])
+            # Build prompt and call Bedrock
+            system = system_prompt or SPARK_PERSONALITY
+            prompt_text = f"Context:\n{context}\n\nQuestion: {message}\n\nAnswer:"
+            answer = self._bedrock_svc.generate(prompt_text, system=system)
             
             # Format sources
             sources = [
@@ -171,7 +168,7 @@ class LangChainService:
             ]
             
             return {
-                "answer": response.content.strip(),
+                "answer": answer,
                 "sources": sources,
                 "mode": "rag"
             }
@@ -185,21 +182,16 @@ class LangChainService:
         conversation_history: List[Dict[str, str]] = None,
         system_prompt: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Direct LLM chat"""
-        prompt = system_prompt or SPARK_PERSONALITY
-        messages = [SystemMessage(content=prompt)]
-        
+        """Direct LLM chat via BedrockService"""
+        system = system_prompt or SPARK_PERSONALITY
+        bedrock_msgs = []
         if conversation_history:
             for msg in conversation_history:
-                if msg["role"] == "user":
-                    messages.append(HumanMessage(content=msg["content"]))
-                elif msg["role"] == "assistant":
-                    messages.append(AIMessage(content=msg["content"]))
-        
-        messages.append(HumanMessage(content=message))
-        response = self.llm.invoke(messages)
-        
-        return {"answer": response.content.strip(), "sources": [], "mode": "direct"}
+                if msg["role"] in ("user", "assistant"):
+                    bedrock_msgs.append({"role": msg["role"], "content": msg["content"]})
+        bedrock_msgs.append({"role": "user", "content": message})
+        answer = self._bedrock_svc.generate_with_history(bedrock_msgs, system=system)
+        return {"answer": answer, "sources": [], "mode": "direct"}
     
     def load_vector_store(self, collection_name: str):
         """Load vector store (Pinecone)"""

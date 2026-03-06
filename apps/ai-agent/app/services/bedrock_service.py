@@ -1,10 +1,10 @@
 """
-NOVYRA Bedrock Service
+Entropy AI Bedrock Service
 ======================
 Drop-in replacement for Gemini + Pinecone.
 
-  LLM  : Amazon Bedrock — Claude 3 Sonnet
-  Embed: Amazon Bedrock — Titan Embeddings V2
+  LLM  : Amazon Bedrock â€” Claude 3 Sonnet
+  Embed: Amazon Bedrock â€” Titan Embeddings V2
 
 Usage example:
     from app.services.bedrock_service import (
@@ -30,12 +30,10 @@ from botocore.config import Config
 
 logger = logging.getLogger(__name__)
 
-# ── Model IDs ─────────────────────────────────────────────────────────────────
-CLAUDE_MODEL_ID   = os.getenv("BEDROCK_CLAUDE_MODEL",  "anthropic.claude-3-sonnet-20240229-v1:0")
+CLAUDE_MODEL_ID   = os.getenv("BEDROCK_CLAUDE_MODEL",  "eu.anthropic.claude-3-7-sonnet-20250219-v1:0")
 TITAN_EMBED_ID    = os.getenv("BEDROCK_TITAN_EMBED",   "amazon.titan-embed-text-v2:0")
 AWS_REGION        = os.getenv("AWS_REGION",             "ap-northeast-1")
 
-# ── Bedrock runtime client (singleton) ───────────────────────────────────────
 
 @lru_cache(maxsize=1)
 def _get_client() -> Any:
@@ -46,11 +44,7 @@ def _get_client() -> Any:
     )
     return boto3.client("bedrock-runtime", config=cfg)
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TEXT GENERATION  (Claude 3 Sonnet — Messages API)
-# ─────────────────────────────────────────────────────────────────────────────
-
+    
 class BedrockService:
     """Thin wrapper around Claude 3 Sonnet and Titan Embeddings."""
 
@@ -65,7 +59,7 @@ class BedrockService:
         self.max_tokens  = max_tokens
         self._client     = _get_client()
 
-    # ── LLM helpers ───────────────────────────────────────────────────────────
+    # â”€â”€ LLM helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def generate(
         self,
@@ -160,7 +154,7 @@ class BedrockService:
         result = json.loads(response["body"].read())
         return result["content"][0]["text"]
 
-    # ── Embedding helpers ──────────────────────────────────────────────────────
+    # â”€â”€ Embedding helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def embed(self, text: str) -> np.ndarray:
         """
@@ -180,11 +174,60 @@ class BedrockService:
         return np.array(result["embedding"], dtype=np.float32)
 
     def embed_batch(self, texts: List[str]) -> np.ndarray:
-        """Embed multiple texts. Titan doesn't support batch natively — sequenced."""
+        """Embed multiple texts. Titan doesn't support batch natively â€” sequenced."""
         if not texts:
             raise ValueError("embed_batch expects a non-empty list.")
         return np.stack([self.embed(t) for t in texts])
+    # ── Vision ────────────────────────────────────────────────────────────────
 
+    def describe_image_bytes(self, image_bytes: bytes, media_type: str = "image/jpeg") -> str:
+        """
+        Use Claude 3 vision to extract all text from an image (OCR) and describe
+        any diagrams / charts found.  Returns extracted content as plain text.
+
+        Parameters
+        ----------
+        image_bytes : raw bytes of the image (PNG or JPEG)
+        media_type  : MIME type — "image/png" or "image/jpeg"
+        """
+        import base64
+        b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": b64,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            "Extract ALL text visible in this image, preserving layout as much as possible. "
+                            "If the image contains diagrams, charts, tables, or illustrations, describe them "
+                            "concisely after the extracted text. Return only the content — no preamble."
+                        ),
+                    },
+                ],
+            }
+        ]
+        body: Dict[str, Any] = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": 2048,
+            "messages": messages,
+        }
+        response = self._client.invoke_model(
+            modelId=self.model_id,
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps(body),
+        )
+        result = json.loads(response["body"].read())
+        return result["content"][0]["text"]
     def similarity(self, text1: str, text2: str) -> float:
         """Cosine similarity between two texts (already normalized)."""
         e1 = self.embed(text1)
@@ -192,10 +235,6 @@ class BedrockService:
         denom = np.linalg.norm(e1) * np.linalg.norm(e2)
         return float(np.dot(e1, e2) / denom) if denom > 0 else 0.0
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Module-level singleton accessor
-# ─────────────────────────────────────────────────────────────────────────────
 
 @lru_cache(maxsize=1)
 def get_bedrock_service() -> BedrockService:
@@ -206,13 +245,8 @@ def get_bedrock_service() -> BedrockService:
         max_tokens  = int(os.getenv("LLM_MAX_TOKENS",   "2048")),
     )
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Convenience passthrough functions (matches old Gemini service surface)
-# ─────────────────────────────────────────────────────────────────────────────
-
 def generate_text(prompt: str, system: Optional[str] = None) -> str:
-    """Direct call — returns plain text string."""
+    """Direct call â€” returns plain text string."""
     return get_bedrock_service().generate(prompt, system=system)
 
 
@@ -221,15 +255,15 @@ def generate_structured(
     output_schema: str,
     system: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Direct call — returns parsed dict."""
+    """Direct call â€” returns parsed dict."""
     return get_bedrock_service().generate_structured(prompt, output_schema, system)
 
 
 def embed_text(text: str) -> np.ndarray:
-    """Direct call — returns 1536-dim numpy array."""
+    """Direct call â€” returns 1536-dim numpy array."""
     return get_bedrock_service().embed(text)
 
 
 def embed_batch(texts: List[str]) -> np.ndarray:
-    """Direct call — returns (N, 1536) numpy array."""
+    """Direct call â€” returns (N, 1536) numpy array."""
     return get_bedrock_service().embed_batch(texts)

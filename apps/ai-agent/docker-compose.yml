@@ -10,7 +10,8 @@ services:
     environment:
       - APP_ENV=development
       - AI_PROVIDER=gemini
-      - LLM_MODEL=gemini-1.5-flash
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-AIzaSyDmN0fOjdt6-bgHm-meB7ZNxRjZgWra5r4}
+      - LLM_MODEL=gemini-2.0-flash
       - DATABASE_URL=postgresql://entropy:entropy@db:5432/entropy
       - DIRECT_URL=postgresql://entropy:entropy@db:5432/entropy
       - NEO4J_URI=bolt://neo4j:7687
@@ -19,8 +20,13 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - S3_BUCKET_NAME=entropy-documents-dev
-      - AI_BACKEND_TOKEN=entropy-backend-token
-      - JWT_SECRET_KEY=entropy-jwt-secret-key
+      - AI_BACKEND_TOKEN=${AI_BACKEND_TOKEN:-T7vF1+HOmOARLnxPoAB2x/83gGAOD1wjCqy15Je1lzw=}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-entropy-jwt-secret-key}
+      - PINECONE_API_KEY=${PINECONE_API_KEY:-}
+      - PINECONE_HOST=${PINECONE_HOST:-}
+      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-novyra-ai}
+      - PINECONE_ENV=${PINECONE_ENV:-us-east-1}
+      - VECTOR_DB=pinecone
       - DEBUG=true
     depends_on:
       - db
@@ -36,6 +42,8 @@ services:
       - POSTGRES_USER=entropy
       - POSTGRES_PASSWORD=entropy
       - POSTGRES_DB=entropy
+    ports:
+      - "5432:5432"
     volumes:
       - entropy-db-data:/var/lib/postgresql/data
     restart: unless-stopped

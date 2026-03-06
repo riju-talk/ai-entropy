@@ -1,5 +1,5 @@
 """
-NOVYRA — Pydantic schemas for the Rubric Evaluation Engine
+Entropy AI â€” Pydantic schemas for the Rubric Evaluation Engine
 """
 from __future__ import annotations
 from typing import List, Optional, Literal
@@ -21,6 +21,7 @@ class EvaluationRequest(BaseModel):
     rubric: RubricSchema
     user_id: Optional[str] = None
     concept: Optional[str] = None   # tie to knowledge graph
+    system_prompt: Optional[str] = None
 
 
 class CriterionScore(BaseModel):

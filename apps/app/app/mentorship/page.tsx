@@ -1,12 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Search, Star, BookOpen, Users, Clock, MapPin } from "lucide-react"
 
 const mentors = [
@@ -109,123 +104,123 @@ export default function MentorshipPage() {
 	})
 
 	return (
-		<div className="relative">
-			{/* Coming Soon Ribbon */}
-			<div className="absolute top-3 right-3 z-10">
-				<div className="bg-amber-500 text-white px-3 py-1 rounded-md text-sm font-semibold shadow">
-					Coming soon
+		<div className="relative font-mono">
+			{/* Coming Soon Badge */}
+			<div className="absolute top-0 right-0 z-10">
+				<div className="text-[10px] uppercase tracking-[0.2em] border border-amber-500/40 text-amber-400 bg-amber-500/10 px-3 py-1 rounded-lg">
+					Coming Soon
 				</div>
 			</div>
 
 			{/* Blurred Content */}
-			<div className="space-y-6 filter blur-sm opacity-80 pointer-events-none">
+			<div className="space-y-6 filter blur-sm opacity-60 pointer-events-none select-none">
 				<div>
-					<h1 className="text-3xl font-bold mb-2">Find a Mentor</h1>
-					<p className="text-muted-foreground">
+					<div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-cyan-500/60 mb-1">
+						<span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+						<span>ENTROPY · MENTORSHIP</span>
+					</div>
+					<h1 className="text-2xl font-black tracking-tight">Find a Mentor</h1>
+					<p className="text-xs text-muted-foreground mt-1">
 						Connect with experienced mentors to guide your academic journey
 					</p>
 				</div>
 
-				{/* Search and Filter */}
-				<Card>
-					<CardContent className="pt-6">
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-							<div className="relative">
-								<Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-								<Input
-									placeholder="Search mentors by name or expertise..."
-									value={searchTerm}
-									onChange={(e) => setSearchTerm(e.target.value)}
-									className="pl-9"
-								/>
+				{/* Search */}
+				<div className="flex gap-3">
+					<div className="relative flex-1">
+						<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
+						<div className="h-10 pl-9 rounded-lg border border-white/8 bg-[#0d0d14]/80" />
+					</div>
+					<div className="flex gap-1.5">
+						{["All", "CS", "Math", "Physics", "Chem"].map((tab) => (
+							<div
+								key={tab}
+								className="h-10 px-3 rounded-lg border border-white/8 bg-[#0d0d14]/80 flex items-center text-[10px] uppercase tracking-[0.12em] text-muted-foreground"
+							>
+								{tab}
 							</div>
-							<Tabs value={selectedSubject} onValueChange={setSelectedSubject}>
-								<TabsList className="grid w-full grid-cols-5">
-									<TabsTrigger value="all">All</TabsTrigger>
-									<TabsTrigger value="CS">CS</TabsTrigger>
-									<TabsTrigger value="Math">Math</TabsTrigger>
-									<TabsTrigger value="Physics">Physics</TabsTrigger>
-									<TabsTrigger value="Chemistry">Chem</TabsTrigger>
-								</TabsList>
-							</Tabs>
-						</div>
-					</CardContent>
-				</Card>
-
-				{/* Mentors Grid */}
-				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-					{filteredMentors.map((mentor) => (
-						<Card key={mentor.id} className="hover:shadow-lg transition-shadow">
-							<CardHeader>
-								<div className="flex items-start gap-4">
-									<Avatar className="h-16 w-16">
-										<AvatarImage src={mentor.image} />
-										<AvatarFallback>
-											{mentor.name
-												.split(" ")
-												.map((n) => n[0])
-												.join("")}
-										</AvatarFallback>
-									</Avatar>
-									<div className="flex-1">
-										<CardTitle className="text-lg">{mentor.name}</CardTitle>
-										<CardDescription>{mentor.title}</CardDescription>
-										<div className="flex items-center gap-1 mt-1">
-											<Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-											<span className="text-sm font-medium">{mentor.rating}</span>
-											<span className="text-xs text-muted-foreground">
-												({mentor.reviewCount} reviews)
-											</span>
-										</div>
-									</div>
-								</div>
-							</CardHeader>
-							<CardContent className="space-y-4">
-								<div>
-									<p className="text-sm text-muted-foreground mb-2">Expertise:</p>
-									<div className="flex flex-wrap gap-2">
-										{mentor.expertise.map((skill) => (
-											<Badge key={skill} variant="secondary">
-												{skill}
-											</Badge>
-										))}
-									</div>
-								</div>
-
-								<div className="space-y-2 text-sm">
-									<div className="flex items-center gap-2 text-muted-foreground">
-										<BookOpen className="h-4 w-4" />
-										<span>{mentor.sessionsCompleted} sessions completed</span>
-									</div>
-									<div className="flex items-center gap-2 text-muted-foreground">
-										<Users className="h-4 w-4" />
-										<span>{mentor.students} students mentored</span>
-									</div>
-									<div className="flex items-center gap-2 text-muted-foreground">
-										<Clock className="h-4 w-4" />
-										<span>{mentor.availability}</span>
-									</div>
-									{mentor.university && (
-										<div className="flex items-center gap-2 text-muted-foreground">
-											<MapPin className="h-4 w-4" />
-											<span>{mentor.university}</span>
-										</div>
-									)}
-								</div>
-
-								<Button className="w-full">Request Session</Button>
-							</CardContent>
-						</Card>
-					))}
+						))}
+					</div>
 				</div>
 
-				{filteredMentors.length === 0 && (
-					<Card>
-						<CardContent className="text-center py-12">
-							<p className="text-muted-foreground">No mentors found matching your criteria</p>
-						</CardContent>
-					</Card>
-				)}
+				{/* Mentor Grid */}
+				<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+					{filteredMentors.map((mentor) => (
+						<div
+							key={mentor.id}
+							className="rounded-xl border border-white/5 bg-[#0d0d14]/80 p-5 space-y-4"
+						>
+							<div className="flex items-start gap-3">
+								<Avatar className="h-12 w-12 border border-white/10">
+									<AvatarImage src={mentor.image} />
+									<AvatarFallback className="bg-gradient-to-br from-cyan-500 to-blue-600 text-white text-sm font-black">
+										{mentor.name.split(" ").map((n) => n[0]).join("")}
+									</AvatarFallback>
+								</Avatar>
+								<div className="flex-1 min-w-0">
+									<div className="font-bold text-sm text-foreground truncate">{mentor.name}</div>
+									<div className="text-[10px] text-muted-foreground uppercase tracking-[0.12em] truncate">
+										{mentor.title}
+									</div>
+									<div className="flex items-center gap-1 mt-1">
+										<Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+										<span className="text-[11px] font-bold text-yellow-400">{mentor.rating}</span>
+										<span className="text-[10px] text-muted-foreground">
+											({mentor.reviewCount})
+										</span>
+									</div>
+								</div>
+							</div>
+
+							<div className="flex flex-wrap gap-1.5">
+								{mentor.expertise.map((skill) => (
+									<span
+										key={skill}
+										className="text-[10px] uppercase tracking-[0.1em] border border-white/8 text-muted-foreground px-1.5 py-0.5 rounded"
+									>
+										{skill}
+									</span>
+								))}
+							</div>
+
+							<div className="space-y-1.5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+								<div className="flex items-center gap-2">
+									<BookOpen className="h-3 w-3" />
+									<span>{mentor.sessionsCompleted} sessions</span>
+								</div>
+								<div className="flex items-center gap-2">
+									<Users className="h-3 w-3" />
+									<span>{mentor.students} students</span>
+								</div>
+								<div className="flex items-center gap-2">
+									<Clock className="h-3 w-3" />
+									<span>{mentor.availability}</span>
+								</div>
+								{mentor.university && (
+									<div className="flex items-center gap-2">
+										<MapPin className="h-3 w-3" />
+										<span>{mentor.university}</span>
+									</div>
+								)}
+							</div>
+
+							<div className="h-8 rounded-lg border border-cyan-500/20 bg-cyan-500/5 flex items-center justify-center text-[10px] uppercase tracking-[0.15em] text-cyan-400">
+								Request Session
+							</div>
+						</div>
+					))}
+				</div>
+			</div>
+
+			{/* Overlay */}
+			<div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+				<div className="rounded-xl border border-amber-500/20 bg-[#0a0a0f]/90 px-8 py-6 text-center shadow-[0_0_40px_rgba(0,0,0,0.8)] backdrop-blur-sm">
+					<div className="text-[10px] uppercase tracking-[0.2em] text-amber-400/60 mb-2">// STATUS</div>
+					<div className="text-lg font-black text-foreground tracking-tight">Coming Soon</div>
+					<div className="text-xs text-muted-foreground mt-1">
+						Mentorship module is under development
+					</div>
+				</div>
 			</div>
 		</div>
 	)

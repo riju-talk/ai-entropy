@@ -1,5 +1,5 @@
 """
-NOVYRA Achievement Engine
+Entropy AI Achievement Engine
 
 Checks and unlocks achievements with anti-exploit validation.
 Reference: docs/GAME_ENGINE_ARCHITECTURE.md

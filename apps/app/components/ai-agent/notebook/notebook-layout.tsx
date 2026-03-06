@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -23,9 +23,11 @@ import {
     FlaskConical,
     Radio,
     ShieldCheck,
+    RefreshCw,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getUserDocuments } from "@/app/actions/documents"
+import { getCognitiveProfile, type CognitiveProfile, type ConceptRecord } from "@/app/actions/cognitive"
 import { DocumentList } from "./document-list"
 import { DocumentUpload } from "./document-upload"
 import {
@@ -37,21 +39,36 @@ import {
     Tooltip,
 } from "recharts"
 
-const masteryData = [
-    { subject: "Calculus", value: 72, fullMark: 100 },
-    { subject: "Algebra", value: 58, fullMark: 100 },
-    { subject: "Physics", value: 64, fullMark: 100 },
-    { subject: "AI/ML", value: 81, fullMark: 100 },
-    { subject: "Programming", value: 89, fullMark: 100 },
-]
+// ── helpers ────────────────────────────────────────────────
 
-const activeConcepts = [
-    { name: "Chain Rule", mastery: 72, trend: "up", volatility: "low" },
-    { name: "Derivatives", mastery: 64, trend: "up", volatility: "medium" },
-    { name: "Limits", mastery: 51, trend: "stable", volatility: "high" },
-    { name: "Recursion", mastery: 89, trend: "up", volatility: "low" },
-    { name: "Big O Notation", mastery: 76, trend: "stable", volatility: "low" },
-]
+function conceptsToRadarData(concepts: ConceptRecord[]) {
+    if (!concepts.length) return [
+        { subject: "No Data", value: 0, fullMark: 100 },
+    ]
+    // Use top-5 concepts by mastery as radar axes
+    const top5 = [...concepts]
+        .sort((a, b) => b.mastery_score - a.mastery_score)
+        .slice(0, 5)
+    return top5.map(c => ({
+        subject: c.concept.length > 12 ? c.concept.slice(0, 11) + "…" : c.concept,
+        value: Math.round(c.mastery_score * 100),
+        fullMark: 100,
+    }))
+}
+
+function conceptsToActiveList(concepts: ConceptRecord[], weakSet: Set<string>) {
+    return [...concepts]
+        .sort((a, b) => b.mastery_score - a.mastery_score)
+        .slice(0, 5)
+        .map(c => {
+            const pct = Math.round(c.mastery_score * 100)
+            const vol = weakSet.has(c.concept) ? "high"
+                : c.confidence_weight < 0.7 ? "medium"
+                : "low"
+            const trend = c.correct_attempts > c.total_attempts / 2 ? "up" : "stable"
+            return { name: c.concept, mastery: pct, trend, volatility: vol }
+        })
+}
 
 
 function masteryColor(val: number) {
@@ -94,18 +111,46 @@ export function NotebookLayout({
     const [showHeatmap, setShowHeatmap] = useState(false)
     const [activeConceptsExpanded, setActiveConceptsExpanded] = useState(true)
     const [assetsExpanded, setAssetsExpanded] = useState(true)
-    const examReadiness = 74
-    const volatility = 38
-    const cognitiveLoad = 62
     const [studioMode, setStudioMode] = useState<"learning" | "assessment" | "graphing">("learning")
+
+    // ── Live cognitive data ──────────────────────────────
+    const [profile, setProfile] = useState<CognitiveProfile | null>(null)
+    const [profileLoading, setProfileLoading] = useState(false)
+
+    const fetchProfile = useCallback(async () => {
+        if (!session?.user?.id) return
+        setProfileLoading(true)
+        const res = await getCognitiveProfile(session.user.id)
+        if (res.success && res.data) setProfile(res.data)
+        setProfileLoading(false)
+    }, [session?.user?.id])
 
     useEffect(() => {
         if (session?.user?.id) {
             getUserDocuments(session.user.id).then(res => {
                 if (res.success) setDocCount(res.docs?.length || 0)
             })
+            fetchProfile()
         }
-    }, [session?.user?.id])
+    }, [session?.user?.id, fetchProfile])
+
+    // Sync docCount from backend profile
+    useEffect(() => {
+        if (profile) setDocCount(profile.doc_count)
+    }, [profile])
+
+    // ── Derived display values ───────────────────────────
+    const masteryData = profile ? conceptsToRadarData(profile.concepts) : []
+    const weakSet = new Set(profile?.weak_concepts ?? [])
+    const activeConcepts = profile ? conceptsToActiveList(profile.concepts, weakSet) : []
+    const examReadiness = profile?.exam_readiness ?? 0
+    const volatility = profile?.volatility ?? 0
+    const cognitiveLoad = profile?.cognitive_load ?? 0
+    const recall = profile?.recall ?? 0
+    const reasoning = profile?.reasoning ?? 0
+    const speed = profile?.speed ?? 0
+    const accuracy = profile?.accuracy ?? 0
+    const hasData = (profile?.concepts.length ?? 0) > 0
 
     return (
         <div className="flex h-[calc(100vh-4rem)] bg-[#0a0a0f] overflow-hidden font-mono">
@@ -128,13 +173,16 @@ export function NotebookLayout({
                             <button onClick={() => setActiveConceptsExpanded(v => !v)} className="w-full flex items-center gap-1.5 mb-2 group">
                                 <ChevronRight className={cn("h-3 w-3 text-white/30 transition-transform", activeConceptsExpanded && "rotate-90")} />
                                 <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/40 group-hover:text-white/60">Active Concepts</span>
-                                <span className="ml-auto text-[8px] text-cyan-400 font-bold">{activeConcepts.length}</span>
+                                <span className="ml-auto text-[8px] text-cyan-400 font-bold">
+                                    {profileLoading ? "…" : activeConcepts.length}
+                                </span>
                             </button>
                             {activeConceptsExpanded && (
                                 <div className="space-y-1">
-                                    {activeConcepts.map((c) => (
-                                        <ConceptRow key={c.name} concept={c} />
-                                    ))}
+                                    {activeConcepts.length > 0
+                                        ? activeConcepts.map((c) => <ConceptRow key={c.name} concept={c} />)
+                                        : <p className="text-[9px] text-white/20 text-center py-2">No concepts tracked yet</p>
+                                    }
                                 </div>
                             )}
                         </div>
@@ -157,17 +205,20 @@ export function NotebookLayout({
                         {showHeatmap && (
                             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
                                 <p className="text-[9px] text-white/30 mb-2 uppercase tracking-widest">Domain Coverage</p>
-                                {masteryData.map((d) => (
-                                    <div key={d.subject} className="mb-1.5">
-                                        <div className="flex justify-between mb-0.5">
-                                            <span className="text-[9px] text-white/50">{d.subject}</span>
-                                            <span className="text-[9px] text-cyan-400 font-bold">{d.value}%</span>
+                                {masteryData.length > 0
+                                    ? masteryData.map((d) => (
+                                        <div key={d.subject} className="mb-1.5">
+                                            <div className="flex justify-between mb-0.5">
+                                                <span className="text-[9px] text-white/50">{d.subject}</span>
+                                                <span className="text-[9px] text-cyan-400 font-bold">{d.value}%</span>
+                                            </div>
+                                            <div className="h-1 bg-white/5 rounded-full">
+                                                <div className={cn("h-full rounded-full", masteryColor(d.value))} style={{ width: `${d.value}%` }} />
+                                            </div>
                                         </div>
-                                        <div className="h-1 bg-white/5 rounded-full">
-                                            <div className={cn("h-full rounded-full", masteryColor(d.value))} style={{ width: `${d.value}%` }} />
-                                        </div>
-                                    </div>
-                                ))}
+                                    ))
+                                    : <p className="text-[9px] text-white/20 text-center py-1">Ask questions to build your heatmap</p>
+                                }
                             </div>
                         )}
 
@@ -239,9 +290,14 @@ export function NotebookLayout({
                         <Microscope className="h-3.5 w-3.5 text-purple-400" />
                         <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-400">Cognitive Studio</span>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-white/20 hover:text-white/50">
-                        <Settings className="h-3 w-3" />
-                    </Button>
+                    <button
+                        onClick={fetchProfile}
+                        disabled={profileLoading}
+                        className="h-6 w-6 flex items-center justify-center text-white/20 hover:text-white/50 transition-colors rounded"
+                        title="Refresh cognitive data"
+                    >
+                        <RefreshCw className={cn("h-3 w-3", profileLoading && "animate-spin")} />
+                    </button>
                 </div>
 
                 {/* ── Mode Tabs ── */}
@@ -258,16 +314,22 @@ export function NotebookLayout({
                         {studioMode === "learning" && (
                             <>
                                 <StudioSection icon={Radio} label="Mastery Radar" color="purple">
-                                    <div className="h-44">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <RadarChart data={masteryData} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
-                                                <PolarGrid stroke="rgba(255,255,255,0.05)" />
-                                                <PolarAngleAxis dataKey="subject" tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 9, fontFamily: "monospace" }} />
-                                                <Radar name="Mastery" dataKey="value" stroke="#22d3ee" fill="#22d3ee" fillOpacity={0.12} strokeWidth={1.5} />
-                                                <Tooltip contentStyle={{ background: "#0f0f1a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 10 }} formatter={(v: any) => [`${v}%`, "Mastery"]} />
-                                            </RadarChart>
-                                        </ResponsiveContainer>
-                                    </div>
+                                    {hasData ? (
+                                        <div className="h-44">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <RadarChart data={masteryData} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
+                                                    <PolarGrid stroke="rgba(255,255,255,0.05)" />
+                                                    <PolarAngleAxis dataKey="subject" tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 9, fontFamily: "monospace" }} />
+                                                    <Radar name="Mastery" dataKey="value" stroke="#22d3ee" fill="#22d3ee" fillOpacity={0.12} strokeWidth={1.5} />
+                                                    <Tooltip contentStyle={{ background: "#0f0f1a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 10 }} formatter={(v: any) => [`${v}%`, "Mastery"]} />
+                                                </RadarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    ) : (
+                                        <div className="h-44 flex items-center justify-center">
+                                            <p className="text-[9px] text-white/20 text-center">Start asking questions<br/>to build your radar</p>
+                                        </div>
+                                    )}
                                 </StudioSection>
                                 <div className="grid grid-cols-2 gap-2">
                                     <MeterCard icon={Flame} label="Volatility" value={volatility} unit="%" color={volatility > 60 ? "red" : volatility > 35 ? "yellow" : "green"} tooltip="Concept instability" />
@@ -287,6 +349,14 @@ export function NotebookLayout({
                         {/* ── Assessment Mode ── */}
                         {studioMode === "assessment" && (
                             <>
+                                <button
+                                    onClick={() => { setStudioMode("learning"); onTabChange("qa") }}
+                                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-cyan-500/[0.07] border border-cyan-500/25 hover:bg-cyan-500/[0.12] hover:border-cyan-500/50 transition-all group"
+                                >
+                                    <BrainCircuit className="h-3.5 w-3.5 text-cyan-400" />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 flex-1 text-left">← Back to Chat</span>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)] animate-pulse" />
+                                </button>
                                 <StudioSection icon={Target} label="Exam Readiness Index" color="cyan">
                                     <div className="flex items-center gap-4">
                                         <div className="relative flex-shrink-0">
@@ -299,10 +369,10 @@ export function NotebookLayout({
                                             </div>
                                         </div>
                                         <div className="space-y-1 flex-1 min-w-0">
-                                            <ReadinessRow label="Recall" val={81} />
-                                            <ReadinessRow label="Reasoning" val={72} />
-                                            <ReadinessRow label="Speed" val={65} />
-                                            <ReadinessRow label="Accuracy" val={78} />
+                                            <ReadinessRow label="Recall" val={recall} />
+                                            <ReadinessRow label="Reasoning" val={reasoning} />
+                                            <ReadinessRow label="Speed" val={speed} />
+                                            <ReadinessRow label="Accuracy" val={accuracy} />
                                         </div>
                                     </div>
                                 </StudioSection>
@@ -327,6 +397,14 @@ export function NotebookLayout({
                         {/* ── Graphing Mode ── */}
                         {studioMode === "graphing" && (
                             <>
+                                <button
+                                    onClick={() => { setStudioMode("learning"); onTabChange("qa") }}
+                                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-cyan-500/[0.07] border border-cyan-500/25 hover:bg-cyan-500/[0.12] hover:border-cyan-500/50 transition-all group"
+                                >
+                                    <BrainCircuit className="h-3.5 w-3.5 text-cyan-400" />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 flex-1 text-left">← Back to Chat</span>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)] animate-pulse" />
+                                </button>
                                 <StudioSection icon={Layers} label="Active Concepts" color="purple">
                                     <div className="space-y-1">
                                         {activeConcepts.map((c) => (

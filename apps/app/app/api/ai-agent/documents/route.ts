@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
 
     console.log("[API][DOCUMENTS] Forwarding to backend");
 
-    const getResp = await fetch(`${AI_AGENT_URL}/api/documents`, {
+    const getResp = await fetch(`${AI_AGENT_URL}/api/documents/`, {
       method: "GET",
       headers: {},
     })

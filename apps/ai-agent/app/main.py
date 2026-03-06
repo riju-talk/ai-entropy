@@ -44,14 +44,16 @@ async def lifespan(fastapi_app: FastAPI):
     logger.info("    Neo4j : %s", settings.NEO4J_URI)
     logger.info("=" * 70)
 
-    # Connect to PostgreSQL via Prisma
+    # Connect to PostgreSQL via Prisma (non-fatal — AI routes don't need Postgres to start)
     try:
         from app.core.database import connect_db
         await connect_db()
         logger.info("✅ PostgreSQL connected via Prisma")
-    except Exception as exc:
-        logger.error("❌ Failed to connect to PostgreSQL: %s", exc)
-        logger.warning("Application will continue but database features will fail")
+    except BaseException as exc:
+        # Catch BaseException (incl. SystemExit/KeyboardInterrupt) because Prisma's
+        # Rust query engine calls sys.exit() when Postgres is unreachable on Windows,
+        # which would otherwise kill the entire uvicorn process before any routes load.
+        logger.warning("⚠️  PostgreSQL unavailable — AI routes will work without it: %s", exc)
 
     # Initialize Redis cache
     try:
@@ -61,7 +63,7 @@ async def lifespan(fastapi_app: FastAPI):
             logger.info("✅ Redis cache connected")
         else:
             logger.warning("⚠️  Redis cache connection failed - caching disabled")
-    except Exception as exc:
+    except BaseException as exc:
         logger.warning("⚠️  Redis cache initialization failed: %s", exc)
 
     # Initialize event bus and register handlers
@@ -173,14 +175,15 @@ api_router = APIRouter()
 
 
 def _mount(tag: str, module_path: str, prefix: str):
-    """Try to import a route module and register it. Logs failures gracefully."""
+    """Try to import a route module and register it. Logs full traceback on failure."""
     try:
         import importlib
         mod = importlib.import_module(module_path)
         api_router.include_router(mod.router, prefix=prefix, tags=[tag])
         logger.info("%-20s -> /api%s", tag, prefix)
-    except Exception as exc:
-        logger.error("%s route failed to load: %s", tag, exc)
+    except Exception:
+        import traceback
+        logger.error("%s route FAILED to load:\n%s", tag, traceback.format_exc())
 
 
 # ---------------------------------------------------------------------------
@@ -234,11 +237,15 @@ async def health():
         "status": "healthy" if (neo4j_ok and postgres_ok) else "degraded",
         "version": "3.0.0",
         "llm_model": settings.LLM_MODEL,
-        "google_api_key_set": bool(settings.GOOGLE_API_KEY),
+        "bedrock_region": settings.AWS_REGION,
         "neo4j_connected": neo4j_ok,
         "postgres_connected": postgres_ok,
         "event_bus_active": event_bus_ok,
         "event_handlers": handler_count,
+        "loaded_routes": sorted([
+            r.path for r in app.routes
+            if hasattr(r, "path") and r.path.startswith("/api/")
+        ]),
     }
 
 

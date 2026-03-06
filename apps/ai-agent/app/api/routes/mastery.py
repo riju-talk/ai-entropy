@@ -1,5 +1,5 @@
 """
-NOVYRA — Mastery Tracking API Routes
+Entropy AI â€” Mastery Tracking API Routes
 POST /api/mastery/attempt
 GET  /api/mastery/profile/{user_id}
 """

@@ -10,6 +10,7 @@ class ChatRequest(BaseModel):
     user_id: str = Field(..., description="User ID")
     message: str = Field(..., min_length=1, max_length=2000)
     session_id: Optional[str] = None
+    system_prompt: Optional[str] = None
 
     class Config:
         json_schema_extra = {

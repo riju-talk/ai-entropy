@@ -1,5 +1,5 @@
 """
-NOVYRA Integration Tests - AI Brain System
+Entropy AI Integration Tests - AI Brain System
 
 Tests for AI Brain Layers 1-7 and reasoning pipeline.
 """

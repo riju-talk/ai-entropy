@@ -1,6 +1,7 @@
-"use client"
+﻿"use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
+import { useSession } from "next-auth/react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
@@ -217,7 +218,7 @@ function EmptyState() {
         </div>
       </div>
       <div className="text-center space-y-1.5 max-w-md">
-        <h2 className="text-base font-bold text-white/60 tracking-tight">NOVYRA Cognitive Engine</h2>
+        <h2 className="text-base font-bold text-white/60 tracking-tight">ENTROPY Cognitive Engine</h2>
         <p className="text-[11px] text-white/25 leading-relaxed">
           7-Layer structured reasoning · Edge-accelerated inference · Multilingual explainability
         </p>
@@ -283,6 +284,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { toast } = useToast()
+  const { data: session } = useSession()
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -375,17 +377,10 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
         : generateMockTrace(data.answer || text, text)
       const delta = trace.masteryImpact
 
-      // Update graph pulse
-      const conceptMap: Record<string, string> = {
-        "Chain Rule": "chain_rule", "Derivatives": "derivatives",
-        "Limits": "limits", "Recursion": "derivatives",
-        "Big O Notation": "algebra", "Gradient Descent": "aiml",
-        "Linear Algebra": "algebra",
-      }
-      const conceptId = conceptMap[trace.concept]
-      if (conceptId) {
-        setActiveConceptId(conceptId)
-        setMasteryUpdate({ conceptId, delta })
+      // Highlight the concept in the live knowledge graph
+      if (trace.concept) {
+        setActiveConceptId(trace.concept)
+        setMasteryUpdate({ conceptId: trace.concept, delta })
         setTimeout(() => setMasteryUpdate(undefined), 3000)
       }
 
@@ -421,7 +416,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
             : m
         )
       )
-      toast({ title: "Engine Error", description: "Failed to reach NOVYRA backend", variant: "destructive" })
+      toast({ title: "Engine Error", description: "Failed to reach ENTROPY backend", variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -478,6 +473,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
       {showGraph && (
         <div className="flex-shrink-0 border-b border-white/[0.06] bg-[#0c0c14]">
           <LiveKnowledgeGraph
+            userId={session?.user?.id}
             activeConceptId={activeConceptId}
             masteryUpdate={masteryUpdate}
             height={180}

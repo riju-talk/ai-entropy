@@ -1,5 +1,5 @@
-/**
- * NOVYRA ACHIEVEMENT & BADGE ENGINE
+﻿/**
+ * ENTROPY ACHIEVEMENT & BADGE ENGINE
  * Production-ready achievement management system with anti-gaming validation
  * 
  * @module lib/achievements-engine

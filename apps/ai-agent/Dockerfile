@@ -11,7 +11,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential gcc libssl-dev libffi-dev libxml2-dev libxslt1-dev git curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY ./apps/ai-agent/requirements.txt /wheels/requirements.txt
+COPY ./requirements.txt /wheels/requirements.txt
 
 RUN python -m pip install --upgrade pip setuptools wheel
 RUN pip wheel --no-cache-dir --wheel-dir /wheels -r /wheels/requirements.txt
@@ -31,7 +31,7 @@ COPY --from=builder /wheels /wheels
 RUN python -m pip install --upgrade pip
 RUN pip install --no-cache-dir /wheels/*.whl || true
 
-COPY ./apps/ai-agent /app
+COPY . /app
 
 EXPOSE 8000
 

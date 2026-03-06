@@ -60,15 +60,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "AI_AGENT_URL not configured" }, { status: 500 });
     }
 
-    // Always send the correct payload shape
+    // Pass all fields the backend understands
     const payload = {
-      user_prompt: body.user_prompt || body.prompt || body.question || "",
-      system_prompt: body.system_prompt || "You are spark an online study buddy"
-    };
+      question: body.question || body.user_prompt || body.prompt || "",
+      user_prompt: body.user_prompt || body.question || body.prompt || "",
+      system_prompt: body.system_prompt || body.systemPrompt || undefined,
+      userId: body.userId || body.user_id || undefined,
+      language: body.language || "en",
+      collection_name: body.collection_name || "default",
+    }
 
-    console.log("[API][QA] Forwarding to backend:", JSON.stringify(payload));
+    console.log("[API][QA] Forwarding to backend:", JSON.stringify(payload))
 
-    const resp = await proxyRequest("/api/qa", {
+    const resp = await proxyRequest("/api/qa/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

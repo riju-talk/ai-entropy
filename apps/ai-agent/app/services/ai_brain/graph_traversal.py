@@ -1,5 +1,5 @@
 """
-NOVYRA AI Brain - Layer 3: Knowledge Graph Traversal
+Entropy AI AI Brain - Layer 3: Knowledge Graph Traversal
 
 Traverses Neo4j knowledge graph to build context around concepts.
 Reference: docs/AI_BRAIN_ARCHITECTURE.md Layer 3
@@ -223,7 +223,7 @@ async def compute_learning_path(
         user_id: Optional user to personalize path
     
     Returns:
-        Ordered list of concept IDs (start → target)
+        Ordered list of concept IDs (start â†’ target)
     """
     driver = get_driver()
     if driver is None:

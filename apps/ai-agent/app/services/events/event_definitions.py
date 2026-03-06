@@ -1,5 +1,5 @@
 """
-NOVYRA Event System - Core Event Definitions
+Entropy AI Event System - Core Event Definitions
 
 All system events that trigger gamification, trust updates, and logging.
 """
@@ -10,7 +10,7 @@ from datetime import datetime
 
 
 class EventType(str, Enum):
-    """Core event types in the NOVYRA system."""
+    """Core event types in the Entropy AI system."""
     
     # Learning Events
     DOUBT_CREATED = "DOUBT_CREATED"

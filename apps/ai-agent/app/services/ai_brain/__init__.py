@@ -1,1 +1,1 @@
-"""NOVYRA AI Brain Services"""
+"""Entropy AI AI Brain Services"""

@@ -1,5 +1,5 @@
 """
-NOVYRA — Pydantic schemas for the Knowledge Graph service
+Entropy AI â€” Pydantic schemas for the Knowledge Graph service
 """
 from __future__ import annotations
 from typing import List, Optional

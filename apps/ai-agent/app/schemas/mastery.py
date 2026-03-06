@@ -1,5 +1,5 @@
 """
-NOVYRA — Pydantic schemas for the Mastery Tracking Engine
+Entropy AI â€” Pydantic schemas for the Mastery Tracking Engine
 """
 from __future__ import annotations
 from typing import List, Optional

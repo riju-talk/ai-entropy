@@ -1,5 +1,5 @@
 """
-NOVYRA Gamification API Routes
+Entropy AI Gamification API Routes
 
 Endpoints for leaderboards, achievements, XP tracking, and streaks.
 """

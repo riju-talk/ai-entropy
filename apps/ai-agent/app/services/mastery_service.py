@@ -1,5 +1,5 @@
 """
-NOVYRA — Mastery Tracking Engine
+Entropy AI â€” Mastery Tracking Engine
 
 Mastery formula:
     mastery = (correct_attempts / total_attempts) * confidence_weight
@@ -31,8 +31,8 @@ from app.services import knowledge_graph_service as kg
 
 logger = logging.getLogger(__name__)
 
-# In-memory store for MVP — swap with PostgreSQL in production
-# Key: (user_id, concept) → MasteryRecord
+# In-memory store for MVP â€” swap with PostgreSQL in production
+# Key: (user_id, concept) â†’ MasteryRecord
 _store: Dict[tuple, MasteryRecord] = {}
 
 DECAY_DAYS = 7
@@ -134,7 +134,7 @@ async def _generate_nudge(record: MasteryRecord) -> str:
         return result.get("message", "")
     except Exception as exc:
         logger.warning("Nudge generation failed: %s", exc)
-        return "Keep practising — consistency is key!"
+        return "Keep practising â€” consistency is key!"
 
 
 def get_mastery_profile(user_id: str) -> MasteryProfileResponse:

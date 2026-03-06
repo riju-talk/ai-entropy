@@ -1,5 +1,5 @@
 """
-NOVYRA AI Brain - Layer 4: Cognitive State
+Entropy AI AI Brain - Layer 4: Cognitive State
 
 Retrieves and models user's current cognitive/mastery state.
 Reference: docs/AI_BRAIN_ARCHITECTURE.md Layer 4

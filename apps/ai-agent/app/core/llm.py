@@ -1,24 +1,70 @@
-"""
-NOVYRA — LLM client
-Routes to Bedrock (Claude 3 Sonnet) or Gemini based on AI_PROVIDER env var.
-
-  AI_PROVIDER=bedrock  → Amazon Bedrock (Claude 3 Sonnet)  ← AWS production
-  AI_PROVIDER=gemini   → Google Gemini SDK                 ← local dev default
-"""
+"""Entropy AI — LLM client (delegates to bedrock_service)"""
+import asyncio
 import json
 import logging
-from typing import Optional
 
 from app.core.config import settings
+from app.services.bedrock_service import get_bedrock_service
 
 logger = logging.getLogger(__name__)
 
-# ─────────────────────────────────────────────────────────────────────────────
+
+async def _run_sync(fn, *args, **kwargs):
+    """Run a blocking call in the default thread-pool executor."""
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, lambda: fn(*args, **kwargs))
+
+
+async def generate_text(
+    prompt: str,
+    system_prompt: str = "You are a helpful AI tutor.",
+    temperature: float | None = None,
+) -> str:
+    """Single-turn text generation — returns plain string."""
+    svc = get_bedrock_service()
+    temp = temperature if temperature is not None else settings.LLM_TEMPERATURE
+    return await _run_sync(svc.generate, prompt, system=system_prompt, temperature=temp)
+
+
+async def generate_json(
+    prompt: str,
+    system_prompt: str = "You are a helpful AI tutor. Respond ONLY with valid JSON.",
+    temperature: float | None = None,
+) -> dict:
+    """Generate structured JSON output — retries up to 3 times."""
+    svc = get_bedrock_service()
+    temp = temperature if temperature is not None else settings.LLM_TEMPERATURE
+    json_system = (
+        system_prompt
+        + "\n\nCRITICAL: Your entire response must be a single valid JSON object. "
+        + "Do NOT include markdown code fences, just raw JSON."
+    )
+    for attempt in range(3):
+        raw = await _run_sync(svc.generate, prompt, system=json_system, temperature=temp)
+        raw = raw.strip()
+        if raw.startswith("```"):
+            raw = "\n".join(raw.split("\n")[1:]).rstrip("`").strip()
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            logger.warning("generate_json attempt %d failed to parse JSON", attempt + 1)
+            if attempt == 2:
+                logger.error("generate_json: all 3 attempts failed — raw: %s", raw[:200])
+                return {}
+    return {}
+
+
+async def generate_response(prompt: str) -> str:
+    """Alias for chat_service compatibility."""
+    return await generate_text(prompt)
+
+
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Provider selection
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 _PROVIDER = getattr(settings, "AI_PROVIDER", "gemini").lower()
 
-# ── Gemini setup (only if provider == gemini) ─────────────────────────────────
+# â”€â”€ Gemini setup (only if provider == gemini) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 _gemini_client = None
 if _PROVIDER == "gemini":
     try:
@@ -35,13 +81,13 @@ if _PROVIDER == "gemini":
 
         if settings.GOOGLE_API_KEY:
             _gemini_client = genai.Client(api_key=settings.GOOGLE_API_KEY)
-            logger.info("Gemini SDK configured — model: %s", settings.LLM_MODEL)
+            logger.info("Gemini SDK configured â€” model: %s", settings.LLM_MODEL)
         else:
-            logger.warning("GOOGLE_API_KEY not set — Gemini calls will fail")
+            logger.warning("GOOGLE_API_KEY not set â€” Gemini calls will fail")
     except ImportError:
-        logger.warning("google-generativeai not installed — Gemini unavailable")
+        logger.warning("google-generativeai not installed â€” Gemini unavailable")
 
-# ── Bedrock setup (only if provider == bedrock) ───────────────────────────────
+# â”€â”€ Bedrock setup (only if provider == bedrock) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 _bedrock_client = None
 if _PROVIDER == "bedrock":
     try:
@@ -54,14 +100,14 @@ if _PROVIDER == "bedrock":
                 retries={"max_attempts": 3, "mode": "adaptive"},
             ),
         )
-        logger.info("Bedrock client configured — model: %s", getattr(settings, "BEDROCK_CLAUDE_MODEL", ""))
+        logger.info("Bedrock client configured â€” model: %s", getattr(settings, "BEDROCK_CLAUDE_MODEL", ""))
     except ImportError:
-        logger.warning("boto3 not installed — Bedrock unavailable")
+        logger.warning("boto3 not installed â€” Bedrock unavailable")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Internal helpers
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async def _generate_gemini(prompt: str, system_prompt: str, temperature: float) -> str:
     from google.genai import types as gtypes
@@ -91,7 +137,7 @@ async def _generate_bedrock(prompt: str, system_prompt: str, temperature: float)
         "system": system_prompt,
         "messages": [{"role": "user", "content": prompt}],
     })
-    # boto3 is synchronous — run in executor to keep async loop unblocked
+    # boto3 is synchronous â€” run in executor to keep async loop unblocked
     loop = asyncio.get_event_loop()
     response = await loop.run_in_executor(
         None,
@@ -106,16 +152,16 @@ async def _generate_bedrock(prompt: str, system_prompt: str, temperature: float)
     return result["content"][0]["text"].strip()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Public API (same surface as before — dropping in is transparent)
-# ─────────────────────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Public API (same surface as before â€” dropping in is transparent)
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async def generate_text(
     prompt: str,
     system_prompt: str = "You are a helpful AI tutor.",
     temperature: float | None = None,
 ) -> str:
-    """Single-turn text generation — returns plain string."""
+    """Single-turn text generation â€” returns plain string."""
     temp = temperature if temperature is not None else settings.LLM_TEMPERATURE
     if _PROVIDER == "bedrock":
         return await _generate_bedrock(prompt, system_prompt, temp)
@@ -127,7 +173,7 @@ async def generate_json(
     system_prompt: str = "You are a helpful AI tutor. Respond ONLY with valid JSON.",
     temperature: float | None = None,
 ) -> dict:
-    """Generate structured JSON output — retries up to 3 times."""
+    """Generate structured JSON output â€” retries up to 3 times."""
     temp = temperature if temperature is not None else settings.LLM_TEMPERATURE
     json_system = (
         system_prompt
@@ -148,7 +194,7 @@ async def generate_json(
         except json.JSONDecodeError:
             logger.warning("generate_json attempt %d failed to parse JSON", attempt + 1)
             if attempt == 2:
-                logger.error("generate_json: all 3 attempts failed — raw: %s", raw[:200])
+                logger.error("generate_json: all 3 attempts failed â€” raw: %s", raw[:200])
                 return {}
     return {}
 

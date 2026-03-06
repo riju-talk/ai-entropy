@@ -33,9 +33,6 @@ class Settings(BaseSettings):
     AI_BACKEND_TOKEN: Optional[str] = None
     AI_BACKEND_URL: str = "http://localhost:3000"
 
-    # Groq API (Legacy/Fallback)
-    GROQ_API_KEY: Optional[str] = None
-
     # Google Gemini API (Legacy — kept for fallback compatibility)
     GOOGLE_API_KEY: Optional[str] = None
 
@@ -57,7 +54,7 @@ class Settings(BaseSettings):
     S3_BUCKET_NAME: str = "entropy-documents"
     S3_PRESIGN_EXPIRY_SECS: int = 3600
 
-    # AI Provider: "bedrock" | "gemini" | "groq"
+    # AI Provider: "bedrock" | "gemini"
     # Set to "bedrock" for AWS deployment.
     AI_PROVIDER: str = os.getenv("AI_PROVIDER", "bedrock")
 

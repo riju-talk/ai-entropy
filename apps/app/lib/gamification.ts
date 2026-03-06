@@ -1,4 +1,4 @@
-import { PrismaClient, PointEventType, AchievementType } from "@prisma/client";
+﻿import { PrismaClient, PointEventType, AchievementType } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -376,7 +376,7 @@ export async function checkAchievements(userId: string, eventType?: PointEventTy
 }
 
 /**
- * Economy Sink: Deduct Novyra Coins for feature usage.
+ * Economy Sink: Deduct Entropy Coins for feature usage.
  */
 export async function deductCredits(userId: string, amount: number, description: string) {
     return await prisma.$transaction(async (tx) => {
@@ -386,7 +386,7 @@ export async function deductCredits(userId: string, amount: number, description:
         });
 
         if (!user || user.credits < amount) {
-            throw new Error("Insufficient Novyra Coins. Perform more academic actions to earn more!");
+            throw new Error("Insufficient Entropy Coins. Perform more academic actions to earn more!");
         }
 
         await tx.user.update({
@@ -428,7 +428,7 @@ export async function getLeaderboard(period: "all" | "weekly" | "monthly") {
                 tier: true,
                 totalReputation: true,
                 totalXP: true,
-                credits: true, // Novyra Coins
+                credits: true, // Entropy Coins
                 reputation: true, // Legacy field
                 streaks: {
                     select: {
@@ -484,7 +484,7 @@ export async function getLeaderboard(period: "all" | "weekly" | "monthly") {
             tier: user.tier,
             totalReputation: user.totalReputation || user.reputation || 0,
             totalXP: user.totalXP || 0,
-            credits: user.credits || 0, // Novyra Coins
+            credits: user.credits || 0, // Entropy Coins
             streakInfo: user.streaks,
             achievements: user.achievementUnlocks.map((au) => ({
                 ...au.achievement,

@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState, useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
@@ -71,7 +71,7 @@ export function AdaptiveLearningInterface() {
     setMessages([
       {
         role: "system",
-        content: `# Welcome to NOVYRA's Adaptive Learning System 🧠
+        content: `# Welcome to ENTROPY's Adaptive Learning System 🧠
 
 I'm powered by a **7-layer AI architecture** that understands:
 - **Knowledge Graph**: 200+ concepts across 25+ disciplines

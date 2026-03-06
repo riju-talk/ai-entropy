@@ -35,83 +35,88 @@ export function HeroSection({ totalQuestions, totalAnswers }: HeroSectionProps) 
   }
 
   return (
-    <div className="relative mb-8 md:mb-12 py-6 md:py-10 animate-in fade-in slide-in-from-top-4 duration-700">
-      {/* Background effects */}
-      <div className="absolute top-0 right-0 -z-10 opacity-60 pointer-events-none hidden dark:block">
-        <div className="w-[300px] md:w-[500px] h-[300px] md:h-[500px] bg-cyan-500/10 rounded-full blur-[120px] animate-pulse"></div>
-      </div>
-      <div className="absolute bottom-0 left-0 -z-10 opacity-40 pointer-events-none hidden dark:block">
-        <div className="w-[200px] md:w-[300px] h-[200px] md:h-[300px] bg-blue-600/10 rounded-full blur-[100px]"></div>
+    <div className="relative mb-8 py-8 md:py-12 animate-in fade-in slide-in-from-top-4 duration-700 font-mono">
+      {/* Background grid effect */}
+      <div className="absolute inset-0 -z-10 bg-grid-pattern opacity-30 pointer-events-none" />
+      <div className="absolute top-0 right-0 -z-10 pointer-events-none">
+        <div className="w-[400px] h-[400px] bg-cyan-500/5 rounded-full blur-[120px]" />
       </div>
 
       {/* Dismiss button */}
       <button
         onClick={handleDismiss}
-        className="absolute top-2 right-2 md:top-4 md:right-4 p-2 rounded-full hover:bg-white/10 transition-colors text-muted-foreground hover:text-foreground z-10"
+        className="absolute top-2 right-2 p-1.5 rounded-lg hover:bg-white/[0.06] border border-white/[0.06] transition-colors text-white/20 hover:text-white/50 z-10"
         aria-label="Dismiss welcome message"
       >
-        <X className="h-4 w-4 md:h-5 md:w-5" />
+        <X className="h-3.5 w-3.5" />
       </button>
 
-      <div className="space-y-4 md:space-y-6 max-w-3xl">
-        <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-bold tracking-tight leading-[0.95] md:leading-[0.9]">
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 animate-gradient-x contrast-125">
-            Entropy.
-          </span>
-          <br />
-          <span className="text-foreground text-3xl sm:text-4xl md:text-5xl lg:text-7xl tracking-normal font-semibold">
-            Learn without limits.
-          </span>
-        </h1>
+      {/* Status bar */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-500/10 border border-emerald-500/20">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
+          <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-emerald-400">Engine Active</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-cyan-500/10 border border-cyan-500/20">
+          <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-cyan-400">7-Layer Reasoning</span>
+        </div>
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-purple-500/10 border border-purple-500/20">
+          <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-purple-400">Knowledge Graph</span>
+        </div>
+      </div>
 
-        <p className="text-base md:text-xl text-muted-foreground/80 font-medium leading-relaxed max-w-lg">
-          The distinct urban space for academic discourse. Join {totalQuestions}+ students and experts pushing the boundaries of knowledge.
-        </p>
-
-        {/* Phase 1 Ready Banner */}
-        <div className="inline-flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 px-4 md:px-5 py-2 md:py-3 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-xs md:text-sm font-bold text-green-600 dark:text-green-400">PHASE 1 LIVE</span>
-          </div>
-          <span className="text-xs md:text-sm text-muted-foreground">
-            7-Layer AI Brain • Knowledge Graph • Adaptive Learning
-          </span>
+      <div className="space-y-5 max-w-3xl">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/30 mb-3">// COGNITIVE LEARNING PLATFORM</p>
+          <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold tracking-tight leading-[0.9]">
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-500">
+              ENTROPY.
+            </span>
+            <br />
+            <span className="text-white/80 text-3xl sm:text-4xl md:text-5xl font-semibold tracking-normal mt-2 block">
+              Learn without limits.
+            </span>
+          </h1>
         </div>
 
-        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 md:gap-4 pt-2">
-          <Button 
-            size="lg" 
-            className="h-12 md:h-14 rounded-2xl px-6 md:px-8 text-base md:text-lg font-bold shadow-[0_0_25px_rgba(6,182,212,0.4)] hover:shadow-[0_0_40px_rgba(6,182,212,0.6)] transition-all bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white border-0 w-full sm:w-auto" 
+        <p className="text-sm text-white/40 font-normal leading-relaxed max-w-lg">
+          Adaptive intelligence that maps your knowledge, identifies gaps, and generates personalised learning paths in real-time. Join{" "}
+          <span className="text-cyan-400 font-bold">{totalQuestions}+</span> students pushing the boundaries of knowledge.
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-3 pt-1">
+          <Button
+            size="lg"
+            className="h-10 rounded-lg px-6 text-[11px] font-bold uppercase tracking-[0.15em] bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 hover:border-cyan-400/50 hover:shadow-[0_0_25px_rgba(6,182,212,0.25)] transition-all"
             asChild
           >
-            <Link href="/learn">Try Adaptive Learning</Link>
+            <Link href="/">⚡ Adaptive Learning</Link>
           </Button>
-          <Button 
-            size="lg" 
-            variant="outline" 
-            className="h-12 md:h-14 rounded-2xl px-6 md:px-8 text-base md:text-lg border-white/10 bg-white/5 hover:bg-white/10 hover:text-cyan-400 transition-all font-semibold w-full sm:w-auto" 
+          <Button
+            size="lg"
+            variant="outline"
+            className="h-10 rounded-lg px-6 text-[11px] font-bold uppercase tracking-[0.15em] bg-transparent border border-white/[0.08] text-white/40 hover:text-white/70 hover:bg-white/[0.04] hover:border-white/20 transition-all"
             asChild
           >
-            <Link href="/communities">Explore Communities</Link>
+            <Link href="/communities">◈ Communities</Link>
           </Button>
         </div>
 
         {/* Stats Bar */}
-        <div className="flex flex-wrap items-center gap-4 md:gap-8 pt-4">
-          <div className="flex flex-col">
-            <span className="text-xl md:text-2xl font-bold font-mono text-foreground">{totalQuestions}</span>
-            <span className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider font-semibold">Questions</span>
+        <div className="flex items-center gap-6 pt-3 border-t border-white/[0.06]">
+          <div>
+            <span className="text-xl font-bold font-mono text-white">{totalQuestions}</span>
+            <p className="text-[9px] text-white/25 uppercase tracking-[0.2em] font-bold mt-0.5">Questions</p>
           </div>
-          <div className="w-px h-6 md:h-8 bg-border"></div>
-          <div className="flex flex-col">
-            <span className="text-xl md:text-2xl font-bold font-mono text-foreground">{totalAnswers}</span>
-            <span className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider font-semibold">Answers</span>
+          <div className="w-px h-8 bg-white/[0.06]" />
+          <div>
+            <span className="text-xl font-bold font-mono text-white">{totalAnswers}</span>
+            <p className="text-[9px] text-white/25 uppercase tracking-[0.2em] font-bold mt-0.5">Answers</p>
           </div>
-          <div className="w-px h-6 md:h-8 bg-border"></div>
-          <div className="flex flex-col">
-            <span className="text-xl md:text-2xl font-bold font-mono text-green-500">Active</span>
-            <span className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider font-semibold">Community</span>
+          <div className="w-px h-8 bg-white/[0.06]" />
+          <div>
+            <span className="text-xl font-bold font-mono text-emerald-400">LIVE</span>
+            <p className="text-[9px] text-white/25 uppercase tracking-[0.2em] font-bold mt-0.5">Community</p>
           </div>
         </div>
       </div>

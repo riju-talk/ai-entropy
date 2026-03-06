@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    /* "Novyra" Dark Mode Only - Enhanced Sci-Fi Aesthetic */
+    /* Entropy — Dark Mode Only - Enhanced Sci-Fi Aesthetic */
     --background: 240 10% 8%;
     /* Deeper space black #131416 */
     --foreground: 210 30% 98%;
@@ -47,7 +47,7 @@
   }
 
   .dark {
-    /* "Novyra" Deep Space - Enhanced Sci-Fi Aesthetic */
+    /* Entropy Deep Space - Enhanced Sci-Fi Aesthetic */
     --background: 240 10% 8%;
     /* Deeper space black #131416 */
     --foreground: 210 30% 98%;
@@ -342,7 +342,7 @@ html {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   NOVYRA — Cognitive OS Animations
+   ENTROPY — Cognitive OS Animations
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Neural node pulse — used on knowledge graph nodes when mastery updates */

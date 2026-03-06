@@ -1,5 +1,5 @@
 """
-NOVYRA Trust Scoring Engine
+Entropy AI Trust Scoring Engine
 
 Calculates comprehensive trust scores based on 9 weighted components.
 Reference: docs/TRUST_AND_ABUSE_MODEL.md

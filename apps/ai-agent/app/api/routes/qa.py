@@ -1,8 +1,8 @@
 """
-Q&A endpoint — backed by Entropy Reasoning Engine (no LangChain)
+Q&A endpoint — backed by Entropy Agentic RAG Pipeline
 
-Legacy path kept at /api/qa so the frontend proxy continues to work.
-Internally delegates to reasoning_service which calls Gemini directly.
+Pipeline:  Pinecone RAG → 7-layer AI Brain → NLI judge (Layer 7) → trust scoring (Layer 8)
+Optional:  Internet research (Bing) when no Pinecone results are found and BING_API_KEY is set.
 
 Response includes a `cognitive_trace` block so the frontend CognitiveTraceCard
 can render real data instead of mock values.
@@ -16,6 +16,7 @@ import time
 import math
 
 from app.services import reasoning_service
+from app.services.agentic_rag_service import agentic_rag_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -48,7 +49,7 @@ async def get_greeting():
 
 @router.get("/health")
 async def qa_health():
-    return {"status": "healthy", "backend": "Entropy Reasoning Engine (Gemini)"}
+    return {"status": "healthy", "backend": "Entropy Reasoning Engine (Bedrock Claude)"}
 
 
 @router.post("/", summary="Ask a question (legacy /api/qa)")
@@ -57,12 +58,68 @@ async def post_qa(payload: QAInput):
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
     t0 = time.time()
+
+    # ── Agentic pipeline (primary path) ───────────────────────────────────
+    if agentic_rag_service:
+        try:
+            result_dict = await agentic_rag_service.process_question(
+                question=payload.question.strip(),
+                collection_name=payload.collection_name or "default",
+                user_id=payload.userId,
+                language=payload.language or "en",
+                include_hints=True,
+                system_prompt=payload.system_prompt,
+                conversation_history=payload.conversation_history,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        except Exception:
+            logger.exception("Agentic QA pipeline failed")
+            raise HTTPException(status_code=500, detail="Reasoning engine error")
+
+        inference_ms = round((time.time() - t0) * 1000)
+        intent_detected: str = result_dict.get("intent_detected", "Learning")
+        difficulty_level: int = int(result_dict.get("difficulty_level") or 5)
+        difficulty_norm = round(min(1.0, max(0.0, difficulty_level / 10.0)), 2)
+        confidence = float(result_dict.get("confidence_score") or 0.8)
+        mastery_impact = max(1, min(5, math.ceil(confidence * 5)))
+
+        return {
+            # ── Primary answer ─────────────────────────────────────────────
+            "answer":            result_dict.get("answer", ""),
+            "concept":           result_dict.get("concept", ""),
+            "prerequisites":     result_dict.get("prerequisites", []),
+            "stepwise_reasoning": result_dict.get("stepwise_reasoning", []),
+            "hint_ladder":       result_dict.get("hint_ladder", []),
+            "confidence_score":  confidence,
+            "related_concepts":  result_dict.get("related_concepts", []),
+            "sources":           result_dict.get("sources", []),
+            "mode":              result_dict.get("mode", "reasoning_engine"),
+            "follow_up_questions": (result_dict.get("related_concepts") or [])[:3],
+            # ── NLI verdict (Layer 7) ──────────────────────────────────────
+            "nli_verdict":       result_dict.get("nli_verdict"),
+            "nli_confidence":    result_dict.get("nli_confidence"),
+            "nli_flags":         int(result_dict.get("nli_flags") or 0),
+            # ── Cognitive trace (CognitiveTraceCard) ──────────────────────
+            "cognitive_trace": {
+                "intent":          intent_detected,
+                "concept":         result_dict.get("concept", ""),
+                "difficulty":      difficulty_norm,
+                "mastery_impact":  mastery_impact,
+                "language":        result_dict.get("language") or payload.language or "en",
+                "inference_ms":    inference_ms,
+                "reasoning_layers": 7,
+            },
+        }
+
+    # ── Fallback: plain reasoning service (if agentic service failed to init) ──
     try:
         result = await reasoning_service.reason(
             question=payload.question.strip(),
             user_id=payload.userId,
             language=payload.language or "en",
             include_hints=True,
+            system_prompt=payload.system_prompt,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
@@ -95,7 +152,10 @@ async def post_qa(payload: QAInput):
         "sources": [],
         "mode": "reasoning_engine",
         "follow_up_questions": result.related_concepts[:3],
-
+        # ── NLI verdict (Layer 7 — populated inside reasoning engine) ──────
+        "nli_verdict":    meta.get("nli_verdict"),
+        "nli_confidence": meta.get("nli_confidence"),
+        "nli_flags":      int(meta.get("nli_flags") or 0),
         # ── Cognitive trace (consumed by CognitiveTraceCard) ─────────────
         "cognitive_trace": {
             "intent": intent_detected,

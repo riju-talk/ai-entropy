@@ -1,5 +1,5 @@
 """
-NOVYRA Event Handlers - Core Event Processing Logic
+Entropy AI Event Handlers - Core Event Processing Logic
 
 Handlers that respond to system events and trigger appropriate actions.
 NOTE: Gamification (XP, Reputation, Achievements) is handled by Next.js.

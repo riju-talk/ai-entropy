@@ -1,6 +1,5 @@
 """
-High-Quality QuizAgent — rewritten for LangChain ChatGroq
-Generates diverse, in-depth MCQs & T/F questions from real LLM-derived research.
+High-Quality QuizAgent — generates diverse MCQs & T/F questions via Bedrock.
 """
 
 from typing import List, Dict
@@ -8,7 +7,7 @@ import random
 import logging
 import re
 
-from app.core.llm import get_llm   # ChatGroq instance
+from app.core.llm import generate_text
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -101,7 +100,7 @@ def _generate_distractors(answer: str, sentence: str) -> List[str]:
 class QuizAgent:
 
     def __init__(self):
-        self.llm = get_llm()
+        pass  # uses generate_text from llm.py directly
 
     # ---------------------------------------------------
     # MAIN METHOD
@@ -176,10 +175,7 @@ Rules:
 """
 
         try:
-            # Gemini typically accepts tuples or Message objects
-            out = await self.llm.ainvoke([("human", prompt)])
-            # Some LLM wrappers return an object with `content`, others return a plain string.
-            text = getattr(out, "content", None) or out or ""
+            text = await generate_text(prompt)
             return str(text).strip()
         except Exception as e:
             logger.error(f"Research error: {e}")

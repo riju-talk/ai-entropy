@@ -1,5 +1,5 @@
 """
-NOVYRA Anti-Abuse - Vote Analyzer
+Entropy AI Anti-Abuse - Vote Analyzer
 
 Detects vote manipulation patterns (vote rings, coordinated voting).
 Reference: docs/TRUST_AND_ABUSE_MODEL.md
@@ -157,7 +157,7 @@ async def detect_vote_ring(
     lookback_days: int = 30
 ) -> Optional[VotePattern]:
     """
-    Detect vote rings (A→B→C→A circular voting).
+    Detect vote rings (Aâ†’Bâ†’Câ†’A circular voting).
     
     Uses graph traversal to find cycles.
     
@@ -181,7 +181,7 @@ async def detect_vote_ring(
             }
         })
         
-        # Adjacency list: voter → targets
+        # Adjacency list: voter â†’ targets
         graph = defaultdict(set)
         for v in votes:
             graph[v.voterId].add(v.targetUserId)

@@ -1,11 +1,11 @@
 """
-NOVYRA XP Engine
+Entropy AI XP Engine
 
 Calculates XP with anti-exploit multipliers.
 Reference: docs/GAME_ENGINE_ARCHITECTURE.md
 
 XP Formula:
-XP = base_xp × trust_multiplier × time_decay × fact_check_multiplier × difficulty_multiplier
+XP = base_xp Ã— trust_multiplier Ã— time_decay Ã— fact_check_multiplier Ã— difficulty_multiplier
 """
 import logging
 from typing import Dict, Any, Optional
@@ -99,7 +99,7 @@ async def calculate_xp(
 
 async def calculate_trust_multiplier(user_id: str) -> float:
     """
-    Trust multiplier: 0.5× to 1.5×
+    Trust multiplier: 0.5Ã— to 1.5Ã—
     
     Based on user's cached trust score.
     Low trust users earn reduced XP.
@@ -125,7 +125,7 @@ async def calculate_trust_multiplier(user_id: str) -> float:
 
 def calculate_time_decay(content_age_days: Optional[int]) -> float:
     """
-    Time decay multiplier: 1.0× (fresh) to 0.5× (old)
+    Time decay multiplier: 1.0Ã— (fresh) to 0.5Ã— (old)
     
     Encourages answering recent doubts, not farming old content.
     Applied only to answers.
@@ -140,12 +140,12 @@ def calculate_time_decay(content_age_days: Optional[int]) -> float:
         # Linear decay from 1.0 to 0.7 over days 7-30
         return 1.0 - (content_age_days - 7) * 0.013
     else:
-        return 0.5  # Cap at 0.5× for very old content
+        return 0.5  # Cap at 0.5Ã— for very old content
 
 
 def calculate_fact_check_multiplier(fact_check_result: Optional[str]) -> float:
     """
-    Fact-check multiplier: 1.5× (passed) to 0.3× (failed)
+    Fact-check multiplier: 1.5Ã— (passed) to 0.3Ã— (failed)
     
     Rewards factually correct content.
     """
@@ -164,7 +164,7 @@ def calculate_fact_check_multiplier(fact_check_result: Optional[str]) -> float:
 
 def calculate_difficulty_multiplier(difficulty: Optional[int]) -> float:
     """
-    Difficulty multiplier: 1.0× to 1.5×
+    Difficulty multiplier: 1.0Ã— to 1.5Ã—
     
     Rewards mastering harder concepts.
     Applied only to mastery events.
@@ -304,7 +304,7 @@ async def validate_xp_authenticity(user_id: str) -> bool:
         count = event_types.count(most_common)
         
         if count > 30:  # Same event 30+ times in 24h
-            logger.warning(f"Suspicious XP pattern for user {user_id}: {most_common} × {count}")
+            logger.warning(f"Suspicious XP pattern for user {user_id}: {most_common} Ã— {count}")
             return False
     
     return True

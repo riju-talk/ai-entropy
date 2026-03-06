@@ -81,7 +81,6 @@ if __name__ == "__main__":
     if not env_ok:
         print("\nNext steps:")
         print("1. Copy .env.example to .env")
-        print("2. Add GROQ_API_KEY to .env")
-        print("3. Add AI_BACKEND_TOKEN to .env")
+        print("2. Add AI_BACKEND_TOKEN to .env")
         print("4. Run: pip install -r requirements.txt")
         print("5. Run: npm run dev")

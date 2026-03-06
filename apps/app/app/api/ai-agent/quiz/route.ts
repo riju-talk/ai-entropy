@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
     console.log("[API][QUIZ] Forwarding payload to backend:", JSON.stringify(body))
 
-    const resp = await fetch(`${AI_AGENT_URL}/api/quiz`, {
+    const resp = await fetch(`${AI_AGENT_URL}/api/quiz/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

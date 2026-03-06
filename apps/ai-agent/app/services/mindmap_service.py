@@ -1,5 +1,5 @@
 """
-Robust Mindmap & Diagram Service (Groq-compatible)
+Robust Mindmap & Diagram Service
 
 Features:
 - topic normalization + diagram-type detection

@@ -1,5 +1,5 @@
 """
-NOVYRA AI Brain - Layer 6: Enhanced Reasoning Engine
+Entropy AI AI Brain - Layer 6: Enhanced Reasoning Engine
 
 Advanced reasoning that leverages full context from Layers 1-5.
 Reference: docs/AI_BRAIN_ARCHITECTURE.md Layer 6
@@ -19,7 +19,7 @@ from app.services import multilingual_service as ml
 logger = logging.getLogger(__name__)
 
 
-ENHANCED_REASONING_SYSTEM = """You are an expert AI tutor for computer science and mathematics.
+ENHANCED_REASONING_SYSTEM = """You are an expert AI tutor for various disciplines.
 
 You have access to:
 - The user's question intent and learning style preferences
@@ -38,7 +38,7 @@ Always return valid JSON matching the schema."""
 
 ENHANCED_REASONING_PROMPT = """
 {contextual_context}
-
+{rag_section}
 ---
 
 **Question:** {question}
@@ -79,7 +79,9 @@ async def reason_with_context(
     question: str,
     user_id: Optional[str] = None,
     language: str = "en",
-    include_hints: bool = True
+    include_hints: bool = True,
+    system_prompt: Optional[str] = None,
+    rag_context: Optional[str] = None,
 ) -> ReasoningResponse:
     """
     Enhanced reasoning engine that uses full AI Brain context.
@@ -87,8 +89,8 @@ async def reason_with_context(
     This is the complete Layer 6 implementation that orchestrates:
     - Layers 1-5 for context assembly
     - LLM inference with rich context
-    - Layer 7 (NLI validation) ✅
-    - Layer 8 (trust scoring) ✅
+    - Layer 7 (NLI validation) âœ…
+    - Layer 8 (trust scoring) âœ…
     
     Args:
         question: User's question
@@ -105,7 +107,7 @@ async def reason_with_context(
     working_question = question
     if language != "en":
         working_question = await ml.to_english(question, source_lang=language)
-        logger.info(f"Translated question: {question[:40]} → {working_question[:40]}")
+        logger.info(f"Translated question: {question[:40]} â†’ {working_question[:40]}")
     
     # Assemble context from Layers 1-5
     context = await assemble_context(working_question, user_id, language)
@@ -114,22 +116,32 @@ async def reason_with_context(
     contextual_context = format_context_for_prompt(context)
     contextual_instructions = get_contextual_instructions(context)
     
+    # Build RAG section (Pinecone retrieved chunks)
+    rag_section = ""
+    if rag_context:
+        rag_section = (
+            "**Retrieved Knowledge (from uploaded documents):**\n"
+            f"{rag_context}\n\n---\n\n"
+        )
+        logger.info("RAG context injected (%d chars)", len(rag_context))
+
     # Build enhanced prompt
     prompt = ENHANCED_REASONING_PROMPT.format(
         contextual_context=contextual_context,
+        rag_section=rag_section,
         question=working_question,
         contextual_instructions=contextual_instructions
     )
     
     # Call LLM
     logger.info("Calling LLM with enhanced context...")
-    raw = await generate_json(prompt, system_prompt=ENHANCED_REASONING_SYSTEM)
+    raw = await generate_json(prompt, system_prompt=system_prompt or ENHANCED_REASONING_SYSTEM)
 
     # Extract cognitive trace fields before they get discarded by schema mapping
     _intent_detected: str = str(raw.get("intent_detected") or "Learning")
     _difficulty_level: int = int(raw.get("difficulty_level") or 5)
 
-    # Map enhanced AI Brain output fields → ReasoningResponse schema fields
+    # Map enhanced AI Brain output fields â†’ ReasoningResponse schema fields
     # The enhanced prompt returns: primary_concept, reasoning_steps, confidence, intent_detected, etc.
     # But ReasoningResponse expects: concept, stepwise_reasoning, confidence_score
     mapped = {

@@ -1,4 +1,4 @@
-import { PrismaClient, AchievementType, AchievementRarity } from "@prisma/client";
+﻿import { PrismaClient, AchievementType, AchievementRarity } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -9,7 +9,7 @@ async function main() {
         {
             type: AchievementType.FIRST_DOUBT,
             name: "Curious Minds",
-            description: "Ask your first ever doubt on Novyra.",
+            description: "Ask your first ever doubt on Entropy.",
             points: 50,
             rarity: AchievementRarity.COMMON,
             criteria: { count: 1 },

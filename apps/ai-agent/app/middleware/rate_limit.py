@@ -1,5 +1,5 @@
 """
-NOVYRA Security - Rate Limiting Middleware
+Entropy AI Security - Rate Limiting Middleware
 
 Protects API endpoints from abuse through rate limiting.
 """

@@ -1,5 +1,5 @@
 """
-NOVYRA AI Brain - Layer 2: Concept Mapping
+Entropy AI AI Brain - Layer 2: Concept Mapping
 
 Maps user questions to relevant concept nodes in the knowledge graph.
 Reference: docs/AI_BRAIN_ARCHITECTURE.md Layer 2

@@ -1,1 +1,1 @@
-"""NOVYRA Event System"""
+"""Entropy AI Event System"""

@@ -1,5 +1,5 @@
 """
-NOVYRA Anti-Abuse - Similarity Detector
+Entropy AI Anti-Abuse - Similarity Detector
 
 Detects duplicate/plagiarized content using embedding similarity.
 Reference: docs/TRUST_AND_ABUSE_MODEL.md

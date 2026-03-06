@@ -1,5 +1,5 @@
 """
-NOVYRA AI Brain - Layer 7: NLI Validator
+Entropy AI AI Brain - Layer 7: NLI Validator
 
 Fact-checking layer using Natural Language Inference.
 Reference: docs/NLI_ARCHITECTURE.md

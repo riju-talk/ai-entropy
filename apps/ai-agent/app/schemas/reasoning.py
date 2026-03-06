@@ -1,5 +1,5 @@
 """
-NOVYRA — Pydantic schemas for the Structured Reasoning Engine
+Entropy AI â€” Pydantic schemas for the Structured Reasoning Engine
 """
 from __future__ import annotations
 from typing import List, Optional, Dict, Any
@@ -14,6 +14,7 @@ class ReasoningRequest(BaseModel):
     user_id: Optional[str] = Field(None, description="User ID to pull graph context")
     language: str = Field("en", description="Input language code (e.g. 'en', 'hi')")
     include_hints: bool = Field(True, description="Whether to generate hint ladder")
+    system_prompt: Optional[str] = Field(None, description="Optional system prompt override")
 
 
 # ---------------------------------------------------------------------------

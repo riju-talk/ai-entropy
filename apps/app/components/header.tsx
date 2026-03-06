@@ -39,11 +39,11 @@ export function Header() {
   }, [session])
 
   const navigation = [
-    { name: "Learn", href: "/learn" },
     { name: "Community", href: "/communities" },
     { name: "Ask", href: "/ask" },
     { name: "AI Agent", href: "/ai-agent" },
     { name: "Leaderboard", href: "/leaderboard" },
+    { name: "About", href: "/about" },
   ]
 
   const handleSearch = (e: React.FormEvent) => {
@@ -55,31 +55,38 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-background/60 backdrop-blur-xl supports-[backdrop-filter]:bg-background/40">
-      <nav className="mx-auto px-4 sm:px-6 lg:px-8 flex h-16 items-center justify-between gap-4 max-w-7xl">
-        <div className="flex items-center gap-6 md:gap-10">
-          <Link href="/" className="flex items-center space-x-3 group">
-            <div className="bg-gradient-to-br from-cyan-400 to-blue-600 p-2 rounded-xl shadow-[0_0_15px_rgba(6,182,212,0.3)] group-hover:shadow-[0_0_25px_rgba(6,182,212,0.5)] transition-all duration-300 transform group-hover:scale-105 group-hover:rotate-3">
-              <Brain className="h-5 w-5 text-white" />
+    <header className="sticky top-0 z-50 w-full border-b border-cyan-500/10 bg-[#0a0a0f]/80 backdrop-blur-xl font-mono">
+      {/* scan-line accent */}
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" />
+      <nav className="mx-auto px-4 sm:px-6 lg:px-8 flex h-14 items-center justify-between gap-4 max-w-screen-2xl">
+        <div className="flex items-center gap-6 md:gap-8">
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="relative">
+              <div className="bg-cyan-500/10 border border-cyan-500/30 p-2 rounded-lg group-hover:border-cyan-400/60 group-hover:bg-cyan-500/20 group-hover:shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all duration-300">
+                <Brain className="h-5 w-5 text-cyan-400" />
+              </div>
+              <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] animate-pulse" />
             </div>
-            <span className="font-semibold text-2xl tracking-tight flex items-center gap-2">
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/80 group-hover:from-cyan-400 group-hover:to-purple-500 transition-all duration-500">
+            <div className="flex flex-col">
+              <span className="text-[15px] font-bold tracking-[0.1em] uppercase text-white group-hover:text-cyan-300 transition-colors">
                 Entropy
               </span>
-              <span
-                className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold tracking-widest bg-gradient-to-r from-orange-500 to-red-500 text-white border border-orange-400/30 uppercase shadow-lg animate-pulse"
-              >
-                BETA VERSION
-              </span>
+              <span className="text-[8px] text-white/30 tracking-[0.25em] uppercase">Cognitive OS · v2.0</span>
+            </div>
+            <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold tracking-widest bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase">
+              BETA
             </span>
           </Link>
-          <div className="hidden md:flex gap-6">
+          <div className="hidden md:flex gap-1">
             {navigation.map((item) => (
               <Link
                 key={item.name}
                 href={item.href}
-                className={`text-sm font-medium transition-all hover:text-primary hover:drop-shadow-[0_0_8px_rgba(var(--primary),0.5)] ${pathname === item.href ? "text-primary drop-shadow-[0_0_8px_rgba(var(--primary),0.5)]" : "text-muted-foreground"
-                  }`}
+                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.15em] rounded transition-all ${
+                  pathname === item.href
+                    ? "text-cyan-400 bg-cyan-500/10 border border-cyan-500/20"
+                    : "text-white/40 hover:text-white/70 hover:bg-white/[0.04]"
+                }`}
               >
                 {item.name}
               </Link>
@@ -88,113 +95,109 @@ export function Header() {
         </div>
 
         {/* Search Bar */}
-        <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-sm">
+        <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-xs">
           <div className="relative w-full group">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-white/20 group-focus-within:text-cyan-400 transition-colors" />
             <Input
               type="search"
               placeholder="Search questions, topics..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 bg-white dark:bg-secondary/50 border border-slate-200 dark:border-transparent focus:border-cyan-500 focus:bg-white dark:focus:bg-background transition-all duration-300 rounded-full shadow-sm text-slate-900 dark:text-foreground placeholder:text-slate-400 dark:placeholder:text-muted-foreground"
+              className="pl-9 pr-4 h-8 text-[11px] bg-white/[0.04] border border-white/[0.08] focus:border-cyan-500/40 focus:bg-white/[0.06] rounded-lg placeholder:text-white/20 text-white/70 font-mono transition-all"
             />
           </div>
         </form>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {session ? (
             <>
-              <div className="hidden lg:flex items-center gap-4 px-4 py-1.5 bg-secondary/30 rounded-full border border-white/10 shadow-[0_0_15px_rgba(34,211,238,0.1)] hover:shadow-[0_0_20px_rgba(34,211,238,0.2)] transition-all duration-500">
-                <div className="flex items-center gap-2 group/coins" title="Entropy Coins">
-                  <Coins className="h-4 w-4 text-yellow-500 group-hover/coins:scale-125 transition-transform" />
-                  <span className="text-xs font-black tabular-nums">{stats?.user?.credits ?? 0}</span>
+              <div className="hidden lg:flex items-center gap-3 px-3 py-1.5 bg-white/[0.03] rounded-lg border border-white/[0.06] hover:border-cyan-500/20 transition-all">
+                <div className="flex items-center gap-1.5" title="Entropy Coins">
+                  <Coins className="h-3.5 w-3.5 text-amber-400" />
+                  <span className="text-[11px] font-bold tabular-nums text-white/70">{stats?.user?.credits ?? 0}</span>
                 </div>
                 <div className="w-px h-3 bg-white/10" />
-                <div className="flex flex-col items-center gap-0.5" title={`${stats?.user?.tier ?? "Initiate"} - Level ${stats?.currentLevel ?? 1}`}>
-                  <div className="flex items-center gap-1.5">
-                    <Trophy className="h-4 w-4 text-cyan-400 animate-pulse" />
-                    <span className="text-[10px] font-black uppercase tracking-tighter text-cyan-400">
-                      {stats?.user?.tier ?? "Initiate"}
-                    </span>
-                  </div>
+                <div className="flex items-center gap-1.5" title={`${stats?.user?.tier ?? "Initiate"} · Level ${stats?.currentLevel ?? 1}`}>
+                  <Trophy className="h-3.5 w-3.5 text-cyan-400" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400">
+                    {stats?.user?.tier ?? "Init"}
+                  </span>
                 </div>
                 <div className="w-px h-3 bg-white/10" />
-                <div className="flex items-center gap-1.5 group/streak" title="Daily Streak">
-                  <Flame className={`h-4 w-4 ${stats?.user?.streaks?.currentStreak > 0 ? "text-orange-500 animate-bounce" : "text-muted-foreground"}`} />
-                  <span className="text-xs font-black tabular-nums">{stats?.user?.streaks?.currentStreak ?? 0}</span>
+                <div className="flex items-center gap-1.5" title="Daily Streak">
+                  <Flame className={`h-3.5 w-3.5 ${(stats?.user?.streaks?.currentStreak ?? 0) > 0 ? "text-orange-400" : "text-white/20"}`} />
+                  <span className="text-[11px] font-bold tabular-nums text-white/70">{stats?.user?.streaks?.currentStreak ?? 0}</span>
                 </div>
               </div>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                    <Avatar className="h-8 w-8">
+                  <Button variant="ghost" className="relative h-8 w-8 rounded-lg border border-white/[0.08] bg-white/[0.04] hover:bg-white/[0.08] hover:border-cyan-500/30 p-0 transition-all">
+                    <Avatar className="h-6 w-6">
                       <AvatarImage src={session.user?.image || ""} alt={session.user?.name || ""} />
-                      <AvatarFallback>{session.user?.name?.[0] || "U"}</AvatarFallback>
+                      <AvatarFallback className="text-[10px] font-bold bg-cyan-500/20 text-cyan-400">{session.user?.name?.[0] || "U"}</AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuContent className="w-56 bg-[#0f0f1a] border border-white/[0.08] font-mono" align="end" forceMount>
                   <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{session.user?.name}</p>
-                      <p className="text-xs leading-none text-muted-foreground">{session.user?.email}</p>
+                    <div className="flex flex-col space-y-0.5">
+                      <p className="text-sm font-bold text-white">{session.user?.name}</p>
+                      <p className="text-[10px] text-white/30">{session.user?.email}</p>
                     </div>
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
+                  <DropdownMenuSeparator className="bg-white/[0.06]" />
+                  <DropdownMenuItem asChild className="text-white/60 hover:text-white focus:text-white">
                     <Link href="/profile">
-                      <User className="mr-2 h-4 w-4" />
-                      <span>Profile</span>
+                      <User className="mr-2 h-3.5 w-3.5" />
+                      <span className="text-[11px] uppercase tracking-widest">Profile</span>
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
+                  <DropdownMenuItem asChild className="text-white/60 hover:text-white focus:text-white">
                     <Link href="/profile/settings">
-                      <Settings className="mr-2 h-4 w-4" />
-                      <span>Settings</span>
+                      <Settings className="mr-2 h-3.5 w-3.5" />
+                      <span className="text-[11px] uppercase tracking-widest">Settings</span>
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => signOut()}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Log out</span>
+                  <DropdownMenuSeparator className="bg-white/[0.06]" />
+                  <DropdownMenuItem onClick={() => signOut()} className="text-red-400/70 hover:text-red-400 focus:text-red-400">
+                    <LogOut className="mr-2 h-3.5 w-3.5" />
+                    <span className="text-[11px] uppercase tracking-widest">Log out</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
           ) : (
-            <Button asChild>
+            <Button asChild size="sm" className="h-8 text-[10px] font-bold uppercase tracking-widest rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 hover:border-cyan-400/50 hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] transition-all">
               <Link href="/auth/signin">Sign In</Link>
             </Button>
           )}
 
-          {/* Theme toggle - hidden for dark mode only */}
-
           {/* Mobile menu button */}
           <Button
             variant="ghost"
-            className="md:hidden"
+            className="md:hidden h-8 w-8 p-0 border border-white/[0.08] bg-white/[0.04] rounded-lg"
             size="icon"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
-            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            {mobileMenuOpen ? <X className="h-4 w-4 text-white/60" /> : <Menu className="h-4 w-4 text-white/60" />}
           </Button>
         </div>
       </nav>
 
       {mobileMenuOpen && (
-        <div className="md:hidden border-t">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-3">
+        <div className="md:hidden border-t border-white/[0.06] bg-[#0a0a0f]/95">
+          <div className="max-w-7xl mx-auto px-4 py-3 space-y-2">
             {/* Mobile Search */}
             <form onSubmit={handleSearch} className="pb-2">
               <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-white/30" />
                 <Input
                   type="search"
                   placeholder="Search..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4"
+                  className="pl-9 h-8 text-[11px] bg-white/[0.04] border border-white/[0.08] text-white/70 font-mono"
                 />
               </div>
             </form>
@@ -204,10 +207,11 @@ export function Header() {
               <Link
                 key={item.name}
                 href={item.href}
-                className={`block px-4 py-2 text-sm font-medium rounded-md transition-colors ${pathname === item.href
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted"
-                  }`}
+                className={`block px-3 py-2 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all ${
+                  pathname === item.href
+                    ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
+                    : "text-white/40 hover:text-white/70 hover:bg-white/[0.04]"
+                }`}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 {item.name}

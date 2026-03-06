@@ -1,4 +1,4 @@
-import Link from "next/link"
+﻿import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 
 export function Footer() {
@@ -13,7 +13,7 @@ export function Footer() {
                 <div className="h-5 w-5 sm:h-6 sm:w-6 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold text-[10px] sm:text-xs shadow-[0_0_10px_rgba(6,182,212,0.4)]">
                   E
                 </div>
-                <span className="font-bold text-base sm:text-lg">Novyra</span>
+                <span className="font-bold text-base sm:text-lg">Entropy</span>
                 <Badge variant="secondary" className="text-[10px] sm:text-xs">Alpha</Badge>
               </div>
             </div>
@@ -54,7 +54,7 @@ export function Footer() {
         </div>
 
         <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-white/5 text-center text-xs sm:text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} Novyra Community Forum. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Entropy Community Forum. All rights reserved.</p>
         </div>
       </div>
     </footer>
