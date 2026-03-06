@@ -3,9 +3,9 @@ import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 
 const allowedOrigins = [
-  "https://novyra-community-forum.vercel.app",
-  "http://localhost:5000", // Keep for local dev
-  "http://localhost:3000", // Keep for local dev
+  "https://entropy-community.vercel.app",
+  "http://localhost:5000",
+  "http://localhost:3000",
 ]
 
 export async function middleware(request: NextRequest) {

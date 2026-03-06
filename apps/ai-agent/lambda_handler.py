@@ -1,37 +1,20 @@
 """
-Lambda Entry Point — NOVYRA AI Engine
-======================================
-AWS Lambda handler using Mangum adapter.
-
-Mangum translates API Gateway HTTP events into ASGI requests
-that FastAPI understands. The `app` import comes from apps/ai-agent/app/main.py
-which is the NOVYRA full engine (not the legacy root main.py).
-
-Environment variables (set in Lambda console or CDK):
-  DATABASE_URL          — RDS PostgreSQL connection string
-  AWS_REGION            — e.g. ap-northeast-1
-  BEDROCK_CLAUDE_MODEL  — Claude model ID
-  BEDROCK_TITAN_EMBED   — Titan embed model ID
-  S3_BUCKET_NAME        — document bucket name
-  NEO4J_URI             — still used until graph migration
-  AI_BACKEND_TOKEN      — shared secret from Next.js gateway
+AWS Lambda handler for Entropy AI Engine
+Uses Mangum to adapt FastAPI to Lambda
 """
-
-import logging
 import os
 
+# Set environment before importing app
+os.environ.setdefault("APP_ENV", os.environ.get("APP_ENV", "production"))
+os.environ.setdefault("AI_PROVIDER", "bedrock")
+
 from mangum import Mangum
+from app.main import app
 
-# Use NOVYRA full engine (app/main.py) not the legacy root main.py
-from app.main import app  # noqa: E402
+# Create handler
+handler = Mangum(app)
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
-# ── Lambda handler ─────────────────────────────────────────────────────────
-# lifespan="off" is required for Lambda — there is no persistent process.
-# Each cold start runs startup logic inline per request (Prisma connect, etc.)
-
-handler = Mangum(app, lifespan="off")
-
-logger.info("NOVYRA Lambda handler registered — model: %s", os.getenv("BEDROCK_CLAUDE_MODEL", "unset"))
+# For local testing
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

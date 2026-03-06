@@ -1,5 +1,5 @@
 """
-NOVYRA AI Engine — Configuration
+Entropy AI Engine — Configuration
 """
 import os
 from pathlib import Path
@@ -15,7 +15,7 @@ ENV_FILE_PATH = AI_AGENT_DIR / ".env"
 
 
 class Settings(BaseSettings):
-    """NOVYRA application settings"""
+    """Entropy AI Engine application settings"""
 
     # Google Gemini (primary LLM)
     GOOGLE_API_KEY: str = ""
@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # Neo4j Knowledge Graph
     NEO4J_URI: str = "bolt://neo4j:7687"
     NEO4J_USER: str = "neo4j"
-    NEO4J_PASSWORD: str = "novyra_neo4j"
+    NEO4J_PASSWORD: str = "entropy_neo4j"
 
     # PostgreSQL
     DATABASE_URL: str = ""
@@ -36,7 +36,7 @@ class Settings(BaseSettings):
 
     # Auth
     AI_BACKEND_TOKEN: str = ""
-    SECRET_KEY: str = "novyra-secret-change-in-prod"
+    SECRET_KEY: str = "entropy-secret-change-in-prod"
 
     # CORS
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5000"
@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     # Pinecone (optional - for legacy quiz/mindmap/documents routes)
     PINECONE_API_KEY: str = ""
     PINECONE_ENV: str = "us-east-1"
-    PINECONE_INDEX_NAME: str = "novyra-ai"
+    PINECONE_INDEX_NAME: str = "entropy-ai"
 
     # LangChain extras (optional)
     GROQ_API_KEY: str = ""

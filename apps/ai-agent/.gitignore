@@ -4,43 +4,77 @@ __pycache__/
 *$py.class
 *.so
 .Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
 venv/
-env/
 ENV/
-env.bak/
-venv.bak/
-
-# Environment
-.env
-.env.local
-
-# Data directories
-data/
-*.db
-*.sqlite
-
-# ChromaDB
-chroma_db/
-
-# GPT4All models
-models/
-*.bin
-
-# Logs
-*.log
+env/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Data
+data/
+*.db
+*.sqlite
+*.log
+
+# Uploads
+data/uploads/
+*.upload
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Uploads
-uploads/
+# Docker
+.dockerignore
 
-# Start script (redundant)
-start.py
+# Prisma
+prisma/*.db
+prisma/*.db-journal
+
+# Lambda
+*.zip
+*.pyz
+
+# Cache
+.cache/
+.chroma/
+
+# Redis
+redis-data/
+
+# Node (if using any Node.js tools)
+node_modules/

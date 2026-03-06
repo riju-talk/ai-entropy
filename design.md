@@ -3,29 +3,50 @@
 ## Project
 **ENTROPY – AI Learning Acceleration Platform**
 
-**Version:** 1.0  
-**Date:** 2026-02-16  
-**Based On:** SRS v1.0 (`requirements.md`)
+**Version:** 3.0  
+**Date:** 2026-03-05  
+**Based On:** SRS v3.0 (`requirements.md`)
+**AI Engine:** Entropy
+
+### Revision History
+- **v1.0** (2026-02-16): Initial design document
+- **v2.0** (2026-03-05): Updated to reflect actual implementation (Entropy AI Engine)
+- **v3.0** (2026-03-05): Production-ready version with AWS deployment guidance
 
 ---
 
 ## 1. Overview
-ENTROPY is a web-based AI learning and developer productivity platform for AI for Bharat. It combines a custom RAG pipeline, knowledge graph reasoning, document intelligence, adaptive learning, multilingual delivery, community collaboration, and gamification.
+ENTROPY is a web-based AI learning and developer productivity platform for AI for Bharat. It combines a custom RAG pipeline, knowledge graph reasoning, document intelligence, adaptive learning, multilingual delivery, community collaboration, gamification, anti-abuse detection, and async event processing.
 
 This document defines the end-to-end technical architecture and implementation design for production deployment aligned with the approved requirements.
 
+**AWS-Native Deployment:** ENTROPY is designed for production deployment on AWS with:
+- Frontend: Amazon CloudFront + Amazon S3 + AWS Amplify
+- Backend: AWS Lambda (via Mangum) + Amazon API Gateway HTTP API
+- AI: Amazon Bedrock (Claude 3 Sonnet + Titan Embeddings V2)
+- Databases: Amazon RDS PostgreSQL + Amazon DocumentDB + Amazon Neo4j
+- Storage: Amazon S3 (documents + processed text)
+- Caching: Amazon ElastiCache Redis
+- Queue: Amazon SQS for async processing
+
+The Entropy AI Engine powers the intelligent reasoning capabilities with 8-layer cognitive architecture.
+
 ### 1.1 Design Goals
-- Deliver low-latency, grounded AI responses.
+- Deliver low-latency, grounded AI responses using 8-layer AI Brain architecture (Entropy).
 - Support adaptive learning through knowledge gap detection and graph-aware recommendations.
-- Scale to high concurrent usage with high availability.
+- Scale to high concurrent usage with high availability using async event processing.
 - Ensure robust security, data protection, and observability.
 - Enable modular evolution of AI components without affecting core API contracts.
+- Implement anti-abuse detection with IP clustering, similarity detection, and vote analysis.
+- Track mastery with confidence weights and time decay for accurate skill assessment.
+- **Deploy to AWS** with serverless architecture, managed services, and cost optimization.
 
 ### 1.2 Architectural Style
 - **Frontend:** SPA/SSR hybrid using Next.js.
 - **Backend:** Modular monolith (initial) with async workers; service boundaries ready for microservice split.
-- **AI Runtime:** Pipeline-oriented async orchestration.
+- **AI Runtime:** Pipeline-oriented async orchestration (Entropy AI Engine).
 - **Storage:** Polyglot persistence (PostgreSQL, MongoDB, vector DB, Neo4j).
+- **Deployment:** AWS-native with Lambda, API Gateway, Bedrock, RDS, DocumentDB, Neo4j, ElastiCache, SQS.
 
 ---
 
@@ -59,10 +80,13 @@ flowchart TB
   API --> ORCH[Request Orchestrator]
   ORCH --> AI[AI Processing Layer]
   ORCH --> APP[Domain Services\nCommunity / Gamification / Profile]
+  ORCH --> ABUSE[Anti-Abuse Layer]
+  ORCH --> EVENTS[Event Bus]
 
   AI --> RAG[Custom RAG Pipeline]
   AI --> LEARN[Adaptive Learning Engine]
   AI --> SAFETY[Safety & Moderation Filters]
+  AI --> BRAIN[8-Layer AI Brain]
 
   RAG --> VDB[(Vector Store\nPinecone / FAISS)]
   RAG --> DOC[(Document Store\nMongoDB + Object Storage)]
@@ -75,12 +99,17 @@ flowchart TB
   APP --> SQL
   APP --> MONGO[(MongoDB)]
 
+  ABUSE --> IP[IP Clustering]
+  ABUSE --> SIM[Similarity Detection]
+  ABUSE --> VOTE[Vote Analysis]
+
   API --> CACHE[(Redis Cache)]
   API --> MQ[(Task Queue / Event Bus)]
   MQ --> WORKERS[Async Workers]
   WORKERS --> DOC
-  WORKERS --> VDB
   WORKERS --> NEO
+  WORKERS --> VDB
+  WORKERS --> SQL
 ```
 
 ---
@@ -158,7 +187,13 @@ flowchart LR
 
 ### 3.6 Adaptive Learning Engine
 - Inputs: user profile, activity stream, correctness signals, session behavior, graph state.
-- Learner model computes concept mastery scores in range [0,1].
+- Learner model computes concept mastery scores using formula:
+  ```
+  mastery = (correct_attempts / total_attempts) * confidence_weight
+  ```
+- Confidence weight is reduced by:
+  - High hint usage (penalty up to 0.3)
+  - Time decay (reduction after 7 days of inactivity)
 - Recommendation strategy:
   - prioritize high-impact prerequisites
   - blend user goals with graph centrality and difficulty slope
@@ -170,6 +205,22 @@ flowchart LR
 - Enforces grounded generation with retrieval context and citation tags.
 - Safety layer blocks disallowed responses; fallback to safe response templates.
 - Optional translation post-pass for regional language output.
+
+### 3.8 8-Layer AI Brain Architecture
+1. **Language Detection**: Auto-detect input language; translate to English if needed.
+2. **Context Assembly**: Gather user profile, mastery state, and session context.
+3. **Intent Detection**: Classify query type (QA, code explanation, concept mapping).
+4. **Concept Mapping**: Extract and resolve concepts to graph nodes.
+5. **Graph Traversal**: Fetch prerequisites, related concepts, and learning paths.
+6. **Reasoning Engine**: Generate answer with reasoning trace and confidence score.
+7. **NLI Validation**: Verify response consistency with retrieved context.
+8. **Trust Scoring**: Compute trust components and final trust score.
+
+### 3.9 Anti-Abuse Detection
+- **IP Clustering**: Group users by IP to detect suspicious patterns.
+- **Content Similarity**: Compute hashes and embeddings for duplicate detection.
+- **Vote Analysis**: Detect mutual voting and vote rings in community content.
+- **Trust Scoring**: Calculate trust based on mastery reliability and NLI track record.
 
 ---
 
@@ -240,9 +291,16 @@ flowchart TB
 - `/api/v1/community/posts`, `/api/v1/community/mentorship`
 - `/api/v1/gamification/profile`, `/api/v1/gamification/leaderboard`
 - `/api/v1/admin/moderation/*`
+- `/api/v1/reasoning/ask` - Structured reasoning with AI Brain
+- `/api/v1/evaluation/evaluate` - Rubric-based evaluation
+- `/api/v1/mastery/attempt` - Mastery tracking with confidence weights
+- `/api/v1/anti-abuse/ip-clusters` - IP clustering reports
+- `/api/v1/anti-abuse/similarity` - Content similarity detection
+- `/api/v1/anti-abuse/vote-analysis` - Vote ring detection
 
 ### 4.2.3 Async Processing
-- Celery/RQ worker pool for ingestion, embedding, graph updates, and scheduled recomputation.
+- Event bus for async processing of domain events (doubt creation, mastery updates, community interactions).
+- Async workers for ingestion, embedding, graph updates, and scheduled recomputation.
 - Task states tracked in PostgreSQL; progress events pushed to clients via WebSocket/SSE.
 - Retry policy with exponential backoff and dead-letter queue for persistent failures.
 
@@ -266,8 +324,23 @@ flowchart TB
 - Relationship confidence and provenance metadata stored per edge.
 
 ### 4.3.5 Learning Engine
-- Periodic and event-driven mastery score updates.
+- Periodic and event-driven mastery score updates using formula:
+  ```
+  mastery = (correct_attempts / total_attempts) * confidence_weight
+  ```
+- Confidence weight reduced by hint usage and time decay.
 - Returns recommended sequence with rationale from graph paths.
+
+### 4.3.6 Anti-Abuse Engine
+- IP clustering for suspicious activity detection.
+- Content similarity detection using hashes and embeddings.
+- Vote analysis for detecting mutual voting and vote rings.
+- Trust scoring based on mastery reliability and NLI track record.
+
+### 4.3.7 Event Bus
+- Async event processing for domain events.
+- Multiple handlers per event type for decoupled workflows.
+- Event types: doubt creation, mastery updates, community interactions, gamification actions.
 
 ---
 
@@ -292,7 +365,7 @@ flowchart TB
 6. Job status updates visible in UI.
 
 ### 5.3 AI Reasoning Pipeline Flow
-- Query -> retrieval evidence -> graph context -> rerank -> generation -> citation + safety -> response.
+- Query -> language detection -> context assembly -> intent detection -> concept mapping -> graph traversal -> reasoning engine -> NLI validation -> trust scoring -> citation + safety -> response.
 
 ### 5.4 Knowledge Graph Update Flow
 1. New document/query interaction event captured.
@@ -300,6 +373,19 @@ flowchart TB
 3. Confidence-scored updates merged with deduplication.
 4. Graph consistency checks and provenance tagging.
 5. Recommendation cache invalidation and refresh.
+
+### 5.5 Anti-Abuse Detection Flow
+1. User activity captured (IP, content, votes).
+2. IP clustering identifies suspicious patterns.
+3. Content similarity detects duplicates.
+4. Vote analysis identifies vote rings.
+5. Trust score computed and applied to user profile.
+
+### 5.6 Event Processing Flow
+1. Domain event emitted to event bus.
+2. Registered handlers process event asynchronously.
+3. State updates persisted to databases.
+4. Progress events pushed to clients via WebSocket/SSE.
 
 ### 5.5 Diagram: End-to-End Query + Learning Update
 ```mermaid
@@ -384,6 +470,11 @@ flowchart LR
   W --> N
   W --> V
   W --> O
+  W --> PG
+
+  ABUSE[Anti-Abuse Layer] --> IP[IP Clustering]
+  ABUSE --> SIM[Similarity Detection]
+  ABUSE --> VOTE[Vote Analysis]
 ```
 
 ---
@@ -409,41 +500,48 @@ flowchart LR
 7. Blue-green or rolling deployment strategy.
 
 ### 7.3 Cloud Deployment Model
-- Kubernetes-based deployment (managed cluster preferred).
-- Ingress + TLS termination.
-- Managed databases (PostgreSQL, MongoDB, Neo4j/Pinecone where applicable).
-- Object storage for file assets.
-- CDN for static assets and edge caching.
+- **AWS Lambda** - Serverless compute with API Gateway HTTP API
+- **Amazon Bedrock** - Claude 3 Sonnet for reasoning, Titan Embeddings for vectors
+- **Amazon RDS PostgreSQL** - Managed relational database
+- **Amazon DocumentDB** - Managed MongoDB-compatible database
+- **Amazon Neo4j** - Managed graph database
+- **Amazon S3** - Document storage and processed text
+- **Amazon ElastiCache Redis** - Caching
+- **Amazon SQS** - Async message queue
+- **Amazon CloudFront** - CDN for static assets
+- **AWS IAM** - Identity and access management with least-privilege
+- **AWS KMS** - Encryption at rest
+- **Amazon WAF** - Web application firewall for API Gateway
 
 ### 7.4 Scalability Strategy
-- Horizontal Pod Autoscaler on API and workers.
-- Queue-driven worker autoscaling based on backlog depth.
-- Read replicas for relational/document stores where needed.
-- Cache hot paths for retrieval metadata and session context.
+- **Lambda concurrency** - Auto-scaling based on API Gateway request rate
+- **SQS-driven scaling** - Worker scaling based on queue backlog
+- **Read replicas** - For RDS PostgreSQL and DocumentDB
+- **ElastiCache** - Hot path caching for retrieval metadata and session context
+- **Lambda power tuning** - Optimize memory/CPU for cost/performance
+- **Multi-AZ deployment** - Automatic failover for managed databases
 
 ### 7.5 Diagram: Deployment Topology
 ```mermaid
 flowchart TB
-  CDN[CDN + WAF] --> INGRESS[K8s Ingress]
-  INGRESS --> FE[Frontend Pods]
-  INGRESS --> API[API Pods]
+  CDN[CloudFront + WAF] --> INGRESS[API Gateway HTTP API]
+  INGRESS --> LAMBDA[Lambda Functions\nFastAPI via Mangum]
 
-  API --> REDIS[(Redis)]
-  API --> PG[(Managed PostgreSQL)]
-  API --> MONGO[(Managed MongoDB)]
-  API --> NEO[(Neo4j)]
-  API --> VEC[(Pinecone/FAISS)]
-  API --> OBJ[(Object Storage)]
+  LAMBDA --> BEDROCK[Amazon Bedrock\nClaude 3 Sonnet + Titan]
+  LAMBDA --> RDS[(RDS PostgreSQL)]
+  LAMBDA --> DOCDB[(DocumentDB)]
+  LAMBDA --> NEO[(Neo4j)]
+  LAMBDA --> S3[(S3 Bucket)]
+  LAMBDA --> REDIS[(ElastiCache Redis)]
+  LAMBDA --> SQS[(SQS Queue)]
 
-  REDIS --> WORKER[Worker Pods]
-  WORKER --> MONGO
+  SQS --> WORKER[Async Workers\nLambda]
+  WORKER --> DOCDB
   WORKER --> NEO
-  WORKER --> VEC
-  WORKER --> OBJ
+  WORKER --> S3
 
-  OBS[Observability Stack\nLogs/Metrics/Traces] --> API
+  OBS[CloudWatch\nLogs/Metrics/Traces/X-Ray] --> LAMBDA
   OBS --> WORKER
-  OBS --> FE
 ```
 
 ---
@@ -524,19 +622,19 @@ flowchart TB
 ## 11. Implementation Roadmap (Suggested)
 
 ### Phase 1 (MVP)
-- Auth, AI query, document upload + RAG, basic communities, baseline gamification, multilingual translation.
+- Auth, AI query, document upload + RAG, basic communities, baseline gamification, multilingual translation, 8-layer AI Brain reasoning.
 
 ### Phase 2
-- Full knowledge graph reasoning, adaptive learning path engine, mentorship matching, advanced moderation.
+- Full knowledge graph reasoning, adaptive learning path engine, mentorship matching, advanced moderation, anti-abuse detection, event-driven async processing.
 
 ### Phase 3
-- Advanced analytics, model optimization, expanded language coverage, personalization tuning.
+- Advanced analytics, model optimization, expanded language coverage, personalization tuning, trust-based reputation system.
 
 ---
 
 ## 12. Risks and Mitigations
 1. **Hallucinations / low grounding quality**  
-   Mitigation: stronger reranking, citation enforcement, confidence-based fallback.
+   Mitigation: stronger reranking, citation enforcement, confidence-based fallback, NLI validation.
 
 2. **High inference cost**  
    Mitigation: caching, model routing by task complexity, token budget controls.
@@ -549,6 +647,15 @@ flowchart TB
 
 5. **Multilingual translation inconsistency**  
    Mitigation: language-specific QA datasets, post-edit quality scoring, glossary constraints.
+
+6. **Anti-abuse evasion**  
+   Mitigation: multi-layer detection (IP, similarity, votes), continuous model updates, manual review.
+
+7. **Trust score manipulation**  
+   Mitigation: multiple signal sources, time-weighted signals, anomaly detection.
+
+8. **Event processing failures**  
+   Mitigation: dead-letter queues, retry with backoff, idempotent handlers, monitoring.
 
 ---
 
@@ -565,19 +672,163 @@ flowchart TB
 ## 14. Technology Mapping
 - **Frontend:** Next.js, TypeScript, TailwindCSS
 - **Backend:** FastAPI (Python)
+- **AWS Lambda:** Serverless compute via Mangum
+- **API Gateway:** HTTP API with custom authorizers
 - **AI/NLP:** custom RAG, transformer embeddings, spaCy, LLM inference engine
 - **Retrieval:** Pinecone / FAISS
 - **Graph:** Neo4j + NetworkX
 - **Doc Processing:** PyMuPDF (+ DOCX/TXT parser stack)
-- **Databases:** PostgreSQL, MongoDB
-- **Infra:** Docker, Kubernetes, CI/CD pipeline, Redis cache/queue
+- **Databases:** RDS PostgreSQL, DocumentDB, Neo4j
+- **Async Processing:** Event bus with async handlers, SQS
+- **Anti-Abuse:** IP clustering, content hashing, embedding similarity, vote analysis
+- **Gamification:** XP engine with trust multipliers, streak manager, achievement engine
+- **Multilingual:** deep-translator (Google Translate backend), langdetect
+- **Reasoning:** 8-layer AI Brain architecture with NLI validation and trust scoring (Entropy)
+- **Infrastructure:** AWS CDK, Docker, GitHub Actions CI/CD
+- **Monitoring:** CloudWatch, X-Ray, CloudWatch Alarms
 
 ---
 
-## 15. Design Conformance to Requirements
-- AI Learning Engine requirements are fulfilled via custom RAG, code explanation templates, graph-enhanced reasoning, and adaptive learning services.
-- Document intelligence requirements are fulfilled via ingestion pipeline, chunking/indexing, and contextual QA APIs.
-- Community and mentorship requirements are fulfilled through dedicated domain services and relational schemas.
-- Gamification requirements are fulfilled via XP/coin ledgers, level computation, achievements, and leaderboard snapshots.
-- Multilingual requirements are fulfilled via language-aware query handling and translation post-processing.
-- Non-functional requirements are addressed through autoscaling, caching, async workloads, security controls, and observability.
+## 15. AWS-Native Deployment Architecture
+
+### 15.1 Frontend Layer
+- **Amazon CloudFront** - CDN with S3 origin for static assets
+- **Amazon S3** - Static asset hosting with versioning
+- **AWS Amplify** - Frontend deployment and hosting with CI/CD
+
+### 15.2 API Layer
+- **API Gateway HTTP API** - Serverless API with custom JWT authorizers
+- **AWS Lambda** - FastAPI via Mangum adapter (power-optimized)
+- **Lambda Power Tuning** - Optimize memory/CPU for cost/performance
+
+### 15.3 AI Layer
+- **Amazon Bedrock** - Claude 3 Sonnet for reasoning, Titan Embeddings V2 for vectors
+- **Lambda Power Tuning** - Optimize for inference latency (< 2s P95)
+
+### 15.4 Data Layer
+- **Amazon RDS PostgreSQL** - Multi-AZ with automated backups
+- **Amazon DocumentDB** - Managed MongoDB-compatible database
+- **Amazon Neo4j** - Managed graph database with high availability
+
+### 15.5 Caching & Queue
+- **Amazon ElastiCache Redis** - Caching for frequently accessed data
+- **Amazon SQS** - Async processing queue for background jobs
+
+### 15.6 Security
+- **AWS IAM** - Least-privilege access for all services
+- **AWS KMS** - Encryption at rest for all data stores
+- **Amazon WAF** - Web application firewall for API Gateway
+- **VPC** - Private subnets for databases
+
+### 15.7 DevOps
+- **AWS CDK** - Infrastructure as Code
+- **GitHub Actions** - CI/CD pipeline with automated testing and deployment
+
+---
+
+## 16. AWS Services Required for Deployment
+
+### Compute
+- **AWS Lambda** - Serverless compute for API endpoints
+- **AWS Amplify** - Frontend hosting and CI/CD
+
+### API & Networking
+- **Amazon API Gateway HTTP API** - Serverless API with custom authorizers
+- **Amazon CloudFront** - CDN for static assets and API responses
+- **Amazon VPC** - Private networking for databases
+
+### AI & ML
+- **Amazon Bedrock** - Claude 3 Sonnet for LLM, Titan Embeddings for vectors
+
+### Databases
+- **Amazon RDS PostgreSQL** - Primary relational database (multi-AZ)
+- **Amazon DocumentDB** - MongoDB-compatible document database
+- **Amazon Neo4j** - Managed graph database (high availability)
+
+### Storage
+- **Amazon S3** - Document storage and processed text
+- **Amazon ElastiCache Redis** - Caching layer
+
+### Queue & Messaging
+- **Amazon SQS** - Async message queue for background jobs
+
+### Security
+- **AWS IAM** - Identity and access management
+- **AWS KMS** - Encryption at rest
+- **Amazon WAF** - Web application firewall
+
+### Monitoring & Logging
+- **Amazon CloudWatch** - Logs, metrics, alarms
+- **AWS X-Ray** - Distributed tracing
+
+### Configuration Management
+- **AWS Systems Manager (SSM) Parameter Store** - Secure configuration storage
+
+---
+
+## 17. Deployment Checklist
+
+### Pre-Deployment
+- [ ] Create AWS account and configure CLI credentials
+- [ ] Set up VPC with public/private subnets
+- [ ] Create RDS PostgreSQL instance (multi-AZ)
+- [ ] Create DocumentDB cluster
+- [ ] Create Neo4j instance (high availability)
+- [ ] Create S3 buckets for documents
+- [ ] Create ElastiCache Redis cluster
+- [ ] Configure IAM roles for Lambda
+- [ ] Set up SSM parameters for secrets
+- [ ] Configure CloudFront distribution
+- [ ] Set up CloudWatch alarms
+
+### Deployment
+- [ ] Deploy Lambda function using serverless.yml
+- [ ] Configure API Gateway with Lambda integration
+- [ ] Deploy frontend to AWS Amplify
+- [ ] Configure CORS and WAF rules
+- [ ] Run database migrations
+- [ ] Seed knowledge graph with initial concepts
+
+### Post-Deployment
+- [ ] Verify health endpoint returns healthy status
+- [ ] Test LLM inference via Bedrock
+- [ ] Verify database connections
+- [ ] Test Redis caching
+- [ ] Run smoke tests for critical paths
+- [ ] Configure monitoring dashboards
+
+---
+
+## 18. Cost Optimization Strategies
+
+1. **Lambda Power Tuning** - Optimize memory/CPU for each function
+2. **Caching** - Use Redis to reduce database and LLM calls
+3. **Model Routing** - Route simple queries to cheaper models
+4. **Reserved Capacity** - Consider reserved capacity for Neo4j
+5. **S3 Lifecycle Policies** - Move old documents to Glacier
+6. **Auto-scaling** - Scale down during off-peak hours
+
+---
+
+## 19. Maintenance & Operations
+
+### Daily
+- Monitor CloudWatch alarms
+- Review Lambda error logs
+- Check database connection pool status
+
+### Weekly
+- Review security logs
+- Check backup status
+- Monitor S3 storage usage
+
+### Monthly
+- Review and optimize Lambda costs
+- Update dependencies
+- Run disaster recovery drills
+
+---
+
+**Document Version:** 3.0  
+**Last Updated:** 2026-03-05  
+**Maintained By:** AI for Bharat Platform Team

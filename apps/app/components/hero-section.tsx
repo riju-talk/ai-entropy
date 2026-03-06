@@ -17,12 +17,11 @@ export function HeroSection({ totalQuestions, totalAnswers }: HeroSectionProps) 
   useEffect(() => {
     setIsMounted(true)
     // Check if user has visited before
-    const hasVisited = localStorage.getItem("novyra_has_visited")
+    const hasVisited = localStorage.getItem("entropy_has_visited")
     
     if (!hasVisited) {
       setIsVisible(true)
-      // Mark as visited after showing hero
-      localStorage.setItem("novyra_has_visited", "true")
+      localStorage.setItem("entropy_has_visited", "true")
     }
   }, [])
 
@@ -57,7 +56,7 @@ export function HeroSection({ totalQuestions, totalAnswers }: HeroSectionProps) 
       <div className="space-y-4 md:space-y-6 max-w-3xl">
         <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-bold tracking-tight leading-[0.95] md:leading-[0.9]">
           <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 animate-gradient-x contrast-125">
-            Novyra.
+            Entropy.
           </span>
           <br />
           <span className="text-foreground text-3xl sm:text-4xl md:text-5xl lg:text-7xl tracking-normal font-semibold">

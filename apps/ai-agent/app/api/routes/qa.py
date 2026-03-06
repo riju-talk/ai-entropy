@@ -1,5 +1,5 @@
 """
-Q&A endpoint — backed by NOVYRA Reasoning Engine (no LangChain)
+Q&A endpoint — backed by Entropy Reasoning Engine (no LangChain)
 
 Legacy path kept at /api/qa so the frontend proxy continues to work.
 Internally delegates to reasoning_service which calls Gemini directly.
@@ -43,12 +43,12 @@ class QAInput(BaseModel):
 
 @router.get("/greeting")
 async def get_greeting():
-    return {"greeting": "Hi! I'm NOVYRA ⚡ — your adaptive AI tutor. Ask me anything!"}
+    return {"greeting": "Hi! I'm Entropy AI ⚡ — your adaptive AI tutor. Ask me anything!"}
 
 
 @router.get("/health")
 async def qa_health():
-    return {"status": "healthy", "backend": "NOVYRA Reasoning Engine (Gemini)"}
+    return {"status": "healthy", "backend": "Entropy Reasoning Engine (Gemini)"}
 
 
 @router.post("/", summary="Ask a question (legacy /api/qa)")

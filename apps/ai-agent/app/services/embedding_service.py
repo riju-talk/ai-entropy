@@ -1,20 +1,25 @@
 """
 Embedding Service
-Google Gemini Embeddings Only
+Routes to Titan Embeddings V2 (Bedrock) or Gemini based on AI_PROVIDER.
+
+  AI_PROVIDER=bedrock  → Amazon Titan Embed Text V2 (1536-dim)
+  AI_PROVIDER=gemini   → Google Gemini Embeddings
 """
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import numpy as np
 from functools import lru_cache
 from typing import List
 
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from app.config import settings
-from app.utils.logger import setup_logger
 
-logger = setup_logger(__name__)
+logger = logging.getLogger(__name__)
+
+_PROVIDER = getattr(settings, "AI_PROVIDER", "gemini").lower()
 
 
 class EmbeddingService:
@@ -30,38 +35,56 @@ class EmbeddingService:
         if self._initialized:
             return
 
-        # Load API key from environment
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "Missing GOOGLE_API_KEY environment variable. "
-                "Set it in your .env file."
-            )
-
-        model_name = settings.EMBEDDING_MODEL or "models/gemini-embedding-001"
-        logger.info(f"Loading Google Gemini Embedding Model: {model_name}")
-
-        # Initialize Gemini embeddings
-        self.model = GoogleGenerativeAIEmbeddings(model=model_name)
+        if _PROVIDER == "bedrock":
+            self._init_bedrock()
+        else:
+            self._init_gemini()
 
         self._initialized = True
-        logger.info("Google Gemini embedding model loaded successfully")
 
-    # ----------------------------------------------------
-    # Embedding helpers
-    # ----------------------------------------------------
+    # ── Provider init ──────────────────────────────────────────────────────────
+
+    def _init_bedrock(self):
+        import boto3
+        from botocore.config import Config
+        self._model_id = getattr(settings, "BEDROCK_TITAN_EMBED", "amazon.titan-embed-text-v2:0")
+        self._bedrock  = boto3.client(
+            "bedrock-runtime",
+            config=Config(
+                region_name=getattr(settings, "AWS_REGION", "ap-northeast-1"),
+                retries={"max_attempts": 3},
+            ),
+        )
+        self._provider = "bedrock"
+        logger.info("EmbeddingService: Titan Embeddings V2 (%s)", self._model_id)
+
+    def _init_gemini(self):
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise RuntimeError("Missing GOOGLE_API_KEY environment variable.")
+        from langchain_google_genai import GoogleGenerativeAIEmbeddings
+        model_name = settings.EMBEDDING_MODEL or "models/gemini-embedding-001"
+        self.model = GoogleGenerativeAIEmbeddings(model=model_name)
+        self._provider = "gemini"
+        logger.info("EmbeddingService: Google Gemini Embeddings (%s)", model_name)
+
+    # ── Embedding helpers ──────────────────────────────────────────────────────
 
     def encode(self, text: str) -> np.ndarray:
         """Generate embedding for a single text string."""
         if not text or not text.strip():
             raise ValueError("Cannot embed empty text string")
+        if self._provider == "bedrock":
+            return self._encode_bedrock(text)
         emb = self.model.embed_query(text)
         return np.array(emb, dtype=np.float32)
 
     def encode_batch(self, texts: List[str]) -> np.ndarray:
         """Generate embeddings for multiple texts."""
-        if not texts or not isinstance(texts, list):
+        if not texts:
             raise ValueError("encode_batch expects a non-empty list")
+        if self._provider == "bedrock":
+            return np.stack([self._encode_bedrock(t) for t in texts])
         embeddings = self.model.embed_documents(texts)
         return np.array(embeddings, dtype=np.float32)
 
@@ -69,17 +92,25 @@ class EmbeddingService:
         """Cosine similarity between two text embeddings."""
         e1 = self.encode(text1)
         e2 = self.encode(text2)
-
         denom = np.linalg.norm(e1) * np.linalg.norm(e2)
-        if denom == 0:
-            return 0.0
+        return float(np.dot(e1, e2) / denom) if denom > 0 else 0.0
 
-        return float(np.dot(e1, e2) / denom)
+    # ── Bedrock internal ──────────────────────────────────────────────────────
+
+    def _encode_bedrock(self, text: str) -> np.ndarray:
+        body = json.dumps({"inputText": text, "dimensions": 1536, "normalize": True})
+        response = self._bedrock.invoke_model(
+            modelId=self._model_id,
+            contentType="application/json",
+            accept="application/json",
+            body=body,
+        )
+        result = json.loads(response["body"].read())
+        return np.array(result["embedding"], dtype=np.float32)
 
 
-# ----------------------------------------------------
-# Singleton accessor
-# ----------------------------------------------------
+# ── Singleton accessor ─────────────────────────────────────────────────────────
+
 @lru_cache()
 def get_embedding_service() -> EmbeddingService:
     return EmbeddingService()

@@ -15,8 +15,8 @@ const jetbrains = JetBrains_Mono({ subsets: ["latin"], display: "swap", variable
 
 export const metadata: Metadata = {
   title: {
-    default: "Novyra - Academic community platform",
-    template: "%s | Novyra",
+    default: "Entropy - Academic community platform",
+    template: "%s | Entropy",
   },
   description:
     "A comprehensive academic community platform for STEM learning, doubt resolution, and collaborative education. Connect with students, educators, and experts worldwide.",
@@ -31,16 +31,16 @@ export const metadata: Metadata = {
     "answers",
     "collaboration",
   ],
-  authors: [{ name: "Novyra Team" }],
-  creator: "Novyra",
-  publisher: "Novyra",
+  authors: [{ name: "Entropy Team" }],
+  creator: "Entropy",
+  publisher: "Entropy",
   formatDetection: {
     email: false,
     address: false,
     telephone: false,
   },
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL || "https://novyra-community-forum.vercel.app"
+    process.env.NEXT_PUBLIC_APP_URL || "https://entropy-community.vercel.app"
   ),
   alternates: {
     canonical: "/",
@@ -49,26 +49,26 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "/",
-    title: "Novyra - Academic community platform",
+    title: "Entropy - Academic community platform",
     description:
       "A comprehensive academic community platform for STEM learning, doubt resolution, and collaborative education.",
-    siteName: "Novyra",
+    siteName: "Entropy",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Novyra - Academic community platform",
+        alt: "Entropy - Academic community platform",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Novyra - Academic community platform",
+    title: "Entropy - Academic community platform",
     description:
       "A comprehensive academic community platform for STEM learning, doubt resolution, and collaborative education.",
     images: ["/og-image.png"],
-    creator: "@novyra",
+    creator: "@entropy_app",
   },
   robots: {
     index: true,
@@ -103,7 +103,7 @@ export default async function RootLayout({
         <link rel="apple-touch-icon" href="/icon-192x192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Novyra" />
+        <meta name="apple-mobile-web-app-title" content="Entropy" />
         <meta name="msapplication-TileColor" content="#000000" />
         <meta name="msapplication-tap-highlight" content="no" />
         <meta name="theme-color" content="#000000" />

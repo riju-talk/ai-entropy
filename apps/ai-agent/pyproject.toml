@@ -1,7 +1,7 @@
 [project]
-name = "novyra-ai-engine"
-version = "2.0.0"
-description = "NOVYRA AI Engine — Structured Reasoning, Knowledge Graph, Mastery Tracking"
+name = "entropy-ai-engine"
+version = "3.0.0"
+description = "Entropy AI Engine — Structured Reasoning, Knowledge Graph, Mastery Tracking"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -27,13 +27,17 @@ dependencies = [
     "psycopg2-binary>=2.9.0",
     "uvicorn[standard]>=0.30.0",
     "requests>=2.32.0",
-    # LangChain stack (used by legacy quiz/mindmap/documents routes)
+    "redis>=5.0.0",
+    "python-json-logger>=2.0.0",
     "langchain-core>=0.3.0",
     "langchain-community>=0.3.0",
     "langchain-text-splitters>=0.3.0",
     "langchain-google-genai>=2.0.0",
     "langchain-pinecone>=0.2.0",
     "pinecone>=5.0.0",
-    # Prisma ORM (database.py)
     "prisma>=0.15.0",
+    "boto3>=1.34.0",
+    "botocore>=1.34.0",
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
 ]

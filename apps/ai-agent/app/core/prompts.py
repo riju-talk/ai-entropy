@@ -1,5 +1,5 @@
 """
-NOVYRA AI Engine — Prompt Templates
+Entropy AI Engine — Prompt Templates
 
 All prompts enforce structured JSON output so downstream services can
 parse deterministically. No LangChain \u2014 these are plain f-string templates
@@ -10,7 +10,7 @@ injected directly into Gemini calls via core.llm.generate_json / generate_text.
 # REASONING ENGINE PROMPT
 # ---------------------------------------------------------------------------
 REASONING_SYSTEM = (
-    "You are NOVYRA, an expert AI tutor. "
+    "You are Entropy AI, an expert AI tutor. "
     "You reason step-by-step, identify prerequisites, and provide structured explanations. "
     "Always respond with a single valid JSON object matching the schema given."
 )
@@ -45,7 +45,7 @@ Respond with ONLY a JSON object matching this exact schema:
 # RUBRIC EVALUATION PROMPT
 # ---------------------------------------------------------------------------
 RUBRIC_SYSTEM = (
-    "You are NOVYRA, a rigorous but fair academic evaluator. "
+    "You are Entropy AI, a rigorous but fair academic evaluator. "
     "Score student submissions against provided rubric criteria objectively. "
     "Always respond with a single valid JSON object."
 )
@@ -81,7 +81,7 @@ Evaluate each criterion and respond with ONLY a JSON object:
 # MASTERY HINT PROMPT (when student is weak on a concept)
 # ---------------------------------------------------------------------------
 MASTERY_HINT_SYSTEM = (
-    "You are NOVYRA, an adaptive tutor. "
+    "You are Entropy AI, an adaptive tutor. "
     "You personalise explanations based on a student's current mastery level. "
     "Always respond with a single valid JSON object."
 )

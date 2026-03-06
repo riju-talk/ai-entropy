@@ -1,53 +1,42 @@
-service: novyra-ai-engine
+service: entropy-ai-engine
 
 frameworkVersion: "3"
 
 provider:
   name: aws
   runtime: python3.11
-  stage: ${opt:stage, 'dev'}
-  region: ${opt:region, 'ap-northeast-1'}
+  stage: dev
+  region: ap-northeast-1
   memorySize: 1024
-  timeout: 30           # API Gateway max is 29s; Lambda can be up to 900s
+  timeout: 30
   architecture: x86_64
 
   environment:
-    # Application
-    APP_ENV:              ${self:provider.stage}
-    AI_PROVIDER:          bedrock
-
-    # Bedrock
+    APP_ENV: dev
+    AI_PROVIDER: bedrock
     BEDROCK_CLAUDE_MODEL: anthropic.claude-3-sonnet-20240229-v1:0
-    BEDROCK_TITAN_EMBED:  amazon.titan-embed-text-v2:0
-    AWS_REGION:           ${self:provider.region}
-
-    # RDS — injected at deploy time (SSM or CDK output)
-    DATABASE_URL:         ${ssm:/novyra/${self:provider.stage}/DATABASE_URL}
-
-    # S3
-    S3_BUCKET_NAME:       novyra-documents-${self:provider.stage}
-
-    # Proxy token shared with Next.js gateway
-    AI_BACKEND_TOKEN:     ${ssm:/novyra/${self:provider.stage}/AI_BACKEND_TOKEN}
-
-    # Neo4j (still used until full graph migration)
-    NEO4J_URI:            ${ssm:/novyra/${self:provider.stage}/NEO4J_URI}
-    NEO4J_USER:           ${ssm:/novyra/${self:provider.stage}/NEO4J_USER}
-    NEO4J_PASSWORD:       ${ssm:/novyra/${self:provider.stage}/NEO4J_PASSWORD}
+    BEDROCK_TITAN_EMBED: amazon.titan-embed-text-v2:0
+    AWS_REGION: ap-northeast-1
+    DATABASE_URL: ${ssm:/entropy/dev/DATABASE_URL}
+    S3_BUCKET_NAME: entropy-documents-dev
+    AI_BACKEND_TOKEN: ${ssm:/entropy/dev/AI_BACKEND_TOKEN}
+    NEO4J_URI: ${ssm:/entropy/dev/NEO4J_URI}
+    NEO4J_USER: ${ssm:/entropy/dev/NEO4J_USER}
+    NEO4J_PASSWORD: ${ssm:/entropy/dev/NEO4J_PASSWORD}
+    REDIS_HOST: ${ssm:/entropy/dev/REDIS_HOST}
+    REDIS_PORT: ${ssm:/entropy/dev/REDIS_PORT}
+    JWT_SECRET_KEY: ${ssm:/entropy/dev/JWT_SECRET_KEY}
 
   iam:
     role:
       statements:
-        # Bedrock — LLM + Embeddings
         - Effect: Allow
           Action:
             - bedrock:InvokeModel
             - bedrock:InvokeModelWithResponseStream
           Resource:
-            - arn:aws:bedrock:${self:provider.region}::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0
-            - arn:aws:bedrock:${self:provider.region}::foundation-model/amazon.titan-embed-text-v2:0
-
-        # S3 — document bucket
+            - arn:aws:bedrock:ap-northeast-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0
+            - arn:aws:bedrock:ap-northeast-1::foundation-model/amazon.titan-embed-text-v2:0
         - Effect: Allow
           Action:
             - s3:GetObject
@@ -55,81 +44,21 @@ provider:
             - s3:DeleteObject
             - s3:HeadObject
           Resource:
-            - arn:aws:s3:::novyra-documents-${self:provider.stage}/*
-        - Effect: Allow
-          Action:
-            - s3:ListBucket
-          Resource:
-            - arn:aws:s3:::novyra-documents-${self:provider.stage}
-
-        # SSM Parameter Store — read config
-        - Effect: Allow
-          Action:
-            - ssm:GetParameter
-            - ssm:GetParameters
-          Resource:
-            - arn:aws:ssm:${self:provider.region}:*:parameter/novyra/${self:provider.stage}/*
-
-        # CloudWatch Logs
-        - Effect: Allow
-          Action:
-            - logs:CreateLogGroup
-            - logs:CreateLogStream
-            - logs:PutLogEvents
-          Resource: "*"
+            - arn:aws:s3:::entropy-documents-dev/*
 
 functions:
-  ai-engine:
+  api:
     handler: lambda_handler.handler
-    description: "NOVYRA AI Engine — FastAPI (Claude 3 Sonnet + Titan Embeddings)"
     events:
-      - httpApi:
+      - http:
           path: /{proxy+}
-          method: ANY
-      - httpApi:
-          path: /
-          method: ANY
-    layers:
-      - !Ref PythonDepsLayer
-
-resources:
-  Resources:
-    # S3 bucket for documents
-    DocumentsBucket:
-      Type: AWS::S3::Bucket
-      Properties:
-        BucketName: novyra-documents-${self:provider.stage}
-        CorsConfiguration:
-          CorsRules:
-            - AllowedHeaders: ["*"]
-              AllowedMethods: [GET, PUT, POST, DELETE, HEAD]
-              AllowedOrigins: ["*"]
-              MaxAge: 3600
-        LifecycleConfiguration:
-          Rules:
-            - Id: delete-processed-after-90-days
-              Prefix: processed/
-              Status: Enabled
-              ExpirationInDays: 90
-
-    PythonDepsLayer:
-      Type: AWS::Lambda::LayerVersion
-      Properties:
-        LayerName: novyra-python-deps-${self:provider.stage}
-        Description: "Python dependencies for NOVYRA AI Engine"
-        CompatibleRuntimes:
-          - python3.11
-        Content:
-          S3Bucket: !Sub novyra-artifacts-${AWS::AccountId}
-          S3Key:    lambda-layer.zip
+          method: any
+          cors: true
 
 plugins:
   - serverless-python-requirements
 
 custom:
   pythonRequirements:
-    dockerizePip: non-linux
-    slim: true
-    noDeploy:
-      - boto3     # provided by Lambda runtime
-      - botocore
+    dockerizePip: true
+    strip: false

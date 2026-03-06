@@ -64,7 +64,7 @@ export function Header() {
             </div>
             <span className="font-semibold text-2xl tracking-tight flex items-center gap-2">
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/80 group-hover:from-cyan-400 group-hover:to-purple-500 transition-all duration-500">
-                Novyra
+                Entropy
               </span>
               <span
                 className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold tracking-widest bg-gradient-to-r from-orange-500 to-red-500 text-white border border-orange-400/30 uppercase shadow-lg animate-pulse"
@@ -105,7 +105,7 @@ export function Header() {
           {session ? (
             <>
               <div className="hidden lg:flex items-center gap-4 px-4 py-1.5 bg-secondary/30 rounded-full border border-white/10 shadow-[0_0_15px_rgba(34,211,238,0.1)] hover:shadow-[0_0_20px_rgba(34,211,238,0.2)] transition-all duration-500">
-                <div className="flex items-center gap-2 group/coins" title="Novyra Coins">
+                <div className="flex items-center gap-2 group/coins" title="Entropy Coins">
                   <Coins className="h-4 w-4 text-yellow-500 group-hover/coins:scale-125 transition-transform" />
                   <span className="text-xs font-black tabular-nums">{stats?.user?.credits ?? 0}</span>
                 </div>

@@ -1,13 +1,12 @@
 """
-Configuration management for Spark AI Agent
+Configuration management for Entropy AI Agent
 """
-
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
-from typing import List, Optional, Union
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import List, Optional, Union
 
 # Load environment variables from multiple locations
 env_paths = [
@@ -21,10 +20,13 @@ for env_path in env_paths:
         load_dotenv(env_path, override=False)
         break
 
+
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
     # Application
     APP_NAME: str = "Entropy AI Agent"
-    APP_VERSION: str = "1.0.0"
+    APP_VERSION: str = "3.0.0"
     DEBUG: bool = True
 
     # API Configuration
@@ -40,7 +42,7 @@ class Settings(BaseSettings):
     # Pinecone API (Legacy — kept for fallback compatibility)
     PINECONE_API_KEY: Optional[str] = None
     PINECONE_ENV: str = "us-east-1"
-    PINECONE_INDEX_NAME: str = "spark-ai"
+    PINECONE_INDEX_NAME: str = "entropy-ai"
 
     # ── AWS Configuration ─────────────────────────────────────────────────────
     AWS_REGION: str = "ap-northeast-1"
@@ -49,10 +51,10 @@ class Settings(BaseSettings):
 
     # Amazon Bedrock — Claude 3 Sonnet
     BEDROCK_CLAUDE_MODEL: str = "anthropic.claude-3-sonnet-20240229-v1:0"
-    BEDROCK_TITAN_EMBED: str  = "amazon.titan-embed-text-v2:0"
+    BEDROCK_TITAN_EMBED: str = "amazon.titan-embed-text-v2:0"
 
     # S3 Document Store
-    S3_BUCKET_NAME: str = "novyra-documents"
+    S3_BUCKET_NAME: str = "entropy-documents"
     S3_PRESIGN_EXPIRY_SECS: int = 3600
 
     # AI Provider: "bedrock" | "gemini" | "groq"
@@ -79,75 +81,76 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE: int = 10485760  # 10MB in bytes
     ALLOWED_FILE_TYPES: Union[List[str], str] = [".pdf", ".txt", ".doc", ".docx"]
 
-    # CORS - can be string or list
-    ALLOWED_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://localhost:5000"]
+    # ── PostgreSQL / Prisma Configuration ─────────────────────────────────────
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://localhost:5432/entropy")
+    DIRECT_URL: str = os.getenv("DIRECT_URL", "postgresql://localhost:5432/entropy")
 
-    # Credit Costs
-    CHAT_SHORT_COST: float = 1.0
-    CHAT_LONG_COST: float = 2.0
-    FLASHCARD_COST: float = 3.0
-    QUIZ_COST: float = 4.0
-    MINDMAP_COST: float = 2.5
+    # ── Neo4j Configuration ───────────────────────────────────────────────────
+    NEO4J_URI: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    NEO4J_USER: str = os.getenv("NEO4J_USER", "neo4j")
+    NEO4J_PASSWORD: str = os.getenv("NEO4J_PASSWORD", "password")
 
-    # Rate Limiting
-    RATE_LIMIT_PER_MINUTE: int = 30
-    CHUNK_SIZE: int = 1000
-    CHUNK_OVERLAP: int = 200
+    # ── Redis Configuration ───────────────────────────────────────────────────
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+    REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
+    REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
+    REDIS_PASSWORD: Optional[str] = os.getenv("REDIS_PASSWORD")
 
-    # Persistence toggle: set to true to enable creating data dirs and saving history
-    ENABLE_PERSISTENCE: bool = False
+    # ── JWT Configuration ─────────────────────────────────────────────────────
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    @field_validator('ALLOWED_FILE_TYPES', mode='before')
+    # ── CORS Configuration ────────────────────────────────────────────────────
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://entropy.ai",
+        "https://www.entropy.ai",
+    ]
+
+    # ── Rate Limiting ─────────────────────────────────────────────────────────
+    RATE_LIMIT_WINDOW: int = 60  # seconds
+    RATE_LIMIT_MAX_REQUESTS: int = 100
+
+    # ── Document Processing ───────────────────────────────────────────────────
+    ENABLE_PERSISTENCE: bool = os.getenv("ENABLE_PERSISTENCE", "true").lower() == "true"
+
+    # ── Logging ───────────────────────────────────────────────────────────────
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_FORMAT: str = "json"  # "json" or "text"
+
+    @field_validator("ALLOWED_FILE_TYPES", mode="before")
     @classmethod
     def parse_file_types(cls, v):
-        """Parse ALLOWED_FILE_TYPES from various formats"""
-        if isinstance(v, list):
-            return v
         if isinstance(v, str):
-            if not v or v.strip() == '':
-                return [".pdf", ".txt", ".doc", ".docx"]
-            # Try JSON first
-            if v.startswith('['):
-                try:
-                    import json
-                    return json.loads(v)
-                except:
-                    pass
-            # Comma-separated
-            return [ext.strip() for ext in v.split(',') if ext.strip()]
-        return [".pdf", ".txt", ".doc", ".docx"]
+            return [f.strip() for f in v.split(",")]
+        return v
 
-    @field_validator('ALLOWED_ORIGINS', mode='before')
-    @classmethod
-    def parse_origins(cls, v):
-        """Parse ALLOWED_ORIGINS from various formats"""
-        if isinstance(v, list):
-            return v
-        if isinstance(v, str):
-            if not v or v.strip() == '':
-                return ["http://localhost:3000", "http://localhost:5000"]
-            # Try JSON first
-            if v.startswith('['):
-                try:
-                    import json
-                    return json.loads(v)
-                except:
-                    pass
-            # Comma-separated
-            return [origin.strip() for origin in v.split(',') if origin.strip()]
-        return ["http://localhost:3000", "http://localhost:5000"]
+    def get_allowed_origins_list(self) -> List[str]:
+        """Get list of allowed CORS origins"""
+        return self.CORS_ORIGINS
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding='utf-8',
-        case_sensitive=True,
-        extra='ignore'  # Ignore extra env vars
-    )
 
 settings = Settings()
 
-# Create necessary directories only if persistence is explicitly enabled.
-# Default is disabled to avoid creating local data dirs in ephemeral/serverless environments.
-if getattr(settings, 'ENABLE_PERSISTENCE', False):
-    os.makedirs(settings.CHROMA_PERSIST_DIR, exist_ok=True)
-    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+
+def validate_settings() -> None:
+    """Validate required configuration values"""
+    errors = []
+    
+    if not settings.AI_BACKEND_TOKEN:
+        errors.append("AI_BACKEND_TOKEN is required for production")
+    
+    if settings.AI_PROVIDER == "bedrock":
+        if not settings.AWS_ACCESS_KEY_ID:
+            errors.append("AWS_ACCESS_KEY_ID is required when AI_PROVIDER=bedrock")
+        if not settings.AWS_SECRET_ACCESS_KEY:
+            errors.append("AWS_SECRET_ACCESS_KEY is required when AI_PROVIDER=bedrock")
+    
+    if errors:
+        error_msg = "Configuration errors:\n" + "\n".join(f"  - {e}" for e in errors)
+        raise ValueError(error_msg)
+    
+    logger = __import__("logging").getLogger(__name__)
+    logger.info("Configuration validated successfully")

@@ -1,8 +1,8 @@
 ﻿"""
-NOVYRA AI Engine — FastAPI Application
+Entropy AI Engine — FastAPI Application
 
 Mounts both legacy routes (qa, documents, quiz, flashcards, mindmap)
-and new NOVYRA core engines (reasoning, evaluation, mastery, graph).
+and new Entropy core engines (reasoning, evaluation, mastery, graph).
 Port 8000 — unchanged so the Next.js frontend proxy continues to work.
 """
 import os
@@ -39,7 +39,7 @@ from app.services.knowledge_graph_service import (
 @asynccontextmanager
 async def lifespan(fastapi_app: FastAPI):
     logger.info("=" * 70)
-    logger.info("NOVYRA AI Engine starting on port %s", settings.PORT)
+    logger.info("Entropy AI Engine starting on port %s", settings.PORT)
     logger.info("    LLM   : %s", settings.LLM_MODEL)
     logger.info("    Neo4j : %s", settings.NEO4J_URI)
     logger.info("=" * 70)
@@ -52,6 +52,17 @@ async def lifespan(fastapi_app: FastAPI):
     except Exception as exc:
         logger.error("❌ Failed to connect to PostgreSQL: %s", exc)
         logger.warning("Application will continue but database features will fail")
+
+    # Initialize Redis cache
+    try:
+        from app.core.cache import cache
+        cache_connected = await cache.connect()
+        if cache_connected:
+            logger.info("✅ Redis cache connected")
+        else:
+            logger.warning("⚠️  Redis cache connection failed - caching disabled")
+    except Exception as exc:
+        logger.warning("⚠️  Redis cache initialization failed: %s", exc)
 
     # Initialize event bus and register handlers
     try:
@@ -93,13 +104,13 @@ async def lifespan(fastapi_app: FastAPI):
         logger.warning("⚠️  Neo4j unreachable — graph features degraded")
 
     logger.info("=" * 70)
-    logger.info("🚀 NOVYRA AI Engine ready!")
+    logger.info("🚀 Entropy AI Engine ready!")
     logger.info("=" * 70)
 
     yield  # app runs here
 
     # Shutdown
-    logger.info("Shutting down NOVYRA AI Engine...")
+    logger.info("Shutting down Entropy AI Engine...")
     
     await close_driver()
     logger.info("Neo4j driver closed")
@@ -111,19 +122,26 @@ async def lifespan(fastapi_app: FastAPI):
     except Exception as exc:
         logger.error("Error disconnecting from PostgreSQL: %s", exc)
     
-    logger.info("NOVYRA AI Engine stopped.")
+    try:
+        from app.core.cache import cache
+        await cache.close()
+        logger.info("Redis cache disconnected")
+    except Exception as exc:
+        logger.warning("Error disconnecting from Redis: %s", exc)
+    
+    logger.info("Entropy AI Engine stopped.")
 
 
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
 app = FastAPI(
-    title="NOVYRA AI Engine",
+    title="Entropy AI Engine",
     description=(
         "Structured Reasoning · Rubric Evaluation · Mastery Tracking · "
         "Knowledge Graph · Multilingual Layer"
     ),
-    version="2.0.0",
+    version="3.0.0",
     lifespan=lifespan,
 )
 
@@ -166,7 +184,7 @@ def _mount(tag: str, module_path: str, prefix: str):
 
 
 # ---------------------------------------------------------------------------
-# NOVYRA Core Engines  (new)
+# Entropy Core Engines  (new)
 # ---------------------------------------------------------------------------
 _mount("reasoning",      "app.api.routes.reasoning",      "/reasoning")
 _mount("evaluation",     "app.api.routes.evaluation",     "/evaluation")
@@ -214,7 +232,7 @@ async def health():
     
     return {
         "status": "healthy" if (neo4j_ok and postgres_ok) else "degraded",
-        "version": "2.0.0",
+        "version": "3.0.0",
         "llm_model": settings.LLM_MODEL,
         "google_api_key_set": bool(settings.GOOGLE_API_KEY),
         "neo4j_connected": neo4j_ok,
@@ -227,8 +245,8 @@ async def health():
 @app.get("/", tags=["ops"])
 async def root():
     return {
-        "service": "NOVYRA AI Engine",
-        "version": "2.0.0",
+        "service": "Entropy AI Engine",
+        "version": "3.0.0",
         "docs": "/docs",
         "health": "/health",
         "engines": {

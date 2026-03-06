@@ -10,7 +10,6 @@ import {
     Settings,
     FileText,
     Target,
-    Clock,
     Cpu,
     Globe,
     Flame,
@@ -19,7 +18,6 @@ import {
     Network,
     Layers,
     Gauge,
-    Award,
     Map,
     Microscope,
     FlaskConical,
@@ -55,13 +53,6 @@ const activeConcepts = [
     { name: "Big O Notation", mastery: 76, trend: "stable", volatility: "low" },
 ]
 
-const cognitiveTimeline = [
-    { time: "09:32", event: "Chain Rule attempt", detail: "partial", color: "yellow" },
-    { time: "09:35", event: "Derivative correction", detail: "resolved", color: "cyan" },
-    { time: "09:40", event: "Mastery +3%", detail: "Calculus", color: "green" },
-    { time: "09:48", event: "Recursion explored", detail: "concept map", color: "purple" },
-    { time: "09:55", event: "Exam sim started", detail: "AI/ML", color: "orange" },
-]
 
 function masteryColor(val: number) {
     if (val >= 80) return "bg-emerald-500"
@@ -106,6 +97,7 @@ export function NotebookLayout({
     const examReadiness = 74
     const volatility = 38
     const cognitiveLoad = 62
+    const [studioMode, setStudioMode] = useState<"learning" | "assessment" | "graphing">("learning")
 
     useEffect(() => {
         if (session?.user?.id) {
@@ -252,93 +244,124 @@ export function NotebookLayout({
                     </Button>
                 </div>
 
+                {/* ── Mode Tabs ── */}
+                <div className="flex border-b border-white/[0.06] flex-shrink-0">
+                    <ModeTab icon={BrainCircuit} label="Learning" active={studioMode === "learning"} onClick={() => setStudioMode("learning")} activeColor="cyan" />
+                    <ModeTab icon={FlaskConical} label="Assess" active={studioMode === "assessment"} onClick={() => setStudioMode("assessment")} activeColor="amber" />
+                    <ModeTab icon={Network} label="Graphing" active={studioMode === "graphing"} onClick={() => setStudioMode("graphing")} activeColor="purple" />
+                </div>
+
                 <ScrollArea className="flex-1">
                     <div className="p-4 space-y-4">
 
-                        {/* Mastery Radar */}
-                        <StudioSection icon={Radio} label="Mastery Radar" color="purple">
-                            <div className="h-44">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <RadarChart data={masteryData} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
-                                        <PolarGrid stroke="rgba(255,255,255,0.05)" />
-                                        <PolarAngleAxis dataKey="subject" tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 9, fontFamily: "monospace" }} />
-                                        <Radar name="Mastery" dataKey="value" stroke="#22d3ee" fill="#22d3ee" fillOpacity={0.12} strokeWidth={1.5} />
-                                        <Tooltip contentStyle={{ background: "#0f0f1a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 10 }} formatter={(v: any) => [`${v}%`, "Mastery"]} />
-                                    </RadarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </StudioSection>
-
-                        {/* Exam Readiness */}
-                        <StudioSection icon={Target} label="Exam Readiness Index" color="cyan">
-                            <div className="flex items-center gap-4">
-                                <div className="relative flex-shrink-0">
-                                    <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                                        <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="4" />
-                                        <circle cx="32" cy="32" r="26" fill="none" stroke={examReadiness >= 70 ? "#22d3ee" : examReadiness >= 50 ? "#f59e0b" : "#ef4444"} strokeWidth="4" strokeDasharray={`${(examReadiness / 100) * 163.4} 163.4`} strokeLinecap="round" />
-                                    </svg>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <span className="text-sm font-bold text-white">{examReadiness}%</span>
+                        {/* ── Learning Mode ── */}
+                        {studioMode === "learning" && (
+                            <>
+                                <StudioSection icon={Radio} label="Mastery Radar" color="purple">
+                                    <div className="h-44">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <RadarChart data={masteryData} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
+                                                <PolarGrid stroke="rgba(255,255,255,0.05)" />
+                                                <PolarAngleAxis dataKey="subject" tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 9, fontFamily: "monospace" }} />
+                                                <Radar name="Mastery" dataKey="value" stroke="#22d3ee" fill="#22d3ee" fillOpacity={0.12} strokeWidth={1.5} />
+                                                <Tooltip contentStyle={{ background: "#0f0f1a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 10 }} formatter={(v: any) => [`${v}%`, "Mastery"]} />
+                                            </RadarChart>
+                                        </ResponsiveContainer>
                                     </div>
+                                </StudioSection>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <MeterCard icon={Flame} label="Volatility" value={volatility} unit="%" color={volatility > 60 ? "red" : volatility > 35 ? "yellow" : "green"} tooltip="Concept instability" />
+                                    <MeterCard icon={Gauge} label="Cog. Load" value={cognitiveLoad} unit="%" color={cognitiveLoad > 75 ? "red" : cognitiveLoad > 50 ? "yellow" : "green"} tooltip="Working memory pressure" />
                                 </div>
-                                <div className="space-y-1 flex-1 min-w-0">
-                                    <ReadinessRow label="Recall" val={81} />
-                                    <ReadinessRow label="Reasoning" val={72} />
-                                    <ReadinessRow label="Speed" val={65} />
-                                    <ReadinessRow label="Accuracy" val={78} />
+                                <StudioSection icon={Cpu} label="Edge Acceleration" color="amber">
+                                    <div className="space-y-1.5">
+                                        <EdgeRow label="Intent Classification" device="AMD NPU" ms={17} active />
+                                        <EdgeRow label="Concept Mapping" device="GPU" ms={42} active />
+                                        <EdgeRow label="NLI Validation" device="Cloud" ms={210} active={false} />
+                                        <EdgeRow label="Trust Scoring" device="AMD NPU" ms={8} active />
+                                    </div>
+                                </StudioSection>
+                            </>
+                        )}
+
+                        {/* ── Assessment Mode ── */}
+                        {studioMode === "assessment" && (
+                            <>
+                                <StudioSection icon={Target} label="Exam Readiness Index" color="cyan">
+                                    <div className="flex items-center gap-4">
+                                        <div className="relative flex-shrink-0">
+                                            <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                                                <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="4" />
+                                                <circle cx="32" cy="32" r="26" fill="none" stroke={examReadiness >= 70 ? "#22d3ee" : examReadiness >= 50 ? "#f59e0b" : "#ef4444"} strokeWidth="4" strokeDasharray={`${(examReadiness / 100) * 163.4} 163.4`} strokeLinecap="round" />
+                                            </svg>
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <span className="text-sm font-bold text-white">{examReadiness}%</span>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1 flex-1 min-w-0">
+                                            <ReadinessRow label="Recall" val={81} />
+                                            <ReadinessRow label="Reasoning" val={72} />
+                                            <ReadinessRow label="Speed" val={65} />
+                                            <ReadinessRow label="Accuracy" val={78} />
+                                        </div>
+                                    </div>
+                                </StudioSection>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <MeterCard icon={Flame} label="Volatility" value={volatility} unit="%" color={volatility > 60 ? "red" : volatility > 35 ? "yellow" : "green"} tooltip="Concept instability" />
+                                    <MeterCard icon={Gauge} label="Cog. Load" value={cognitiveLoad} unit="%" color={cognitiveLoad > 75 ? "red" : cognitiveLoad > 50 ? "yellow" : "green"} tooltip="Working memory pressure" />
                                 </div>
-                            </div>
-                        </StudioSection>
+                                <button
+                                    onClick={() => onTabChange("assessments")}
+                                    className="w-full flex items-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 hover:border-cyan-500/40 transition-all group"
+                                >
+                                    <FlaskConical className="h-4 w-4 text-cyan-400" />
+                                    <div className="flex-1 text-left">
+                                        <div className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Simulate Exam</div>
+                                        <div className="text-[8px] text-white/30">Full adaptive assessment</div>
+                                    </div>
+                                    <Zap className="h-3 w-3 text-cyan-400 group-hover:scale-110 transition-transform" />
+                                </button>
+                            </>
+                        )}
 
-                        {/* Volatility + Cognitive Load */}
-                        <div className="grid grid-cols-2 gap-2">
-                            <MeterCard icon={Flame} label="Volatility" value={volatility} unit="%" color={volatility > 60 ? "red" : volatility > 35 ? "yellow" : "green"} tooltip="Concept instability" />
-                            <MeterCard icon={Gauge} label="Cog. Load" value={cognitiveLoad} unit="%" color={cognitiveLoad > 75 ? "red" : cognitiveLoad > 50 ? "yellow" : "green"} tooltip="Working memory pressure" />
-                        </div>
-
-                        {/* Edge Acceleration */}
-                        <StudioSection icon={Cpu} label="Edge Acceleration" color="amber">
-                            <div className="space-y-1.5">
-                                <EdgeRow label="Intent Classification" device="AMD NPU" ms={17} active />
-                                <EdgeRow label="Concept Mapping" device="GPU" ms={42} active />
-                                <EdgeRow label="NLI Validation" device="Cloud" ms={210} active={false} />
-                                <EdgeRow label="Trust Scoring" device="AMD NPU" ms={8} active />
-                            </div>
-                        </StudioSection>
-
-                        {/* Mastery Badges */}
-                        <StudioSection icon={Award} label="Mastery Badges" color="violet">
-                            <div className="flex flex-wrap gap-1.5">
-                                <MasteryBadge label="Recursion" val={89} />
-                                <MasteryBadge label="AI/ML" val={81} />
-                                <MasteryBadge label="Chain Rule" val={72} unlocked={false} />
-                                <MasteryBadge label="Limits" val={51} unlocked={false} />
-                            </div>
-                        </StudioSection>
-
-                        {/* Cognitive Timeline */}
-                        <StudioSection icon={Clock} label="Cognitive Timeline" color="slate">
-                            <div className="space-y-2">
-                                {cognitiveTimeline.map((item, i) => (
-                                    <TimelineRow key={i} item={item} />
-                                ))}
-                            </div>
-                        </StudioSection>
+                        {/* ── Graphing Mode ── */}
+                        {studioMode === "graphing" && (
+                            <>
+                                <StudioSection icon={Layers} label="Active Concepts" color="purple">
+                                    <div className="space-y-1">
+                                        {activeConcepts.map((c) => (
+                                            <ConceptRow key={c.name} concept={c} />
+                                        ))}
+                                    </div>
+                                </StudioSection>
+                                <StudioSection icon={Radio} label="Domain Coverage" color="cyan">
+                                    <div className="h-44">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <RadarChart data={masteryData} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
+                                                <PolarGrid stroke="rgba(255,255,255,0.05)" />
+                                                <PolarAngleAxis dataKey="subject" tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 9, fontFamily: "monospace" }} />
+                                                <Radar name="Coverage" dataKey="value" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.12} strokeWidth={1.5} />
+                                                <Tooltip contentStyle={{ background: "#0f0f1a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 10 }} formatter={(v: any) => [`${v}%`, "Coverage"]} />
+                                            </RadarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </StudioSection>
+                                <button
+                                    onClick={() => onTabChange("mindmap")}
+                                    className="w-full flex items-center gap-2 px-3 py-3 rounded-xl bg-white/[0.02] border border-purple-500/20 hover:border-purple-500/40 transition-all group"
+                                >
+                                    <Network className="h-4 w-4 text-purple-400" />
+                                    <div className="flex-1 text-left">
+                                        <div className="text-[10px] font-bold text-purple-400 uppercase tracking-widest">Open Concept Graph</div>
+                                        <div className="text-[8px] text-white/30">Visual knowledge map</div>
+                                    </div>
+                                    <ChevronRight className="h-3 w-3 text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </button>
+                            </>
+                        )}
 
                     </div>
                 </ScrollArea>
-
-                <div className="p-3 border-t border-white/[0.06] space-y-2">
-                    <button onClick={() => onTabChange("assessments")} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 hover:border-cyan-500/40 transition-all group">
-                        <FlaskConical className="h-3.5 w-3.5 text-cyan-400" />
-                        <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Simulate Exam</span>
-                        <Zap className="ml-auto h-3 w-3 text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </button>
-                    <button onClick={() => onTabChange("mindmap")} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06] hover:border-white/10 transition-all group">
-                        <Network className="h-3.5 w-3.5 text-purple-400" />
-                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest group-hover:text-white/60">Concept Graph</span>
-                    </button>
-                </div>
             </div>
         </div>
     )
@@ -420,34 +443,22 @@ function EdgeRow({ label, device, ms, active }: { label: string; device: string;
     )
 }
 
-function MasteryBadge({ label, val, unlocked = true }: { label: string; val: number; unlocked?: boolean }) {
-    return (
-        <div className={cn(
-            "flex items-center gap-1 px-2 py-1 rounded-full border text-[8px] font-bold",
-            unlocked ? "bg-violet-500/10 border-violet-500/30 text-violet-300" : "bg-white/[0.02] border-white/[0.06] text-white/20"
-        )}>
-            <Award className="h-2.5 w-2.5" />
-            <span>{label}</span>
-            <span className={unlocked ? "text-violet-400" : "text-white/20"}>{val}%</span>
-        </div>
-    )
-}
-
-function TimelineRow({ item }: { item: typeof cognitiveTimeline[0] }) {
+function ModeTab({ icon: Icon, label, active, onClick, activeColor }: { icon: any; label: string; active: boolean; onClick: () => void; activeColor: string }) {
     const colors: any = {
-        cyan: "bg-cyan-400", green: "bg-emerald-400", yellow: "bg-amber-400",
-        purple: "bg-purple-400", orange: "bg-orange-400",
+        cyan: "border-cyan-400 text-cyan-400",
+        amber: "border-amber-400 text-amber-400",
+        purple: "border-purple-400 text-purple-400",
     }
     return (
-        <div className="flex items-start gap-2">
-            <div className={cn("w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0", colors[item.color])} />
-            <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-1.5">
-                    <span className="text-[8px] text-white/20 font-mono flex-shrink-0">{item.time}</span>
-                    <span className="text-[9px] text-white/50 truncate">{item.event}</span>
-                </div>
-                <span className="text-[8px] text-white/20">{item.detail}</span>
-            </div>
-        </div>
+        <button
+            onClick={onClick}
+            className={cn(
+                "flex-1 flex items-center justify-center gap-1 py-2 border-b-2 text-[8px] font-bold uppercase tracking-widest transition-all",
+                active ? colors[activeColor] : "border-transparent text-white/25 hover:text-white/50"
+            )}
+        >
+            <Icon className="h-2.5 w-2.5" />
+            {label}
+        </button>
     )
 }
