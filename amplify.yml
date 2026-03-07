@@ -1,23 +1,26 @@
 version: 1
 applications:
-  - frontend:
+  - appRoot: apps/app
+
+    frontend:
       phases:
         preBuild:
           commands:
+            - corepack enable
             - npm install -g pnpm
             - pnpm install --frozen-lockfile
-            - cd apps/app && pnpm db:generate
+
         build:
           commands:
-            - cd apps/app && pnpm build
+            - pnpm turbo run build --filter=app...
+
       artifacts:
         baseDirectory: apps/app/.next
         files:
           - '**/*'
+
       cache:
         paths:
-          - apps/app/.next/cache/**/*
           - node_modules/**/*
+          - .pnpm-store/**/*
           - apps/app/node_modules/**/*
-      buildPath: /
-    appRoot: apps/app
