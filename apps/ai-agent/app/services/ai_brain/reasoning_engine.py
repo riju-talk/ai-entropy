@@ -71,6 +71,7 @@ Always return valid JSON matching the schema."""
 
 ENHANCED_REASONING_PROMPT = """
 {contextual_context}
+{locked_concept_section}
 {rag_section}
 ---
 
@@ -78,6 +79,7 @@ ENHANCED_REASONING_PROMPT = """
 
 **Instructions:** {contextual_instructions}
 
+{citation_instruction}
 ---
 
 Provide a comprehensive reasoning response in JSON format.
@@ -89,6 +91,8 @@ IMPORTANT RULES FOR THIS RESPONSE:
 3. "final_solution" MUST be richly formatted Markdown with ## headings, **bold** terms,
    bullet/numbered lists, --- dividers, and a ## Summary at the end.
    Do NOT return final_solution as plain prose — that is a failure.
+4. If internet sources are provided above, cite them inline as [1], [2] etc. and
+   add a ## Sources section at the very end of final_solution listing cited URLs.
 
 {{
   "intent_detected": "the question type",
@@ -98,7 +102,7 @@ IMPORTANT RULES FOR THIS RESPONSE:
     "Step 2: ...",
     "Step N: reach solution"
   ],
-  "final_solution": "## Overview\\n\\nBold summary sentence here.\\n\\n---\\n\\n## Key Concept\\n\\n**Term** explanation here.\\n\\n---\\n\\n## Steps\\n\\n1. First step\\n2. Second step\\n\\n---\\n\\n## Example\\n\\n```python\\n# code here\\n```\\n\\n---\\n\\n## Summary\\n\\n- Point 1\\n- Point 2",
+  "final_solution": "**Bold summary sentence.**\\n\\n---\\n\\n## Key Concept\\n\\n**Term** explanation here.\\n\\n---\\n\\n## Steps\\n\\n1. First step\\n2. Second step\\n\\n---\\n\\n## Example\\n\\n```python\\n# code here\\n```\\n\\n---\\n\\n## Summary\\n\\n- Point 1\\n- Point 2\\n\\n---\\n\\n## Sources\\n\\n1. https://example.com",
   "confidence": 0.0,
   "hint_ladder": [
     "Hint 1: conceptual nudge",
@@ -154,21 +158,41 @@ async def reason_with_context(
     contextual_context = format_context_for_prompt(context)
     contextual_instructions = get_contextual_instructions(context)
     
-    # Build RAG section (Pinecone retrieved chunks)
+    # Build RAG section (Pinecone retrieved chunks + Tavily web sources)
     rag_section = ""
     if rag_context:
-        rag_section = (
-            "**Retrieved Knowledge (from uploaded documents):**\n"
-            f"{rag_context}\n\n---\n\n"
+        rag_section = rag_context
+        logger.info("RAG/web context injected (%d chars)", len(rag_context))
+
+    # Locked concept section — prevents the LLM from substituting a concept
+    # from the retrieved documents instead of what the student actually asked.
+    locked_concept_section = ""
+    if context.primary_concept and context.primary_concept.concept_name:
+        locked = context.primary_concept.concept_name
+        locked_concept_section = (
+            f'**LOCKED PRIMARY CONCEPT** (determined from your question — do NOT change):\n'
+            f'"{locked}"\n'
+            f'You MUST use this exact value as "primary_concept" in your JSON. '
+            f'Do not substitute a concept from the retrieved documents.'
         )
-        logger.info("RAG context injected (%d chars)", len(rag_context))
+
+    # Citation instruction — only shown when web/doc sources are present
+    citation_instruction = ""
+    if rag_context:
+        citation_instruction = (
+            "**Citation rule:** Whenever you state a fact sourced from the materials above, "
+            "add an inline citation like [1] or [Doc 1]. "
+            "End final_solution with a ## Sources section listing every URL you cited."
+        )
 
     # Build enhanced prompt
     prompt = ENHANCED_REASONING_PROMPT.format(
         contextual_context=contextual_context,
+        locked_concept_section=locked_concept_section,
         rag_section=rag_section,
         question=working_question,
-        contextual_instructions=contextual_instructions
+        contextual_instructions=contextual_instructions,
+        citation_instruction=citation_instruction,
     )
     
     # Call LLM

@@ -501,6 +501,18 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
             })(),
             inferenceMs: data.cognitive_trace.inference_ms ?? 0,
             reasoningLayers: data.cognitive_trace.reasoning_layers ?? 7,
+            // Algorithmic metrics
+            cognitiveLoad: data.cognitive_trace.cognitive_load,
+            volatility: data.cognitive_trace.volatility,
+            examReadiness: data.cognitive_trace.exam_readiness,
+            // Normalised sources for citation panel
+            sources: (data.cognitive_trace.sources ?? []).map((s: any, i: number) => ({
+              index: s.index ?? i + 1,
+              title: s.title ?? s.metadata?.source ?? `Source ${i + 1}`,
+              url: s.url ?? s.metadata?.url ?? s.metadata?.source ?? "",
+              snippet: s.snippet ?? s.content ?? "",
+              type: (s.type === "web" ? "web" : "document") as "web" | "document",
+            })),
           }
         : generateMockTrace(data.answer || text, text)
       const delta = trace.masteryImpact
@@ -1047,7 +1059,11 @@ function ChatConceptGraph({ messages, className }: { messages: Message[]; classN
 
   if (nodes.length === 0) {
     return (
-      <div className={cn("flex items-center justify-center h-28", className)}>
+      <div className={cn("flex flex-col items-center justify-center h-28 gap-2", className)}>
+        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-amber-400/30 bg-amber-400/10">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+          <span className="text-[7px] font-bold uppercase tracking-[0.18em] text-amber-400">Beta</span>
+        </div>
         <p className="text-[9px] text-white/20 text-center">Start asking questions to build the concept graph</p>
       </div>
     )

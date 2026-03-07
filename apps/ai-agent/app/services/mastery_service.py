@@ -1,20 +1,26 @@
 """
 Entropy AI - Mastery Tracking Engine
 
-Mastery formula:
-    mastery = (correct_attempts / total_attempts) * confidence_weight
+Evidence hierarchy (mastery updates are weighted by interaction type):
+    exam       = 1.0   (strongest signal)
+    quiz       = 0.8
+    practice   = 0.6
+    chat       = 0.2   (weakest  signal — chat alone cannot drive mastery)
+    explanation= 0.1
 
-Confidence weight is reduced by:
-    - High hint usage
-    - Time decay (if last_seen > DECAY_DAYS)
+Mastery formula (Bayesian smoothed + evidence-weighted delta + exp decay):
+    raw  = (correct + PRIOR_CORRECT) / (total + PRIOR_TOTAL)
+    delta = (raw * conf_weight - prev_mastery) * evidence_weight
+    mastery = clamp(0, 1, prev_mastery + delta)
 
-After every update:
-    - Neo4j MASTERED_BY edge is updated
-    - Personalised nudge generated if mastery < STRUGGLE_THRESHOLD
+Knowledge decay:
+    conf_weight applies exp(-0.03 * days_since_last_seen)
+    → 7 days: ~80%  /  30 days: ~40%  /  90 days: ~7%
 """
 from __future__ import annotations
 import logging
-from datetime import datetime, timezone, timedelta
+import math
+from datetime import datetime, timezone
 from typing import Optional
 
 from app.core.llm import generate_json
@@ -24,6 +30,7 @@ from app.schemas.mastery import (
     MasteryUpdateResponse,
     MasteryRecord,
     MasteryProfileResponse,
+    UserMetrics,
 )
 from app.services import knowledge_graph_service as kg
 
@@ -32,9 +39,20 @@ logger = logging.getLogger(__name__)
 DECAY_DAYS = 7
 STRUGGLE_THRESHOLD = 0.4
 MASTERED_THRESHOLD = 0.8
-# Bayesian smoothing: prevents instant 100% on the first correct answer.
-# First correct: 1/(1+3)*1.0 = 25%. Ten correct of ten: 10/13*1.0 ≈ 77%.
-PRIOR_ATTEMPTS = 3
+
+# Bayesian prior — prevents instant high mastery on first attempt.
+# First correct answer: (1+1)/(1+4) = 40%.  Ten correct of ten: 11/14 ≈ 79%.
+PRIOR_CORRECT = 1
+PRIOR_TOTAL = 4
+
+# Evidence hierarchy: how much each interaction type shifts mastery.
+EVIDENCE_WEIGHTS: dict[str, float] = {
+    "exam":        1.0,
+    "quiz":        0.8,
+    "practice":    0.6,
+    "chat":        0.2,
+    "explanation": 0.1,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -64,18 +82,19 @@ def _compute_confidence_weight(
     last_seen: Optional[datetime],
     hints_used: int,
 ) -> float:
-    """Reduce confidence based on hint dependency and time decay."""
+    """Reduce confidence based on hint dependency and exponential time decay."""
     weight = current_weight
 
+    # Hint penalty (up to -0.3 for heavy hint usage)
     if hints_used > 0:
         weight -= min(0.3, hints_used * 0.1)
 
+    # Exponential knowledge decay
     if last_seen:
         ls = last_seen.replace(tzinfo=timezone.utc) if last_seen.tzinfo is None else last_seen
         days_since = (datetime.now(timezone.utc) - ls).days
-        if days_since > DECAY_DAYS:
-            decay = min(0.3, (days_since - DECAY_DAYS) * 0.02)
-            weight -= decay
+        if days_since > 0:
+            weight = weight * math.exp(-0.03 * days_since)
 
     return round(max(0.1, weight), 4)
 
@@ -121,7 +140,12 @@ async def update_mastery(req: MasteryUpdateRequest) -> MasteryUpdateResponse:
             new_conf = _compute_confidence_weight(
                 existing.confidenceWeight, existing.lastSeen, req.hints_used
             )
-            new_mastery = round((correct / (total + PRIOR_ATTEMPTS)) * new_conf, 4)
+            # Bayesian raw mastery + evidence-weighted delta
+            raw_mastery = (correct + PRIOR_CORRECT) / (total + PRIOR_TOTAL)
+            delta_raw = (raw_mastery * new_conf) - previous_score
+            new_mastery = round(
+                max(0.0, min(1.0, previous_score + delta_raw * req.evidence_weight)), 4
+            )
 
             await db.masteryrecord.update(
                 where={"id": existing.id},
@@ -138,7 +162,11 @@ async def update_mastery(req: MasteryUpdateRequest) -> MasteryUpdateResponse:
             total = 1
             correct = 1 if req.is_correct else 0
             new_conf = _compute_confidence_weight(1.0, None, req.hints_used)
-            new_mastery = round((correct / (total + PRIOR_ATTEMPTS)) * new_conf, 4)
+            raw_mastery = (correct + PRIOR_CORRECT) / (total + PRIOR_TOTAL)
+            # For new record first attempt is damped by evidence_weight directly
+            new_mastery = round(
+                max(0.0, min(1.0, raw_mastery * new_conf * req.evidence_weight)), 4
+            )
 
             await db.masteryrecord.create(
                 data={
@@ -190,12 +218,17 @@ async def track_qa_interaction(
     user_id: str,
     concept: str,
     confidence_score: float,
+    event_type: str = "chat",
 ) -> None:
     """
-    Auto-record a lightweight mastery interaction from a QA session.
-    Called as a background task after each successful QA response.
-    - confidence >= 0.7 -> counts as a correct interaction
-    - confidence < 0.7  -> counts as incorrect (concept not yet solid)
+    Auto-record a lightweight mastery interaction from a QA or assessment session.
+
+    event_type controls evidence weight:
+        chat       →0.2  (default — weak signal from conversation)
+        quiz       →0.8  (structured knowledge check)
+        exam       →1.0  (formal assessment)
+        practice   →0.6
+        explanation→0.1
     """
     if not user_id or not concept:
         return
@@ -205,17 +238,19 @@ async def track_qa_interaction(
         concept = await _ml.normalize_concept_to_english(concept)
     except Exception:
         pass
+    weight = EVIDENCE_WEIGHTS.get(event_type, 0.2)
     req = MasteryUpdateRequest(
         user_id=user_id,
         concept=concept,
         is_correct=confidence_score >= 0.7,
         hints_used=0,
+        evidence_weight=weight,
     )
     try:
         await update_mastery(req)
         logger.debug(
-            "Auto-mastery tracked: user=%s concept=%s conf=%.2f",
-            user_id, concept, confidence_score,
+            "Auto-mastery tracked: user=%s concept=%s conf=%.2f event=%s weight=%.1f",
+            user_id, concept, confidence_score, event_type, weight,
         )
     except Exception as exc:
         logger.warning("track_qa_interaction failed: %s", exc)
@@ -274,6 +309,88 @@ async def get_mastery_profile(user_id: str) -> MasteryProfileResponse:
             strong_concepts=[],
             overall_progress=0.0,
         )
+
+
+async def compute_user_metrics(
+    user_id: str,
+    current_difficulty: float = 0.5,
+) -> UserMetrics:
+    """
+    Compute algorithmic learning metrics — no LLM guesses.
+
+    Parameters
+    ----------
+    user_id            : user to analyse
+    current_difficulty : difficulty of the most recent question (0-1)
+                         used to compute cognitive_load
+    """
+    db = _get_db_safe()
+    if db is None:
+        return UserMetrics()
+
+    try:
+        # -- mastery records -----------------------------------------------
+        records = await db.masteryrecord.find_many(
+            where={"userId": user_id}
+        )
+        mastery_scores = [r.masteryScore for r in records]
+        avg_mastery = sum(mastery_scores) / len(mastery_scores) if mastery_scores else 0.0
+
+        # Apply decay when reading (so display shows current knowledge, not old peak)
+        decayed_scores = []
+        now = datetime.now(timezone.utc)
+        for r in records:
+            if r.lastSeen:
+                ls = r.lastSeen.replace(tzinfo=timezone.utc) if r.lastSeen.tzinfo is None else r.lastSeen
+                days = (now - ls).days
+                decayed = r.masteryScore * math.exp(-0.03 * days)
+            else:
+                decayed = r.masteryScore
+            decayed_scores.append(max(0.0, decayed))
+        avg_mastery_decayed = sum(decayed_scores) / len(decayed_scores) if decayed_scores else 0.0
+
+        # -- attempt scores for volatility + consistency -------------------
+        attempts = await db.conceptattempt.find_many(
+            where={"userId": user_id},
+            order={"createdAt": "desc"},
+            take=20,
+        )
+        last_scores = [a.masteryScoreAfter for a in attempts[:10]]
+
+        if len(last_scores) >= 2:
+            mean = sum(last_scores) / len(last_scores)
+            variance = sum((s - mean) ** 2 for s in last_scores) / len(last_scores)
+            volatility = math.sqrt(variance)
+        else:
+            volatility = 0.0
+        consistency = round(max(0.0, 1.0 - volatility * 3), 3)
+
+        # -- domain coverage -----------------------------------------------
+        mastered_count = sum(1 for s in decayed_scores if s >= MASTERED_THRESHOLD)
+        total = max(len(records), 1)
+        domain_coverage = round(mastered_count / total, 3)
+
+        # -- exam readiness ------------------------------------------------
+        exam_readiness = round(
+            min(1.0, 0.5 * avg_mastery_decayed + 0.2 * consistency + 0.2 * domain_coverage + 0.1 * (1 - min(volatility, 1.0))),
+            3,
+        )
+
+        # -- cognitive load ------------------------------------------------
+        cognitive_load = round(max(0.0, min(1.0, current_difficulty - avg_mastery_decayed)), 3)
+
+        return UserMetrics(
+            avg_mastery=round(avg_mastery_decayed, 3),
+            volatility=round(volatility, 3),
+            consistency=consistency,
+            domain_coverage=domain_coverage,
+            exam_readiness=exam_readiness,
+            cognitive_load=cognitive_load,
+        )
+
+    except Exception as exc:
+        logger.warning("compute_user_metrics failed: %s", exc)
+        return UserMetrics()
 
 
 # ---------------------------------------------------------------------------

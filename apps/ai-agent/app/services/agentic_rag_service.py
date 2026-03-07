@@ -2,13 +2,14 @@
 Entropy AI — Agentic RAG Orchestrator
 
 Master pipeline:
-  1. Pinecone RAG retrieval (uploaded documents / knowledge base)
-  2. Optional internet research (if BING_API_KEY is set)
-  3. 7-layer AI Brain (Layers 1–6) with injected RAG context
+  1. Tavily internet search (always active — provides live citations)
+  2. Pinecone RAG retrieval (uploaded documents / knowledge base)
+  3. 7-layer AI Brain (Layers 1–6) with injected context + numbered citations
   4. NLI validation (Layer 7)  — executed inside reasoning_engine
   5. Trust scoring  (Layer 8)  — executed inside reasoning_engine
 
-Returns a rich, structured response consumed by the QA endpoint.
+Sources are numbered [1][2]… in the prompt so the LLM can inline-cite them
+in final_solution (like NotebookLM / GPT).
 """
 import logging
 import os
@@ -36,7 +37,8 @@ class AgenticRAGService:
         collection_name: str = "default",
         k: int = 6,
     ) -> tuple:
-        """Return (rag_context_str, sources_list) from Pinecone."""
+        """Return (rag_context_str, sources_list) from Pinecone.
+        Sources are normalised to {index, title, url, snippet, type}."""
         try:
             vector_store = self.langchain.load_vector_store(collection_name)
             if not vector_store:
@@ -47,46 +49,56 @@ class AgenticRAGService:
             if not docs:
                 return "", []
 
-            rag_context = "\n\n---\n\n".join(
-                f"[Source {i + 1}]\n{doc.page_content}"
-                for i, doc in enumerate(docs)
-            )
-            sources = [
-                {
-                    "content": doc.page_content[:300] + ("..." if len(doc.page_content) > 300 else ""),
-                    "metadata": doc.metadata,
-                }
-                for doc in docs
-            ]
-            logger.info("✅ Retrieved %d RAG chunks from Pinecone", len(docs))
+            sources = []
+            context_parts = []
+            for i, doc in enumerate(docs, start=1):
+                meta = doc.metadata or {}
+                title = meta.get("source") or meta.get("filename") or meta.get("title") or f"Doc {i}"
+                snippet = doc.page_content[:400].strip()
+                sources.append({
+                    "index": i,
+                    "title": title,
+                    "url": meta.get("url") or meta.get("source") or "",
+                    "snippet": snippet,
+                    "type": "document",
+                })
+                context_parts.append(f"[Doc {i}] **{title}**\n{snippet}")
+
+            rag_context = "\n\n---\n\n".join(context_parts)
+            logger.info("Retrieved %d RAG chunks from Pinecone", len(docs))
             return rag_context, sources
         except Exception as exc:
             logger.warning("RAG retrieval failed: %s", exc)
             return "", []
 
     # ------------------------------------------------------------------
-    # Step 2 — Optional internet research
+    # Step 2 — Tavily internet search (always active)
     # ------------------------------------------------------------------
-    async def _try_internet_research(self, question: str) -> tuple:
-        """Run internet research if BING_API_KEY is configured."""
-        if not os.getenv("BING_API_KEY"):
-            return "", []
+    async def _search_internet(self, question: str, index_offset: int = 0) -> tuple:
+        """
+        Run a Tavily web search and return (formatted_context_str, sources_list).
+        Sources are numbered starting from index_offset+1 to avoid clashing
+        with Pinecone document indices.
+        """
         try:
-            from app.services.research import internet_research
-            result = await internet_research(question)
-            answer = result.get("answer", "")
-            citations = result.get("citations", [])
-            sources = [
-                {
-                    "content": c.get("title", ""),
-                    "metadata": {"source": c.get("source", ""), "index": c.get("index")},
-                }
-                for c in citations
-            ]
-            logger.info("✅ Internet research complete: %d citations", len(citations))
-            return answer, sources
+            from app.services.tavily_service import get_tavily_service
+            svc = get_tavily_service()
+            if not svc.available:
+                return "", []
+
+            results = await svc.search(question, max_results=5)
+            if not results:
+                return "", []
+
+            # Re-index starting after any document sources
+            for r in results:
+                r["index"] = r["index"] + index_offset
+
+            context = svc.format_for_prompt(results)
+            logger.info("Tavily: %d web sources retrieved", len(results))
+            return context, results
         except Exception as exc:
-            logger.warning("Internet research failed: %s", exc)
+            logger.warning("Internet search failed: %s", exc)
             return "", []
 
     # ------------------------------------------------------------------
@@ -113,20 +125,29 @@ class AgenticRAGService:
         """
         from app.services.ai_brain.reasoning_engine import reason_with_context
 
-        # ── Step 1: Pinecone RAG ──────────────────────────────────────────
-        rag_context, rag_sources = await self._retrieve_rag_context(
+        # ── Step 1: Pinecone RAG (uploaded documents) ──────────────────────
+        rag_context, doc_sources = await self._retrieve_rag_context(
             question, collection_name
         )
 
-        # ── Step 2: Internet research (only if no Pinecone results) ───────
-        research_context: str = ""
-        research_sources: list = []
-        if not rag_context:
-            research_context, research_sources = await self._try_internet_research(question)
+        # ── Step 2: Tavily internet search (always active) ─────────────────
+        # Web sources are numbered after any document sources
+        web_context, web_sources = await self._search_internet(
+            question, index_offset=len(doc_sources)
+        )
 
-        # ── Step 3: Combine context ───────────────────────────────────────
-        all_sources = rag_sources + research_sources
-        combined_rag = "\n\n".join(filter(None, [rag_context, research_context])) or None
+        # ── Step 3: Combine all sources ────────────────────────────────────
+        all_sources = doc_sources + web_sources
+
+        # Build combined context string — document first, then numbered web sources
+        context_sections = []
+        if rag_context:
+            context_sections.append(
+                "**Document Context (from your uploaded files):**\n\n" + rag_context
+            )
+        if web_context:
+            context_sections.append(web_context)
+        combined_rag: str | None = "\n\n---\n\n".join(context_sections) or None
 
         # ── Step 3.5: Collective learning intelligence ───────────────────
         # Enrich context with platform-wide stats for concepts mentioned in question.
@@ -179,8 +200,8 @@ class AgenticRAGService:
         # ── Step 5: Enrich and return ─────────────────────────────────────
         meta = result.metadata or {}
         mode = (
-            "agentic_rag"     if rag_sources
-            else "research"   if research_sources
+            "agentic_rag"   if doc_sources
+            else "web_rag"  if web_sources
             else "reasoning_engine"
         )
 
@@ -192,7 +213,7 @@ class AgenticRAGService:
             "hint_ladder":       result.hint_ladder,
             "confidence_score":  result.confidence_score,
             "related_concepts":  result.related_concepts,
-            "sources":           all_sources,
+            "sources":           all_sources,   # [{index, title, url, snippet, type}]
             "mode":              mode,
             # Layer 7 — NLI verdict
             "nli_verdict":       meta.get("nli_verdict"),

@@ -17,7 +17,7 @@ import math
 
 from app.services import reasoning_service
 from app.services.agentic_rag_service import agentic_rag_service
-from app.services.mastery_service import track_qa_interaction
+from app.services.mastery_service import track_qa_interaction, compute_user_metrics
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -97,8 +97,23 @@ async def post_qa(payload: QAInput, background_tasks: BackgroundTasks):
         # Fire-and-forget: persist mastery for this QA interaction
         if payload.userId and detected_concept:
             background_tasks.add_task(
-                track_qa_interaction, payload.userId, detected_concept, confidence
+                track_qa_interaction, payload.userId, detected_concept, confidence, "chat"
             )
+
+        # Compute metrics algorithmically (never LLM-guessed)
+        metrics: dict = {}
+        if payload.userId:
+            try:
+                m = await compute_user_metrics(payload.userId, current_difficulty=difficulty_norm)
+                metrics = {
+                    "cognitive_load":   m.cognitive_load,
+                    "volatility":       m.volatility,
+                    "consistency":      m.consistency,
+                    "exam_readiness":   m.exam_readiness,
+                    "domain_coverage":  m.domain_coverage,
+                }
+            except Exception:
+                pass
 
         return {
             # ── Primary answer ─────────────────────────────────────────────
@@ -125,6 +140,10 @@ async def post_qa(payload: QAInput, background_tasks: BackgroundTasks):
                 "language":        result_dict.get("language") or payload.language or "en",
                 "inference_ms":    inference_ms,
                 "reasoning_layers": 7,
+                # Algorithmic metrics
+                **metrics,
+                # Normalised sources for citation panel
+                "sources": result_dict.get("sources", []),
             },
         }
 

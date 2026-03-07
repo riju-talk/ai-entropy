@@ -1,71 +1,57 @@
+# Data-only compose — run the Next.js app and FastAPI locally (npm run dev / uvicorn).
+# Only the three persistent data stores are containerised.
 version: '3.8'
 
 services:
-  entropy-api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+  postgres:
+    image: postgres:16-alpine
     environment:
-      - APP_ENV=development
-      - AI_PROVIDER=gemini
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-AIzaSyDmN0fOjdt6-bgHm-meB7ZNxRjZgWra5r4}
-      - LLM_MODEL=gemini-2.0-flash
-      - DATABASE_URL=postgresql://entropy:entropy@db:5432/entropy
-      - DIRECT_URL=postgresql://entropy:entropy@db:5432/entropy
-      - NEO4J_URI=bolt://neo4j:7687
-      - NEO4J_USER=neo4j
-      - NEO4J_PASSWORD=entropy123
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - S3_BUCKET_NAME=entropy-documents-dev
-      - AI_BACKEND_TOKEN=${AI_BACKEND_TOKEN:-T7vF1+HOmOARLnxPoAB2x/83gGAOD1wjCqy15Je1lzw=}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-entropy-jwt-secret-key}
-      - PINECONE_API_KEY=${PINECONE_API_KEY:-}
-      - PINECONE_HOST=${PINECONE_HOST:-}
-      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME:-novyra-ai}
-      - PINECONE_ENV=${PINECONE_ENV:-us-east-1}
-      - VECTOR_DB=pinecone
-      - DEBUG=true
-    depends_on:
-      - db
-      - neo4j
-      - redis
-    volumes:
-      - ./data/uploads:/app/data/uploads
-    restart: unless-stopped
-
-  db:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=entropy
-      - POSTGRES_PASSWORD=entropy
-      - POSTGRES_DB=entropy
+      POSTGRES_DB: entropy
+      POSTGRES_USER: entropy_user
+      POSTGRES_PASSWORD: entropy_pass
     ports:
       - "5432:5432"
     volumes:
       - entropy-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U entropy_user -d entropy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   neo4j:
-    image: neo4j:5.20
+    image: neo4j:5.20-community
     environment:
-      - NEO4J_AUTH=neo4j/entropy123
-      - NEO4J_dbms_memory_heap_max__size=1G
+      NEO4J_AUTH: neo4j/entropy_neo4j
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_server_memory_heap_max__size: 1G
     ports:
       - "7474:7474"
       - "7687:7687"
     volumes:
       - entropy-neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p entropy_neo4j 'RETURN 1' || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
+    command: redis-server --appendonly yes
     ports:
       - "6379:6379"
     volumes:
       - entropy-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     restart: unless-stopped
 
 volumes:
