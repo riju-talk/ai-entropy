@@ -1,412 +1,221 @@
-# NOVYRA — Universal Adaptive Learning Infrastructure
+# Entropy — Adaptive Learning Infrastructure
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=FastAPI&logoColor=white)](https://fastapi.tiangolo.com/)
+[![AWS Bedrock](https://img.shields.io/badge/Amazon_Bedrock-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)](https://aws.amazon.com/bedrock/)
 [![Neo4j](https://img.shields.io/badge/Neo4j-008CC1?style=for-the-badge&logo=neo4j&logoColor=white)](https://neo4j.com/)
 [![Prisma](https://img.shields.io/badge/Prisma-3982CE?style=for-the-badge&logo=Prisma&logoColor=white)](https://prisma.io/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Python](https://img.shields.io/badge/Python_3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org/)
-[![AMD](https://img.shields.io/badge/AMD-Optimized-ED1C24?style=for-the-badge&logo=amd&logoColor=white)](https://www.amd.com/)
-[![Status](https://img.shields.io/badge/Status-Production_Ready-success?style=for-the-badge)](README_COMPLETE.md)
+[![AWS Lambda](https://img.shields.io/badge/AWS_Lambda-FF9900?style=for-the-badge&logo=awslambda&logoColor=white)](https://aws.amazon.com/lambda/)
+[![Status](https://img.shields.io/badge/Status-Production_Ready-success?style=for-the-badge)](docs/FINAL_IMPLEMENTATION_STATUS.md)
 
 > **Not a chatbot. Not RAG. Not an LMS.**  
-> **NOVYRA is learning infrastructure.**
+> **Entropy is learning infrastructure.**
 
-**📘 [Complete Implementation Guide](README_COMPLETE.md) • 📚 [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) • 🚀 [Quick Start](quick-start.ps1)**
+**📚 [Architecture](DESIGN.md) • 🚀 [Deployment Guide](docs/DEPLOYMENT_GUIDE.md) • ⚡ [Quick Start](quick-start.ps1)**
 
-A knowledge-graph-driven, rubric-aware, mastery-tracking AI learning platform that covers **25+ academic disciplines** with intelligent prerequisite detection, adaptive reasoning, and AMD-optimized edge inference.
-
----
-
-## 🎯 What Makes NOVYRA Different
-
-| Traditional AI Tutors | NOVYRA |
-|----------------------|---------|
-| Retrieve information from vectors | **Reason over structured knowledge graph** |
-| Generic explanations | **Adaptive responses based on mastery state** |
-| Black box grading | **Rubric-aware, explainable evaluation** |
-| Domain-specific (CS, Math) | **Universal: 200+ concepts, 25+ disciplines** |
-| Cloud-only, high latency | **Hybrid edge/cloud with AMD NPU optimization** |
-| No learning tracking | **Real-time mastery propagation and intervention** |
+A knowledge-graph-driven, rubric-aware, mastery-tracking AI platform powered by **Amazon Bedrock (Claude 3 Sonnet)**, with a custom 8-layer AI brain, community Q&A, real-time gamification, and a fully serverless AWS backend.
 
 ---
 
-## 🚀 Key Features
+## What Makes Entropy Different
 
-### 🧠 **Universal Knowledge Graph**
-- **200+ concepts** across 25+ disciplines (CS, Math, Physics, Chemistry, Biology, Psychology, Economics, History, Literature, Languages, Engineering, Business, Law, Art, Music, and more)
-- **Intelligent prerequisite detection**: System knows Arrays must be learned before Binary Search
-- **Dynamic learning paths**: Automatically builds personalized curriculum based on weak nodes
-
-### 📊 **Mastery-Aware Adaptive Learning**
-- **Real-time mastery tracking**: `mastery_score = (correct/total) * confidence_weight`
-- **Confidence calibration**: Penalizes hint dependency and time decay
-- **Automatic intervention**: Detects struggles and recommends prerequisite review
-- **Progression visualization**: Track learning improvement over time
-
-### 🎓 **Rubric-Based Evaluation**
-- **Multi-dimensional grading**: Correctness, reasoning, clarity, creativity
-- **Explainable feedback**: "You lost points here because..."
-- **Confidence scoring**: Flags low-confidence evaluations for human review
-- **Structured output**: Enforced JSON schema, no hallucinations
-
-### ⚡ **AMD Edge Inference Optimization**
-- **Hybrid routing**: Simple queries → AMD NPU edge, complex reasoning → cloud
-- **60%+ edge execution rate**: 70% latency reduction, zero cloud cost
-- **Quantized models**: ONNX INT4 models optimized for AMD NPUs
-- **Cost savings**: $0.0001/request saved per edge query
-
-### 🌍 **Multilingual Support**
-- **Auto-detect language**: 100+ languages supported
-- **Translate → reason → translate back**: Maintains reasoning in English
-- **Culturally aware**: Context-sensitive translations
-
----
-
-## 📐 Architecture
-
-```
-┌─────────────────────────────────────┐
-│       User Interface Layer          │
-│   (Next.js + React + TailwindCSS)   │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│    Interaction & Intent Engine      │
-│  (Task Classification, Concept ID)  │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│  Adaptive Learning Intelligence     │
-│  (Hint Ladder, Socratic Reasoning)  │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│      Knowledge Graph Brain          │
-│  (Neo4j: 200+ concepts, prereqs)    │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│   Community Intelligence Layer      │
-│  (Quality Filtering, Reputation)    │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│    Evaluation & Mastery Engine      │
-│  (Rubric Grading, Mastery Tracking) │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│    Hybrid AI Runtime (AMD Edge)     │
-│  (Cloud/NPU Routing, ONNX Models)   │
-└─────────────────────────────────────┘
-```
-
-**📖 Detailed Architecture:** See [ARCHITECTURE.md](./ARCHITECTURE.md)
-
----
-
-## 🎬 Quick Start — Demo Mode
-
-### For Judges & Evaluators
-
-NOVYRA comes with a complete demo system to showcase its capabilities:
-
-#### 1. **Seed the Knowledge Graph** (One-time setup)
-
-```bash
-POST http://localhost:8000/api/demo/seed-knowledge-graph
-```
-
-Creates 200+ concepts across 25+ disciplines with intelligent prerequisites.
-
-#### 2. **Simulate a Learning Journey**
-
-```bash
-POST http://localhost:8000/api/demo/simulate-learning-journey
-{
-  "user_id": "demo_student",
-  "target_concept": "Binary Search",
-  "simulate_struggles": true
-}
-```
-
-Shows adaptive learning: detects weak prerequisites (Arrays), builds custom path, tracks mastery progression from 0.2 → 0.9.
-
-#### 3. **View Impact Metrics**
-
-```bash
-GET http://localhost:8000/api/demo/metrics/comparison
-```
-
-Returns:
-- **93% mastery improvement** (0.42 → 0.81)
-- **38% faster time-to-mastery** (45min → 28min)
-- **50% fewer failed attempts**
-
-#### 4. **Test AMD Edge Inference**
-
-```bash
-POST http://localhost:8000/api/demo/edge-inference
-{
-  "prompt": "What is an array?",
-  "latency_requirement": "realtime"
-}
-```
-
-Response shows:
-- Execution target: `edge_npu` (AMD NPU optimized)
-- Latency: ~80ms (vs 1200ms cloud)
-- Cost: $0 (vs $0.0001 cloud)
-
-#### 5. **Get Complete Visualization Data**
-
-```bash
-GET http://localhost:8000/api/demo/visualization/demo_student
-```
-
-Single endpoint with all demo data: learning metrics, system performance, comparisons, weak concepts, progression charts.
-
-**📖 Full Demo Guide:** See [DEMO_GUIDE.md](./DEMO_GUIDE.md) for complete walkthrough and demo script.
-
----
-
-## 🛠 Project Structure
-
-```
-NOVYRA/
-├── apps/
-│   ├── app/                  # Next.js 14 App Router (frontend)
-│   └── ai-agent/             # FastAPI AI Engine (backend, port 8000)
-│       └── app/
-│           ├── core/         # config, llm client, prompts
-│           ├── schemas/      # Pydantic I/O contracts
-│           ├── services/     # 5 reasoning engines
-│           └── api/routes/   # HTTP endpoints
-├── infrastructure/
-│   └── docker-compose.yml    # Neo4j + AI Engine + Next.js
-└── apps/app/prisma/
-    └── schema.prisma         # PostgreSQL models incl. mastery & evaluation
-```
-
----
-
-## Core Engines
-
-### 1. Knowledge Graph (Neo4j)
-
-The brain. Every concept is a node, every dependency is an edge.
-
-| Node label | Purpose |
+| Generic AI Tutors | Entropy |
 |---|---|
-| `Concept` | A learnable topic with domain and difficulty |
-| `User` | A student |
-| Relationship `PREREQUISITE_OF` | Concept A must be learned before B |
-| Relationship `MASTERED_BY` | User has mastery score on a concept |
-
-**Key functions** (`app/services/knowledge_graph_service.py`)
-
-```python
-await add_concept(name, description, domain, difficulty)
-await link_prerequisite(concept, prerequisite)
-await fetch_concept_context(concept)      # → prerequisites + related
-await get_user_weak_nodes(user_id)        # → concepts below mastery threshold
-await get_recommended_path(user_id, target_concept)  # → shortest prereq path
-await record_mastery(user_id, concept, score)        # → updates MASTERED_BY edge
-```
+| Pull from flat vector index | **Reason over a structured Neo4j knowledge graph** |
+| One-size-fits-all answers | **Mastery-aware responses that adapt per user** |
+| Opaque grading | **Rubric-aware evaluation with explainable scores** |
+| Single-domain | **Universal: 200+ concepts, 25+ disciplines** |
+| Synchronous, blocking calls | **Parallel Lambda fan-out + async SQS workers** |
+| No community layer | **Community Q&A, voting, reputation, moderation** |
 
 ---
 
-### 2. Structured Reasoning Engine
+## Key Features
 
-Not a chat completion. Every answer is validated JSON.
+### 8-Layer AI Brain (Entropy Engine)
+The core intelligence pipeline runs every query through:
 
-```json
-{
-  "concept": "Binary Search",
-  "prerequisites": ["Arrays", "Divide and Conquer"],
-  "stepwise_reasoning": ["Step 1: ...", "Step 2: ..."],
-  "hint_ladder": ["Gentle hint", "Medium hint", "Direct hint"],
-  "final_solution": "Complete explanation",
-  "confidence_score": 0.92,
-  "related_concepts": ["Linear Search", "Binary Search Tree"]
-}
-```
+1. **Intent Classification** — QA / code / document / recommendation
+2. **Query Rewriting** — synonym expansion, concept alias resolution
+3. **Parallel Retrieval Fan-out** — RAG worker + Tavily web-search worker invoked concurrently via Lambda
+4. **Knowledge Graph Context** — Neo4j prerequisite traversal and concept neighbourhood
+5. **Context Reranking** — cross-encoder selects the most relevant chunks
+6. **Prompt Composition** — instruction + user mastery state + retrieved evidence
+7. **LLM Generation** — Amazon Bedrock Claude 3 Sonnet with structured JSON output
+8. **Post-processing** — citation stitching, safety filter, multilingual translation
 
-**Flow:** detect language → translate to English → fetch graph context → Gemini JSON call → Pydantic validation → translate back if needed
+### Knowledge Graph (Neo4j)
+- 200+ concepts across 25+ disciplines with typed `PREREQUISITE_OF` / `RELATED_TO` / `EXPLAINS` edges
+- Prerequisite traversal surfaces what a user needs to learn *before* a target concept
+- Weak-node detection triggers automatic review recommendations
 
-**Endpoint:** `POST /api/reasoning/ask`
-
-```json
-{ "question": "What is dynamic programming?", "user_id": "abc", "language": "en" }
-```
-
----
-
-### 3. Rubric-Aware Evaluation Engine
-
-Score any student submission against a weighted rubric. Arithmetic is computed in Python — not trusted to the LLM.
-
-**Endpoint:** `POST /api/evaluation/evaluate`
-
-```json
-{
-  "submission": "Dynamic programming is a method for solving...",
-  "rubric": {
-    "criteria": [
-      { "name": "Clarity",          "weight": 0.3 },
-      { "name": "Concept Accuracy", "weight": 0.4 },
-      { "name": "Depth",            "weight": 0.3 }
-    ]
-  }
-}
-```
-
-**Response:**
-
-```json
-{
-  "criterion_scores": [
-    { "name": "Clarity", "weight": 0.3, "score": 0.85, "feedback": "..." }
-  ],
-  "weighted_total": 78.5,
-  "grade_level": "Good",
-  "improvement_plan": ["Add more examples", "Define terms formally"]
-}
-```
-
----
-
-### 4. Mastery Tracking Engine
-
-Per-user, per-concept mastery that decays with inactivity.
-
+### Mastery-Aware Adaptive Learning
 ```
 mastery = (correct_attempts / total_attempts) × confidence_weight
 ```
+- Confidence weight decays with hint overuse (−0.1/hint) and inactivity (−0.02/day after 7 days)
+- Every interaction writes an XP ledger entry and updates the Neo4j `MASTERED_BY` edge
 
-Confidence weight decreases with:
-- Heavy hint usage (`−0.1 per hint`)
-- Inactivity decay (`−0.02/day after 7 days`)
+### Rubric-Based Evaluation
+Multi-dimensional grading (correctness, reasoning, clarity, depth) with weighted arithmetic computed in Python — never trusted to the LLM. Structured Pydantic output with enforced JSON schema.
 
-After each attempt the score is written to both in-memory store and the Neo4j `MASTERED_BY` edge.
+### Gamification Engine
+- XP + level progression (Freshman → Sage), Entropy Coins, daily/weekly streaks
+- Achievements with deduplication and race-condition-safe unlock
+- Leaderboards (XP and reputation) backed by Prisma + PostgreSQL
 
-| Endpoint | Action |
-|---|---|
-| `POST /api/mastery/attempt` | Record one attempt, get mastery delta + nudge |
-| `GET  /api/mastery/profile/{user_id}` | Full mastery profile: weak/strong concepts, overall progress |
+### Community Platform
+- Subject-specific communities, rich Q&A (LaTeX, code blocks), threaded comments
+- Trust scoring, anti-abuse IP clustering and similarity detection, vote-based reputation
+- Moderation roles, mentorship programs
+
+### Async Serverless Architecture
+- `POST /api/qa` returns to the client immediately; mastery and gamification events are dispatched to **Amazon SQS** and consumed by dedicated Lambda workers
+- RAG retrieval and Tavily web search run **concurrently** via parallel Lambda invocations, halving latency on grounded answers
+- Dead-letter queues on every SQS queue; CloudWatch for observability
+
+### Multilingual Support
+- `langdetect` auto-detects input; `deep-translator` handles 100+ languages
+- All reasoning runs in English internally; response is translated back before delivery
 
 ---
 
-### 5. Multilingual Layer
+## Architecture
 
-All reasoning is performed in English internally. Input/output translation is transparent.
-
-**Supported languages:** Hindi, Bengali, Tamil, Telugu, Gujarati, Marathi, Kannada, Malayalam, Punjabi, Urdu, French, German, Spanish, Chinese, Arabic, Japanese, Korean, Portuguese, Russian
-
-**Flow:**
 ```
-Input (any language)
-    ↓ langdetect
-    ↓ deep-translator → English
-    ↓ Reasoning Engine (English)
-    ↓ deep-translator → original language
-Output (original language)
+┌──────────────────────────────────────────┐
+│  Frontend  (Next.js 14 · Amplify/CF)     │
+│  Auth: NextAuth · GitHub · Google OAuth  │
+└───────────────────┬──────────────────────┘
+                    │ HTTPS
+┌───────────────────▼──────────────────────┐
+│  API Gateway HTTP API                    │
+│  → Lambda: entropy-ai-engine (Mangum)    │
+│    FastAPI app  ·  Python 3.11           │
+├──────────────────────────────────────────┤
+│  Parallel fan-out (IS_LAMBDA=true)       │
+│  ├─ Lambda: rag_worker    (Bedrock+Pinecone) │
+│  └─ Lambda: tavily_worker (Tavily web)  │
+├──────────────────────────────────────────┤
+│  Async SQS consumers                     │
+│  ├─ Lambda: mastery_worker              │
+│  └─ Lambda: gamification_worker         │
+└──────────┬───────────┬───────────────────┘
+           │           │
+  ┌────────▼─┐   ┌─────▼──────────────────┐
+  │ Neo4j    │   │ RDS PostgreSQL (Prisma) │
+  │ (graph)  │   │ Redis (cache/sessions)  │
+  └──────────┘   │ S3 (documents)          │
+                 │ Pinecone (vectors)      │
+                 └─────────────────────────┘
+```
+
+**Detailed design:** [DESIGN.md](DESIGN.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/AI_BRAIN_ARCHITECTURE.md](docs/AI_BRAIN_ARCHITECTURE.md)
+
+---
+
+## Project Structure
+
+```
+ai-entropy/
+├── apps/
+│   ├── app/                        # Next.js 14 App Router (frontend, port 5000)
+│   │   ├── app/                    # Route segments (dashboard, communities, q&a, profile …)
+│   │   ├── components/             # Shared React components
+│   │   ├── prisma/schema.prisma    # PostgreSQL schema (community + gamification models)
+│   │   └── lib/                    # Server actions, API helpers
+│   └── ai-agent/                   # FastAPI AI Engine (backend, port 8000)
+│       ├── app/
+│       │   ├── api/routes/         # HTTP route handlers
+│       │   │   ├── qa.py           # Q&A + SQS fan-out
+│       │   │   ├── gamification.py # XP, achievements, leaderboards
+│       │   │   ├── mastery.py      # Mastery tracking
+│       │   │   ├── reasoning.py    # Structured reasoning
+│       │   │   ├── documents.py    # Document upload + ingestion
+│       │   │   ├── graph.py        # Knowledge graph CRUD
+│       │   │   ├── quiz.py         # Quiz generation
+│       │   │   ├── mindmap.py      # Mindmap generation
+│       │   │   └── evaluation.py   # Rubric evaluation
+│       │   ├── services/
+│       │   │   ├── agentic_rag_service.py   # Parallel RAG orchestrator
+│       │   │   ├── bedrock_service.py        # Bedrock Claude + Titan Embeddings
+│       │   │   ├── knowledge_graph_service.py
+│       │   │   ├── mastery_service.py
+│       │   │   ├── gamification/             # XP engine, achievements, streaks
+│       │   │   ├── ai_brain/                 # 8-layer cognitive pipeline
+│       │   │   ├── anti_abuse/               # Trust scoring, abuse detection
+│       │   │   └── tavily_service.py         # Web search via Tavily
+│       │   ├── workers/                      # Lambda SQS-triggered handlers
+│       │   │   ├── rag_worker.py
+│       │   │   ├── tavily_worker.py
+│       │   │   ├── mastery_worker.py
+│       │   │   └── gamification_worker.py
+│       │   └── config.py                    # Pydantic settings (AWS, Neo4j, Redis …)
+│       ├── serverless.yml                   # Serverless Framework deployment
+│       └── lambda_handler.py                # Mangum entrypoint
+├── infrastructure/
+│   ├── cdk/                        # AWS CDK stack (Lambdas, SQS, API Gateway)
+│   └── iam/                        # IAM policy documents
+├── packages/
+│   ├── ui/                         # Shared component library
+│   ├── eslint-config/
+│   └── typescript-config/
+└── docs/                           # Full engineering documentation
 ```
 
 ---
+## Engineering Documentation Index
 
-### 6. Universal Concept Seeder (`concept_seeder.py`)
-
-Populates the knowledge graph with 200+ concepts across 25+ disciplines, demonstrating NOVYRA as a universal learning platform.
-
-**Coverage:**  
-STEM (CS, Math, Physics, Chemistry, Biology, Engineering, Data Science, Environmental Science, Astronomy, Health Sciences, Agriculture) + Social Sciences (Economics, Psychology, Sociology, Anthropology, Political Science, Geography) + Humanities (History, Literature, Philosophy, Languages, Communications) + Professional (Business, Law, Architecture) + Arts (Visual Arts, Music)
-
----
-
-### 7. Demo Metrics & Visualization (`demo_metrics_service.py`)
-
-Real-time metrics showing learning impact:
-- **Learning metrics**: mastery progression, weak/strong concepts
-- **System metrics**: query times, cache rates  
-- **Comparisons**: 93% mastery improvement, 38% time savings
-
----
-
-### 8. AMD Edge Inference Controller (`edge_inference_controller.py`)
-
-Hybrid cloud/edge routing with AMD NPU optimization:
-- **Realtime queries** → AMD NPU Edge (~80ms, $0 cost)
-- **Complex reasoning** → Cloud (~1200ms, $0.0001/req)
-- **60%+ edge execution** → 70% latency reduction
-
----
-
-## API Reference
-
-### AI Engine — `http://localhost:8000`
-
-**Demo & Visualization Routes:**
-
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/api/demo/seed-knowledge-graph` | Seed 200+ concepts (run once) |
-| `GET`  | `/api/demo/concepts` | List concepts (filter by domain) |
-| `POST` | `/api/demo/simulate-learning-journey` | Simulate learning path |
-| `GET`  | `/api/demo/metrics/learning/{user_id}` | Learning metrics |
-| `GET`  | `/api/demo/metrics/system` | System performance |
-| `GET`  | `/api/demo/metrics/comparison` | Before/after impact |
-| `GET`  | `/api/demo/visualization/{user_id}` | Complete demo data |
-| `POST` | `/api/demo/edge-inference` | Test hybrid inference |
-| `GET`  | `/api/demo/edge-inference/metrics` | Edge performance |
-
-**Core Engine Routes:**
-
-| Method | Path | Engine |
-|---|---|---|
-| `GET`  | `/health` | Health + Neo4j status |
-| `GET`  | `/docs` | Interactive Swagger UI |
-| `POST` | `/api/reasoning/ask` | Structured Reasoning |
-| `POST` | `/api/evaluation/evaluate` | Rubric Evaluation |
-| `POST` | `/api/mastery/attempt` | Mastery Update |
-| `GET`  | `/api/mastery/profile/{user_id}` | Mastery Profile |
-| `POST` | `/api/graph/concept` | Add Concept node |
-| `POST` | `/api/graph/prerequisite` | Link prerequisite |
-| `GET`  | `/api/graph/context/{concept}` | Concept context |
-| `GET`  | `/api/graph/weak/{user_id}` | Weak nodes |
-| `GET`  | `/api/graph/path/{user_id}/{concept}` | Learning path |
-| `POST` | `/api/qa` | Legacy Q&A (proxied to reasoning engine) |
-| `POST` | `/api/quiz` | Quiz generation |
-| `POST` | `/api/flashcards` | Flashcard generation |
-| `POST` | `/api/mindmap` | Mindmap generation |
-| `POST` | `/api/documents` | Document upload |
-
+- [AI Brain Architecture](docs/AI_BRAIN_ARCHITECTURE.md)
+- [AI Brain Implementation Complete](docs/AI_BRAIN_IMPLEMENTATION_COMPLETE.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Component Responsiveness Checklist](docs/COMPONENT_RESPONSIVENESS_CHECKLIST.md)
+- [Demo Guide](docs/DEMO_GUIDE.md)
+- [Demo Summary](docs/DEMO_SUMMARY.md)
+- [Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
+- [Final Implementation Status](docs/FINAL_IMPLEMENTATION_STATUS.md)
+- [Game Engine Architecture](docs/GAME_ENGINE_ARCHITECTURE.md)
+- [Gamification](docs/GAMIFICATION.md)
+- [Implementation Status](docs/IMPLEMENTATION_STATUS.md)
+- [NLI Architecture](docs/NLI_ARCHITECTURE.md)
+- [Phase 1 Complete](docs/PHASE1_COMPLETE.md)
+- [Phase 6 Complete](docs/PHASE6_COMPLETE.md)
+- [README Complete](docs/README_COMPLETE.md)
+- [Responsive Improvements Summary](docs/RESPONSIVE_IMPROVEMENTS_SUMMARY.md)
+- [Schema Migration Plan](docs/SCHEMA_MIGRATION_PLAN.md)
+- [Session Completion Summary](docs/SESSION_COMPLETION_SUMMARY.md)
+- [System Architecture](docs/SYSTEM_ARCHITECTURE.md)
+- [Technical Summary Engineering](docs/TECHNICAL_SUMMARY_ENGINEERING.md)
+- [Technical Summary Project Management](docs/TECHNICAL_SUMMARY_PROJECT_MANAGEMENT.md)
+- [Testing Comprehensive](docs/TESTING_COMPREHENSIVE.md)
+- [Testing Guide](docs/TESTING_GUIDE.md)
+- [Trust and Abuse Model](docs/TRUST_AND_ABUSE_MODEL.md)
+- [Work Completion Summary](docs/WORK_COMPLETION_SUMMARY.md)
+- [Summary](docs/summary.md)
 ---
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 14 · TypeScript · TailwindCSS · Radix UI |
-| Backend | FastAPI · Python 3.12 · Pydantic v2 |
-| LLM | Google Gemini 1.5 Flash (direct SDK, no LangChain) |
-| Knowledge Graph | Neo4j 5.20 Community (Bolt + APOC) |
-| Relational DB | PostgreSQL via Prisma ORM |
-| Translation | deep-translator + langdetect |
-| Retry logic | tenacity |
-| Containerisation | Docker Compose |
-
----
-
-## Platform Features (Frontend)
-
-- **Gamification** — XP, levels (Freshman → Sage), Entropy Coins, achievements, streaks, leaderboards
-- **Communities** — subject-specific groups, moderation roles
-- **Q&A** — rich text, LaTeX, code blocks, upvotes, comments
-- **Mentorship programs**
-- **Dark/Light theme**, fully responsive
+| **Frontend** | Next.js 14 (App Router) · TypeScript · TailwindCSS · Radix UI · shadcn/ui |
+| **Backend** | FastAPI · Python 3.11 · Pydantic v2 · Mangum (Lambda adapter) |
+| **LLM** | Amazon Bedrock — Claude 3 Sonnet (`anthropic.claude-3-sonnet-20240229-v1:0`) |
+| **Embeddings** | Amazon Bedrock — Titan Embeddings V2 (`amazon.titan-embed-text-v2:0`) |
+| **Vector Store** | Pinecone (production) · Chroma (local dev) |
+| **Knowledge Graph** | Neo4j 5.x (Bolt) via `neo4j` Python driver |
+| **Relational DB** | PostgreSQL via Prisma ORM (Next.js side) + Prisma Python client (AI side) |
+| **Cache / Queue** | Amazon ElastiCache Redis · Amazon SQS (mastery + gamification workers) |
+| **Object Storage** | Amazon S3 (document upload + processed text) |
+| **Auth** | NextAuth.js — GitHub OAuth · Google OAuth |
+| **Infra** | Serverless Framework v3 · AWS CDK v2 · AWS Lambda · API Gateway HTTP API |
+| **Web Search** | Tavily AI (`tavily-python`) |
+| **Translation** | `deep-translator` + `langdetect` (100+ languages) |
+| **Observability** | AWS CloudWatch · X-Ray · SQS DLQs |
+| **Monorepo** | Turborepo + pnpm workspaces |
 
 ---
 
@@ -414,100 +223,165 @@ Hybrid cloud/edge routing with AMD NPU optimization:
 
 ### Prerequisites
 
-- Docker + Docker Compose
 - Node.js 20+ and pnpm
-- A [Google AI Studio](https://aistudio.google.com/) API key (free tier works)
+- Python 3.11+
+- Docker (for Neo4j and Redis in local dev)
+- AWS account with Bedrock access (Claude 3 Sonnet + Titan Embeddings enabled in `ap-northeast-1`)
 
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/your-org/novyra.git
-cd novyra
+git clone https://github.com/your-org/ai-entropy.git
+cd ai-entropy
 cp .env.example .env
-# Edit .env — set GOOGLE_API_KEY and DATABASE_URL at minimum
+# Fill in: AWS credentials, DATABASE_URL, NEO4J_*, REDIS_*, NEXTAUTH_SECRET
 ```
 
-### 2. Start all services
+### 2. Install dependencies
 
 ```bash
-# Starts: Neo4j, AI Engine, Next.js frontend
-docker-compose up --build
+pnpm install              # frontend + shared packages
+cd apps/ai-agent
+python -m venv .venv
+.venv\Scripts\activate    # Windows  |  source .venv/bin/activate  (Linux/Mac)
+pip install -r requirements.txt
+```
+
+### 3. Start backing services (Docker)
+
+```bash
+docker-compose up -d      # starts Neo4j + Redis
+```
+
+### 4. Run database migration
+
+```bash
+cd apps/app
+pnpm db:push              # pushes schema to PostgreSQL
+pnpm db:generate          # generates Prisma client
+```
+
+### 5. Start dev servers
+
+```bash
+# Terminal 1 — Next.js frontend
+cd apps/app
+pnpm dev                  # http://localhost:5000
+
+# Terminal 2 — FastAPI backend
+cd apps/ai-agent
+uvicorn app.main:app --reload --port 8000
+# Swagger UI: http://localhost:8000/docs
 ```
 
 | Service | URL |
 |---|---|
 | Frontend | http://localhost:5000 |
 | AI Engine API | http://localhost:8000 |
-| AI Engine Docs | http://localhost:8000/docs |
+| Swagger UI | http://localhost:8000/docs |
 | Neo4j Browser | http://localhost:7474 |
-
-Neo4j credentials: `neo4j` / `novyra_neo4j`
-
-### 3. Run database migration
-
-```bash
-cd apps/app
-npx prisma migrate dev --name novyra_init
-```
-
-### 4. Local development (without Docker)
-
-**Frontend:**
-```bash
-cd apps/app
-pnpm install
-pnpm dev          # http://localhost:3000
-```
-
-**AI Engine:**
-```bash
-cd apps/ai-agent
-python -m venv .venv && source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
-
-**Neo4j** (required for graph features):
-```bash
-docker run -p 7474:7474 -p 7687:7687 \
-  -e NEO4J_AUTH=neo4j/novyra_neo4j \
-  neo4j:5.20-community
-```
 
 ---
 
 ## Environment Variables
 
-See [`.env.example`](.env.example) for the full list. Required variables:
-
-| Variable | Description |
-|---|---|
-| `GOOGLE_API_KEY` | Gemini API key |
-| `DATABASE_URL` | PostgreSQL connection string |
-| `NEO4J_URI` | Bolt URI (default: `bolt://neo4j:7687`) |
-| `NEO4J_PASSWORD` | Neo4j password (default: `novyra_neo4j`) |
-| `NEXTAUTH_SECRET` | NextAuth signing secret |
-| `NEXT_PUBLIC_AI_BACKEND_TOKEN` | Internal token for Next.js → AI Engine |
+| Variable | Required | Description |
+|---|---|---|
+| `AWS_ACCESS_KEY_ID` | Yes | AWS credentials for Bedrock + S3 + SQS |
+| `AWS_SECRET_ACCESS_KEY` | Yes | |
+| `AWS_REGION` | Yes | Default: `ap-northeast-1` |
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `DIRECT_URL` | Yes | PostgreSQL direct URL (for Prisma migrations) |
+| `NEO4J_URI` | Yes | Bolt URI, e.g. `bolt://localhost:7687` |
+| `NEO4J_PASSWORD` | Yes | Neo4j password |
+| `REDIS_HOST` | Yes | Redis host |
+| `NEXTAUTH_SECRET` | Yes | NextAuth signing secret |
+| `AI_BACKEND_TOKEN` | Yes | Shared secret: Next.js → AI Engine |
+| `NEXT_PUBLIC_AI_BACKEND_URL` | Yes | AI Engine URL visible from the browser |
+| `TAVILY_API_KEY` | Yes | Tavily web search key |
+| `PINECONE_API_KEY` | Prod | Pinecone vector DB key |
+| `IS_LAMBDA` | Lambda | Set `true` in Lambda env to enable SQS fan-out |
+| `MASTERY_QUEUE_URL` | Lambda | SQS URL for async mastery events |
+| `GAMIFICATION_QUEUE_URL` | Lambda | SQS URL for async gamification events |
 
 ---
 
-## Database Schema (Prisma)
+## AWS Deployment
 
-New models added for the AI engines (on top of existing community/gamification models):
+The backend deploys to AWS Lambda via **Serverless Framework**:
 
-| Model | Purpose |
+```bash
+cd apps/ai-agent
+# Set SSM parameters first (DATABASE_URL, NEO4J_*, REDIS_*, secrets)
+npx serverless deploy --stage prod
+```
+
+This provisions:
+- `entropy-ai-engine-prod` — main FastAPI Lambda (Mangum)
+- `entropy-ai-engine-prod-rag_worker` — parallel RAG retrieval
+- `entropy-ai-engine-prod-tavily_worker` — parallel web search
+- `entropy-ai-engine-prod-mastery_worker` — SQS consumer for mastery events
+- `entropy-ai-engine-prod-gamification_worker` — SQS consumer for gamification events
+- SQS queues (`entropy-mastery-queue`, `entropy-gamification-queue`) with DLQs
+
+Optional CDK deployment (`infrastructure/cdk`):
+
+```bash
+cd infrastructure/cdk
+npm install
+npx cdk deploy --context stage=prod
+```
+
+See [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for full AWS setup including Amplify frontend, RDS, ElastiCache, and SSM parameter configuration.
+
+---
+
+## API Reference
+
+### AI Engine — `http://localhost:8000`
+
+| Method | Path | Description |
+|---|---|---|
+| `GET`  | `/health` | Health check + service status |
+| `GET`  | `/docs` | Interactive Swagger UI |
+| `POST` | `/api/qa` | Ask a question (Agentic RAG + knowledge graph) |
+| `POST` | `/api/reasoning/ask` | Structured step-by-step reasoning |
+| `POST` | `/api/evaluation/evaluate` | Rubric-based evaluation |
+| `POST` | `/api/mastery/attempt` | Record an attempt, update mastery |
+| `GET`  | `/api/mastery/profile/{user_id}` | Full mastery profile |
+| `POST` | `/api/documents` | Upload and ingest a document |
+| `POST` | `/api/quiz` | Generate a quiz |
+| `POST` | `/api/mindmap` | Generate a mindmap |
+| `POST` | `/api/graph/concept` | Add a concept node |
+| `POST` | `/api/graph/prerequisite` | Link a prerequisite |
+| `GET`  | `/api/graph/context/{concept}` | Concept context + neighbours |
+| `GET`  | `/api/graph/weak/{user_id}` | User's weak concept nodes |
+| `GET`  | `/api/graph/path/{user_id}/{concept}` | Recommended learning path |
+| `POST` | `/api/gamification/event` | Fire a gamification event (XP, achievements) |
+| `GET`  | `/api/gamification/leaderboard/xp` | XP leaderboard |
+| `GET`  | `/api/gamification/leaderboard/reputation` | Reputation leaderboard |
+
+---
+
+## Documentation Index
+
+| Document | Description |
 |---|---|
-| `Concept` | Learnable topic node (mirrors Neo4j for relational queries) |
-| `ConceptPrerequisite` | Prerequisite links |
-| `ConceptAttempt` | Per-attempt audit log with mastery delta |
-| `MasteryRecord` | Latest mastery score per user × concept |
-| `RubricEvaluation` | Stored evaluation results |
+| [DESIGN.md](DESIGN.md) | Full system design — architecture, AI pipeline, data models |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | High-level component architecture |
+| [docs/AI_BRAIN_ARCHITECTURE.md](docs/AI_BRAIN_ARCHITECTURE.md) | 8-layer cognitive pipeline detail |
+| [docs/GAME_ENGINE_ARCHITECTURE.md](docs/GAME_ENGINE_ARCHITECTURE.md) | XP / gamification engine design |
+| [docs/GAMIFICATION.md](docs/GAMIFICATION.md) | Gamification rules and level progression |
+| [docs/TRUST_AND_ABUSE_MODEL.md](docs/TRUST_AND_ABUSE_MODEL.md) | Trust scoring and anti-abuse system |
+| [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) | AWS deployment walkthrough |
+| [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) | Test strategy and running tests |
+| [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md) | Demo walkthrough for evaluators |
 
 ---
 
 ## Contributing
 
-Pull requests are welcome. For major changes, open an issue first.
+Pull requests are welcome. For major changes, open an issue first to discuss the approach.
 
 ---
 

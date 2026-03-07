@@ -262,7 +262,7 @@ async def get_user_xp_ledger(
         db = get_db()
         ledger_entries = await db.xpledger.find_many(
             where={"userId": user_id},
-            order_by={"createdAt": "desc"},
+            order={"createdAt": "desc"},
             skip=offset,
             take=limit
         )

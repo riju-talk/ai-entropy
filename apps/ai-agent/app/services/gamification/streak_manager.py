@@ -182,7 +182,7 @@ async def validate_streak_authenticity(user_id: str) -> bool:
             "userId": user_id,
             "emittedAt": {"gte": week_ago}
         },
-        order_by={"emittedAt": "asc"}
+        order={"emittedAt": "asc"}
     )
     
     if not events:

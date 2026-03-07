@@ -306,7 +306,7 @@ async def validate_xp_authenticity(user_id: str) -> bool:
             "userId": user_id,
             "createdAt": {"gte": since}
         },
-        order_by={"createdAt": "asc"}
+        order={"createdAt": "asc"}
     )
     
     if not ledger_entries:

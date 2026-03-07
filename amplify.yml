@@ -1,0 +1,23 @@
+version: 1
+applications:
+  - frontend:
+      phases:
+        preBuild:
+          commands:
+            - npm install -g pnpm
+            - pnpm install --frozen-lockfile
+            - cd apps/app && pnpm db:generate
+        build:
+          commands:
+            - cd apps/app && pnpm build
+      artifacts:
+        baseDirectory: apps/app/.next
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - apps/app/.next/cache/**/*
+          - node_modules/**/*
+          - apps/app/node_modules/**/*
+      buildPath: /
+    appRoot: apps/app

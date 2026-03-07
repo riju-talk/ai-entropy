@@ -211,17 +211,26 @@ async def check_and_unlock_achievements(user_id: str, triggering_event: Event) -
         if achievement["name"] in unlocked_names:
             continue
         
-        # Check criteria
-        criteria_met = await check_achievement_criteria(user_id, achievement, triggering_event)
-        
-        if criteria_met:
-            # Validate to prevent gaming
-            validation_passed = await validate_achievement_unlock(user_id, achievement)
+        try:
+            # Check criteria
+            criteria_met = await check_achievement_criteria(user_id, achievement, triggering_event)
             
-            if validation_passed:
-                # Unlock achievement
-                unlocked = await unlock_achievement(user_id, achievement)
-                newly_unlocked.append(unlocked)
+            if criteria_met:
+                # Validate to prevent gaming
+                validation_passed = await validate_achievement_unlock(user_id, achievement)
+                
+                if validation_passed:
+                    # Unlock achievement
+                    unlocked = await unlock_achievement(user_id, achievement)
+                    # Only append if XP was actually awarded (0-xp means it was a duplicate skip)
+                    newly_unlocked.append(unlocked)
+        except Exception as ach_err:
+            # Never let a single achievement failure kill the whole check
+            logger.warning(
+                f"Achievement check/unlock failed for user {user_id}, "
+                f"achievement '{achievement.get('name', '?')}': {ach_err}"
+            )
+            continue
     
     return newly_unlocked
 
@@ -388,7 +397,7 @@ async def validate_achievement_unlock(user_id: str, achievement: Dict) -> bool:
         # Validate time span for answer-based achievements
         answers = await db.answer.find_many(
             where={"authorId": user_id},
-            order_by={"createdAt": "asc"}
+            order={"createdAt": "asc"}
         )
         
         if len(answers) >= 2:
@@ -461,13 +470,24 @@ async def unlock_achievement(user_id: str, achievement: Dict) -> Dict[str, Any]:
             "unlocked_at": existing.unlockedAt
         }
 
-    # Create unlock record
-    unlock = await db.achievementunlock.create(
-        data={
-            "userId": user_id,
-            "achievementId": achievement_record.id,
-        }
-    )
+    # Create unlock record — wrap in try/except to handle concurrent duplicate inserts gracefully
+    try:
+        unlock = await db.achievementunlock.create(
+            data={
+                "userId": user_id,
+                "achievementId": achievement_record.id,
+            }
+        )
+    except Exception as dup_err:
+        if "Unique constraint" in str(dup_err):
+            logger.info(f"Achievement {achievement['name']} already unlocked (concurrent write) for {user_id} — skipping")
+            return {
+                "id": achievement["id"],
+                "name": achievement["name"],
+                "xp_reward": 0,
+                "unlocked_at": None
+            }
+        raise
     
     # Award XP
     xp_reward = achievement["xp_reward"]
