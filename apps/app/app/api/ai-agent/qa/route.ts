@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
         await getPrisma().message.createMany({
           data: [
             { conversationId: conv.id, role: "user", content: question },
-            { conversationId: conv.id, role: "assistant", content: answer, metadata: messageMetadata },
+            { conversationId: conv.id, role: "assistant", content: answer, metadata: messageMetadata ?? undefined },
           ],
         });
       }).catch((e: unknown) => console.error("[API][QA] DB persist failed:", e));

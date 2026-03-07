@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { PrismaClient, PointEventType } from "@prisma/client";
+import type { Session } from "next-auth";
 
 let __prisma__: PrismaClient | undefined;
 function getPrisma() {
@@ -38,8 +39,10 @@ export async function GET(request: Request) {
 
 // POST /api/users/me/credits - Redeem credits for actions
 export async function POST(request: Request) {
+  let session: Session | null = null;
+  let cost = 1;
   try {
-    const session = await getServerSession(authOptions);
+    session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -61,7 +64,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Action is required" }, { status: 400 });
     }
 
-    const cost = amount || 1; // Default cost of 1 credit
+    cost = amount || 1; // Default cost of 1 credit
 
     // Use transaction to ensure data consistency
     const result = await getPrisma().$transaction(async (tx) => {
@@ -116,10 +119,10 @@ export async function POST(request: Request) {
     }
     
     if (error.message === "Insufficient credits") {
-      const currentUser = await getPrisma().user.findUnique({
+      const currentUser = session?.user?.email ? await getPrisma().user.findUnique({
         where: { email: session.user.email },
         select: { credits: true }
-      });
+      }) : null;
       
       return NextResponse.json({
         error: "Insufficient credits",
