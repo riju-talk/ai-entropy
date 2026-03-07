@@ -9,7 +9,7 @@ applications:
             - npm install --legacy-peer-deps
         build:
           commands:
-            - npm build
+            - npm run build
       artifacts:
         baseDirectory: .next
         files:
