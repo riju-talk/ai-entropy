@@ -3,8 +3,8 @@ Entropy AI Bedrock Service
 ======================
 Drop-in replacement for Gemini + Pinecone.
 
-  LLM  : Amazon Bedrock â€” Claude 3 Sonnet
-  Embed: Amazon Bedrock â€” Titan Embeddings V2
+  LLM  : Amazon Bedrock — Amazon Nova Premier
+  Embed: Amazon Bedrock — Titan Embeddings V2
 
 Usage example:
     from app.services.bedrock_service import (
@@ -131,19 +131,38 @@ class BedrockService:
 
     def _invoke_messages(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         system: Optional[str],
         temperature: float,
         max_tokens: int,
     ) -> str:
+        # Amazon Nova uses {"text": "..."} content blocks (no "type" field),
+        # inferenceConfig for token/temperature params, and a different response shape.
+        normalized: List[Dict[str, Any]] = []
+        for msg in messages:
+            content = msg["content"]
+            if isinstance(content, str):
+                content = [{"text": content}]
+            elif isinstance(content, list):
+                # Convert Claude-style {"type": "text", "text": ...} → {"text": ...}
+                nova_blocks = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        nova_blocks.append({"text": block["text"]})
+                    else:
+                        nova_blocks.append(block)
+                content = nova_blocks
+            normalized.append({"role": msg["role"], "content": content})
+
         body: Dict[str, Any] = {
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "messages": messages,
+            "messages": normalized,
+            "inferenceConfig": {
+                "maxTokens": max_tokens,
+                "temperature": temperature,
+            },
         }
         if system:
-            body["system"] = system
+            body["system"] = [{"text": system}]
 
         response = self._client.invoke_model(
             modelId=self.model_id,
@@ -152,18 +171,17 @@ class BedrockService:
             body=json.dumps(body),
         )
         result = json.loads(response["body"].read())
-        return result["content"][0]["text"]
+        return result["output"]["message"]["content"][0]["text"]
 
     # â”€â”€ Embedding helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def embed(self, text: str) -> np.ndarray:
         """
-        Generate a 1536-dim embedding using Titan Embed Text V2.
-        Normalised to unit length (cosine-ready).
+        Generate a 1536-dim embedding using Titan Embed Text V1.
         """
         if not text or not text.strip():
             raise ValueError("Cannot embed empty text.")
-        body = json.dumps({"inputText": text, "dimensions": 1536, "normalize": True})
+        body = json.dumps({"inputText": text})
         response = self._client.invoke_model(
             modelId=TITAN_EMBED_ID,
             contentType="application/json",
@@ -192,20 +210,19 @@ class BedrockService:
         """
         import base64
         b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
+        # Nova image format: {"image": {"format": "jpeg"|"png", "source": {"bytes": b64}}}
+        fmt = media_type.split("/")[-1]  # "jpeg" or "png"
         messages = [
             {
                 "role": "user",
                 "content": [
                     {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": b64,
+                        "image": {
+                            "format": fmt,
+                            "source": {"bytes": b64},
                         },
                     },
                     {
-                        "type": "text",
                         "text": (
                             "Extract ALL text visible in this image, preserving layout as much as possible. "
                             "If the image contains diagrams, charts, tables, or illustrations, describe them "
@@ -216,9 +233,8 @@ class BedrockService:
             }
         ]
         body: Dict[str, Any] = {
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 2048,
             "messages": messages,
+            "inferenceConfig": {"maxTokens": 2048},
         }
         response = self._client.invoke_model(
             modelId=self.model_id,
@@ -227,7 +243,7 @@ class BedrockService:
             body=json.dumps(body),
         )
         result = json.loads(response["body"].read())
-        return result["content"][0]["text"]
+        return result["output"]["message"]["content"][0]["text"]
     def similarity(self, text1: str, text2: str) -> float:
         """Cosine similarity between two texts (already normalized)."""
         e1 = self.embed(text1)

@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     """Entropy AI Engine application settings — all values loaded from .env"""
 
     # ── Google Gemini ────────────────────────────────────────────────────────
-    AWS_REGION: str = "ap-northeast-1"
+    AWS_REGION: str = "eu-north-1"
     BEDROCK_CLAUDE_MODEL: str = "anthropic.claude-3-sonnet-20240229-v1:0"
     BEDROCK_TITAN_EMBED: str = "amazon.titan-embed-text-v2:0"
     LLM_MODEL: str = "anthropic.claude-3-sonnet-20240229-v1:0"
@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5000"
 
     # ── S3 Document Storage ──────────────────────────────────────────────────
-    S3_BUCKET_NAME: str = "entropy-documents"
+    S3_BUCKET_NAME: str = "entropy-main"
     S3_PRESIGN_EXPIRY_SECS: int = 3600
 
     # ── Upload storage ───────────────────────────────────────────────────────

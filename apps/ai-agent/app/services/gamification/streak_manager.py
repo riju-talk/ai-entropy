@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import Optional
 
+from prisma.fields import Json
 from app.core.database import get_db
 
 logger = logging.getLogger(__name__)
@@ -37,16 +38,8 @@ async def update_user_streak(user_id: str) -> StreakResult:
     """
     db = get_db()
     
-    user = await db.user.find_unique({
-        "where": {"id": user_id},
-        "select": {
-            "currentStreak": True,
-            "longestStreak": True,
-            "lastStreakDate": True,
-            "lastActiveAt": True
-        }
-    })
-    
+    user = await db.user.find_unique(where={"id": user_id})
+
     if not user:
         return StreakResult(
             current_streak=0,
@@ -54,24 +47,25 @@ async def update_user_streak(user_id: str) -> StreakResult:
             last_activity=datetime.now(),
             milestone_reached=False
         )
-    
+
+    streak = await db.streak.find_unique(where={"userId": user_id})
+
     now = datetime.now()
     today = now.date()
     
-    last_activity_date = user.lastStreakDate.date() if user.lastStreakDate else None
+    last_activity_date = streak.lastActivityDate.date() if streak and streak.lastActivityDate else None
+    current_streak = (streak.currentStreak or 0) if streak else 0
     
     # Already counted activity today
     if last_activity_date == today:
         return StreakResult(
-            current_streak=user.currentStreak or 0,
-            longest_streak=user.longestStreak or 0,
+            current_streak=current_streak,
+            longest_streak=(streak.longestStreak or 0) if streak else 0,
             last_activity=user.lastActiveAt or now,
             milestone_reached=False
         )
     
     # Calculate new streak
-    current_streak = user.currentStreak or 0
-    
     if last_activity_date is None:
         # First activity ever
         new_streak = 1
@@ -86,33 +80,44 @@ async def update_user_streak(user_id: str) -> StreakResult:
         new_streak = 1
     
     # Update longest streak
-    longest_streak = max(user.longestStreak or 0, new_streak)
+    longest_streak = max((streak.longestStreak or 0) if streak else 0, new_streak)
     
     # Check for milestone
     milestone_reached = new_streak in [7, 14, 30, 60, 90, 180, 365]
     
-    # Update database
-    await db.user.update({
-        "where": {"id": user_id},
-        "data": {
-            "currentStreak": new_streak,
-            "longestStreak": longest_streak,
-            "lastStreakDate": now,
-            "lastActiveAt": now
-        }
-    })
-    
-    # Log streak event
-    await db.event_log.create({
-        "data": {
-            "eventType": "STREAK_UPDATED",
-            "userId": user_id,
-            "metadata": {
-                "current_streak": new_streak,
-                "longest_streak": longest_streak,
-                "milestone": milestone_reached
+    # Upsert streak record
+    await db.streak.upsert(
+        where={"userId": user_id},
+        data={
+            "update": {
+                "currentStreak": new_streak,
+                "longestStreak": longest_streak,
+                "lastActivityDate": now,
+            },
+            "create": {
+                "userId": user_id,
+                "currentStreak": new_streak,
+                "longestStreak": longest_streak,
+                "lastActivityDate": now,
             }
         }
+    )
+
+    # Update lastActiveAt on user
+    await db.user.update(
+        where={"id": user_id},
+        data={"lastActiveAt": now}
+    )
+
+    # Log streak event
+    await db.eventlog.create(data={
+        "eventType": "STREAK_UPDATED",
+        "userId": user_id,
+        "metadata": Json({
+            "current_streak": new_streak,
+            "longest_streak": longest_streak,
+            "milestone": milestone_reached
+        })
     })
     
     if milestone_reached:
@@ -130,16 +135,8 @@ async def get_user_streak(user_id: str) -> StreakResult:
     """Get user's current streak without updating."""
     db = get_db()
     
-    user = await db.user.find_unique({
-        "where": {"id": user_id},
-        "select": {
-            "currentStreak": True,
-            "longestStreak": True,
-            "lastStreakDate": True,
-            "lastActiveAt": True
-        }
-    })
-    
+    user = await db.user.find_unique(where={"id": user_id})
+
     if not user:
         return StreakResult(
             current_streak=0,
@@ -147,12 +144,12 @@ async def get_user_streak(user_id: str) -> StreakResult:
             last_activity=datetime.now(),
             milestone_reached=False
         )
-    
-    # Check if streak is still valid (not broken)
+
+    streak = await db.streak.find_unique(where={"userId": user_id})
+
     today = datetime.now().date()
-    last_activity_date = user.lastStreakDate.date() if user.lastStreakDate else None
-    
-    current_streak = user.currentStreak or 0
+    last_activity_date = streak.lastActivityDate.date() if streak and streak.lastActivityDate else None
+    current_streak = (streak.currentStreak or 0) if streak else 0
     
     if last_activity_date and last_activity_date < today - timedelta(days=1):
         # Streak broken
@@ -160,7 +157,7 @@ async def get_user_streak(user_id: str) -> StreakResult:
     
     return StreakResult(
         current_streak=current_streak,
-        longest_streak=user.longestStreak or 0,
+        longest_streak=(streak.longestStreak or 0) if streak else 0,
         last_activity=user.lastActiveAt or datetime.now(),
         milestone_reached=False
     )
@@ -180,24 +177,24 @@ async def validate_streak_authenticity(user_id: str) -> bool:
     # Get last 7 days of event logs
     week_ago = datetime.now() - timedelta(days=7)
     
-    events = await db.event_log.find_many({
-        "where": {
+    events = await db.eventlog.find_many(
+        where={
             "userId": user_id,
-            "timestamp": {"gte": week_ago}
+            "emittedAt": {"gte": week_ago}
         },
-        "orderBy": {"timestamp": "asc"}
-    })
+        order_by={"emittedAt": "asc"}
+    )
     
     if not events:
         return True
     
     # Check for suspicious patterns
-    event_dates = [event.timestamp.date() for event in events]
+    event_dates = [event.emittedAt.date() for event in events]
     
     # Pattern 1: Multiple activities in very short time
     time_gaps = []
     for i in range(1, len(events)):
-        gap = (events[i].timestamp - events[i-1].timestamp).total_seconds()
+        gap = (events[i].emittedAt - events[i-1].emittedAt).total_seconds()
         time_gaps.append(gap)
     
     if time_gaps:
@@ -208,7 +205,7 @@ async def validate_streak_authenticity(user_id: str) -> bool:
             return False
     
     # Pattern 2: Activity at exact same time each day (bot)
-    activity_times = [event.timestamp.time() for event in events]
+    activity_times = [event.emittedAt.time() for event in events]
     if len(set(activity_times)) == 1 and len(activity_times) > 3:
         logger.warning(f"Suspicious streak pattern for user {user_id}: exact same time")
         return False

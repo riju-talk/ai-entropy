@@ -46,7 +46,7 @@ async def traverse_prerequisites(
     Returns:
         List of prerequisite dicts with {id, name, distance, mastered}
     """
-    driver = get_driver()
+    driver = await get_driver()
     if driver is None:
         return []
     
@@ -83,12 +83,12 @@ async def traverse_prerequisites(
                 from app.core.database import get_db
                 try:
                     db = get_db()
-                    mastery = await db.mastery_record.find_first({
-                        "where": {
+                    mastery = await db.masteryrecord.find_first(
+                        where={
                             "userId": user_id,
                             "conceptId": record["id"]
                         }
-                    })
+                    )
                     if mastery and mastery.masteryScore >= 0.7:
                         prereq["mastered"] = True
                 except Exception as e:
@@ -120,7 +120,7 @@ async def find_related_concepts(
     Returns:
         List of related concept dicts
     """
-    driver = get_driver()
+    driver = await get_driver()
     if driver is None:
         return []
     
@@ -172,7 +172,7 @@ async def find_dependent_concepts(
     Returns:
         List of dependent concept dicts
     """
-    driver = get_driver()
+    driver = await get_driver()
     if driver is None:
         return []
     
@@ -225,7 +225,7 @@ async def compute_learning_path(
     Returns:
         Ordered list of concept IDs (start â†’ target)
     """
-    driver = get_driver()
+    driver = await get_driver()
     if driver is None:
         return [concept_id]
     
@@ -249,13 +249,13 @@ async def compute_learning_path(
             from app.core.database import get_db
             try:
                 db = get_db()
-                mastery_records = await db.mastery_record.find_many({
-                    "where": {
+                mastery_records = await db.masteryrecord.find_many(
+                    where={
                         "userId": user_id,
                         "conceptId": {"in": path},
                         "masteryScore": {"gte": 0.7}
                     }
-                })
+                )
                 mastered_ids = {m.conceptId for m in mastery_records}
                 
                 # Keep only non-mastered concepts
@@ -288,7 +288,7 @@ async def build_graph_context(
     Returns:
         GraphContext with all relevant graph information
     """
-    driver = get_driver()
+    driver = await get_driver()
     if driver is None:
         return GraphContext(
             concept_id=concept_id,

@@ -56,36 +56,30 @@ async def get_concept_mastery(
         db = get_db()
         
         # Get mastery record
-        mastery = await db.mastery_record.find_first({
-            "where": {
+        mastery = await db.masteryrecord.find_first(
+            where={
                 "userId": user_id,
                 "conceptId": concept_id
             },
-            "include": {
-                "concept": True
-            },
-            "orderBy": {
-                "lastAttempt": "desc"
-            }
-        })
+            include={"concept": True},
+            order={"updatedAt": "desc"}
+        )
         
         if not mastery:
             return None
         
         # Calculate trend
         trend = "stable"
-        if mastery.attempts >= 3:
+        if mastery.totalAttempts >= 3:
             # Simple trend: compare last 2 attempts
-            history = await db.mastery_record.find_many({
-                "where": {
+            history = await db.masteryrecord.find_many(
+                where={
                     "userId": user_id,
                     "conceptId": concept_id
                 },
-                "orderBy": {
-                    "lastAttempt": "desc"
-                },
-                "take": 2
-            })
+                order={"updatedAt": "desc"},
+                take=2
+            )
             
             if len(history) == 2:
                 if history[0].masteryScore > history[1].masteryScore + 0.05:
@@ -97,8 +91,8 @@ async def get_concept_mastery(
             concept_id=concept_id,
             concept_name=mastery.concept.name if mastery.concept else "Unknown",
             mastery_score=mastery.masteryScore,
-            attempts=mastery.attempts,
-            last_attempt=mastery.lastAttempt,
+            attempts=mastery.totalAttempts,
+            last_attempt=mastery.lastSeen,
             trend=trend
         )
     
@@ -120,28 +114,28 @@ async def get_all_mastery(user_id: str) -> List[MasteryState]:
     try:
         db = get_db()
         
-        records = await db.mastery_record.find_many({
-            "where": {"userId": user_id},
-            "include": {"concept": True},
-            "orderBy": {"lastAttempt": "desc"}
-        })
+        records = await db.masteryrecord.find_many(
+            where={"userId": user_id},
+            include={"concept": True},
+            order={"updatedAt": "desc"}
+        )
         
         masteries = []
         for record in records:
             # Calculate trend (simplified)
             trend = "stable"
-            if record.attempts >= 2:
+            if record.totalAttempts >= 2:
                 if record.masteryScore >= 0.7:
                     trend = "stable"  # Already mastered
-                elif record.attempts <= 3:
+                elif record.totalAttempts <= 3:
                     trend = "improving"  # Early attempts
             
             masteries.append(MasteryState(
                 concept_id=record.conceptId,
                 concept_name=record.concept.name if record.concept else "Unknown",
                 mastery_score=record.masteryScore,
-                attempts=record.attempts,
-                last_attempt=record.lastAttempt,
+                attempts=record.totalAttempts,
+                last_attempt=record.lastSeen,
                 trend=trend
             ))
         
@@ -168,10 +162,7 @@ async def compute_cognitive_state(user_id: str) -> CognitiveState:
         db = get_db()
         
         # Get user data
-        user = await db.user.find_unique({
-            "where": {"id": user_id},
-            "select": {"lastActiveAt": True}
-        })
+        user = await db.user.find_unique(where={"id": user_id})
         
         if not user:
             raise ValueError(f"User {user_id} not found")

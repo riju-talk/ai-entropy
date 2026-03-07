@@ -10,6 +10,7 @@ from typing import Callable, Dict, List, Any, Awaitable
 from collections import defaultdict
 from datetime import datetime
 
+from prisma.fields import Json
 from app.services.events.event_definitions import Event, EventType
 from app.core.database import get_db
 
@@ -103,13 +104,11 @@ class EventBus:
         """Log event to database for audit trail."""
         try:
             db = get_db()
-            await db.event_log.create({
-                "data": {
-                    "eventType": event.event_type.value,
-                    "userId": event.user_id,
-                    "metadata": event.metadata,
-                    "emittedAt": event.timestamp
-                }
+            await db.eventlog.create(data={
+                "eventType": event.event_type.value,
+                "userId": event.user_id,
+                "metadata": Json(event.metadata if event.metadata else {}),
+                "emittedAt": event.timestamp
             })
         except Exception as e:
             logger.error(f"Failed to log event to database: {e}")

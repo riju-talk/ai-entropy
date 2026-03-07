@@ -48,23 +48,63 @@ export async function getCognitiveProfile(userId: string): Promise<{
     error?: string
 }> {
     try {
-        // ── 1. Mastery profile from Python backend ──
+        // ── 1. Cognitive stats from Python backend (single call) ──
         let concepts: ConceptRecord[] = []
         let weak_concepts: string[] = []
         let strong_concepts: string[] = []
         let overall_progress = 0
+        let exam_readiness = 0
+        let volatility = 0
+        let cognitive_load = 0
+        let recall = 0
+        let reasoning = 0
+        let speed = 0
+        let accuracy = 0
 
         try {
-            const res = await fetch(`${AI_BACKEND}/api/mastery/profile/${userId}`, {
-                headers: { Authorization: `Bearer ${AI_TOKEN}` },
-                cache: "no-store",
-            })
-            if (res.ok) {
-                const json = await res.json()
+            const [statsRes, profileRes] = await Promise.all([
+                fetch(`${AI_BACKEND}/api/mastery/cognitive-stats/${userId}`, {
+                    headers: { Authorization: `Bearer ${AI_TOKEN}` },
+                    cache: "no-store",
+                }),
+                fetch(`${AI_BACKEND}/api/mastery/profile/${userId}`, {
+                    headers: { Authorization: `Bearer ${AI_TOKEN}` },
+                    cache: "no-store",
+                }),
+            ])
+
+            if (profileRes.ok) {
+                const json = await profileRes.json()
                 concepts = json.concepts || []
                 weak_concepts = json.weak_concepts || []
                 strong_concepts = json.strong_concepts || []
                 overall_progress = json.overall_progress || 0
+            }
+
+            if (statsRes.ok) {
+                const stats = await statsRes.json()
+                exam_readiness = stats.exam_readiness ?? 0
+                volatility = stats.volatility ?? 0
+                cognitive_load = stats.cognitive_load ?? 0
+                recall = stats.recall ?? 0
+                reasoning = stats.reasoning ?? 0
+                speed = stats.speed ?? 0
+                accuracy = stats.accuracy ?? 0
+            } else {
+                // Derive locally if stats endpoint not yet deployed
+                const total = concepts.length
+                const weak_ratio = total > 0 ? weak_concepts.length / total : 0
+                exam_readiness = Math.round(overall_progress * 100)
+                volatility = Math.round(weak_ratio * 100)
+                const low_conf = concepts.filter(c => c.confidence_weight < 0.7).length
+                cognitive_load = total > 0 ? Math.round((low_conf / total) * 100) : 0
+                recall = total > 0 ? Math.round((strong_concepts.length / total) * 100) : 0
+                reasoning = total > 0 ? Math.max(20, Math.round((1 - weak_ratio) * 100)) : 0
+                const avg_conf = total > 0 ? concepts.reduce((s, c) => s + c.confidence_weight, 0) / total : 0
+                speed = Math.round(avg_conf * 100)
+                const total_attempts = concepts.reduce((s, c) => s + c.total_attempts, 0)
+                const correct_attempts = concepts.reduce((s, c) => s + c.correct_attempts, 0)
+                accuracy = total_attempts > 0 ? Math.round((correct_attempts / total_attempts) * 100) : 0
             }
         } catch {
             // Backend not reachable - use empty data
@@ -93,38 +133,6 @@ export async function getCognitiveProfile(userId: string): Promise<{
         const doc_count = user?.documentCount ?? 0
         const current_streak = user?.streaks?.currentStreak ?? 0
         const longest_streak = user?.streaks?.longestStreak ?? 0
-
-        // ── 3. Derive cognitive metrics ──
-        const total = concepts.length
-        const exam_readiness = total > 0
-            ? Math.round(overall_progress * 100)
-            : 0
-
-        const weak_ratio = total > 0 ? weak_concepts.length / total : 0
-        const volatility = Math.round(weak_ratio * 100)
-
-        // cognitive_load: based on concepts with low confidence weight
-        const low_conf = concepts.filter(c => c.confidence_weight < 0.7).length
-        const cognitive_load = total > 0 ? Math.round((low_conf / total) * 100) : 0
-
-        // Recall = strong ratio
-        const recall = total > 0 ? Math.round((strong_concepts.length / total) * 100) : 0
-
-        // Reasoning = (~weak inverse, but floor at 20 if any data)
-        const reasoning = total > 0 ? Math.max(20, Math.round((1 - weak_ratio) * 100)) : 0
-
-        // Speed = avg confidence_weight * 100
-        const avg_conf = total > 0
-            ? concepts.reduce((s, c) => s + c.confidence_weight, 0) / total
-            : 0
-        const speed = Math.round(avg_conf * 100)
-
-        // Accuracy = overall correct ratio
-        const total_attempts = concepts.reduce((s, c) => s + c.total_attempts, 0)
-        const correct_attempts = concepts.reduce((s, c) => s + c.correct_attempts, 0)
-        const accuracy = total_attempts > 0
-            ? Math.round((correct_attempts / total_attempts) * 100)
-            : 0
 
         return {
             success: true,

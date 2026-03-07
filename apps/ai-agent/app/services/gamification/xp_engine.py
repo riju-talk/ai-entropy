@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 
+from prisma.fields import Json
 from app.core.database import get_db
 
 logger = logging.getLogger(__name__)
@@ -31,16 +32,31 @@ class XPCalculation:
 
 # Base XP values for different activities
 BASE_XP_VALUES = {
+    # AI-specific events
     "ANSWER_ACCEPTED": 100,
     "MASTERY_GAIN": 50,
-    "DOUBT_UPVOTED": 10,
-    "ANSWER_UPVOTED": 5,
+    "MASTERY_UPDATED": 50,
     "CONCEPT_ATTEMPTED": 20,
     "CONCEPT_COMPLETED": 75,
-    "ACHIEVEMENT_UNLOCKED": 0,  # Variable per achievement
     "STREAK_MILESTONE": 50,
     "HELPFUL_VOTE": 3,
-    "QUALITY_DOUBT": 25
+    "QUALITY_DOUBT": 25,
+    "ACHIEVEMENT_UNLOCKED": 0,  # Variable per achievement (set via metadata base_xp)
+    # Community events (forwarded from Next.js)
+    "DOUBT_CREATED": 10,
+    "DOUBT_UPVOTED": 10,
+    "DOUBT_RESOLVED": 15,
+    "ANSWER_SUBMITTED": 5,
+    "ANSWER_UPVOTED": 5,
+    "COMMENT_CREATED": 2,
+    "UPVOTE_RECEIVED": 5,
+    "VOTE_CAST": 3,
+    "BADGE_EARNED": 30,
+    "DAILY_LOGIN": 5,
+    # Negative/penalty events
+    "DOWNVOTE_RECEIVED": -2,
+    "ANSWER_DOWNVOTED": -2,
+    "DOUBT_DOWNVOTED": -1,
 }
 
 
@@ -77,6 +93,18 @@ async def calculate_xp(
             reason="Unknown event type"
         )
     
+    # For penalty events (negative XP), skip multipliers and return flat penalty
+    if base_xp < 0:
+        return XPCalculation(
+            base_xp=base_xp,
+            trust_mult=1.0,
+            time_decay=1.0,
+            fact_check_mult=1.0,
+            difficulty_mult=1.0,
+            final_xp=base_xp,
+            reason=metadata.get("reason", event_type)
+        )
+    
     # Calculate multipliers
     trust_mult = await calculate_trust_multiplier(user_id)
     time_decay = calculate_time_decay(metadata.get("content_age_days"))
@@ -106,10 +134,7 @@ async def calculate_trust_multiplier(user_id: str) -> float:
     """
     db = get_db()
     
-    user = await db.user.find_unique({
-        "where": {"id": user_id},
-        "select": {"trustScoreCache": True}
-    })
+    user = await db.user.find_unique(where={"id": user_id})
     
     if not user:
         return 0.5  # Default for new users
@@ -200,27 +225,25 @@ async def award_xp(
     db = get_db()
     
     # Create XP ledger entry
-    await db.xp_ledger.create({
-        "data": {
-            "userId": user_id,
-            "eventType": event_type,
-            "conceptId": metadata.get("concept_id"),
-            "baseXP": calculation.base_xp,
-            "trustMult": calculation.trust_mult,
-            "timeDecay": calculation.time_decay,
-            "factCheckMult": calculation.fact_check_mult,
-            "difficultyMult": calculation.difficulty_mult,
-            "finalXP": calculation.final_xp,
-            "reason": calculation.reason,
-            "metadata": metadata or {}
-        }
+    await db.xpledger.create(data={
+        "userId": user_id,
+        "eventType": event_type,
+        "conceptId": metadata.get("concept_id"),
+        "baseXP": calculation.base_xp,
+        "masteryMult": calculation.difficulty_mult,
+        "trustMult": calculation.trust_mult,
+        "timeDecay": calculation.time_decay,
+        "factCheckMult": calculation.fact_check_mult,
+        "finalXP": calculation.final_xp,
+        "reason": calculation.reason,
+        "metadata": Json(metadata) if metadata else None
     })
-    
-    # Update user's total XP
-    await db.user.update({
-        "where": {"id": user_id},
-        "data": {"totalXP": {"increment": calculation.final_xp}}
-    })
+
+    # Update user's total XP (increment with negative value handles penalties too)
+    await db.user.update(
+        where={"id": user_id},
+        data={"totalXP": {"increment": calculation.final_xp}}
+    )
     
     logger.info(
         f"Awarded {calculation.final_xp} XP to user {user_id} "
@@ -241,13 +264,13 @@ async def get_xp_breakdown(user_id: str, days: int = 7) -> Dict[str, Any]:
     
     since = datetime.now() - timedelta(days=days)
     
-    ledger_entries = await db.xp_ledger.find_many({
-        "where": {
+    ledger_entries = await db.xpledger.find_many(
+        where={
             "userId": user_id,
-            "timestamp": {"gte": since}
+            "createdAt": {"gte": since}
         }
-    })
-    
+    )
+
     total_xp = sum(entry.finalXP for entry in ledger_entries)
     
     # Group by event type
@@ -278,13 +301,13 @@ async def validate_xp_authenticity(user_id: str) -> bool:
     # Get last 24h of XP
     since = datetime.now() - timedelta(hours=24)
     
-    ledger_entries = await db.xp_ledger.find_many({
-        "where": {
+    ledger_entries = await db.xpledger.find_many(
+        where={
             "userId": user_id,
-            "timestamp": {"gte": since}
+            "createdAt": {"gte": since}
         },
-        "orderBy": {"timestamp": "asc"}
-    })
+        order_by={"createdAt": "asc"}
+    )
     
     if not ledger_entries:
         return True

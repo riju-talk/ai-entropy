@@ -128,6 +128,44 @@ class AgenticRAGService:
         all_sources = rag_sources + research_sources
         combined_rag = "\n\n".join(filter(None, [rag_context, research_context])) or None
 
+        # ── Step 3.5: Collective learning intelligence ───────────────────
+        # Enrich context with platform-wide stats for concepts mentioned in question.
+        # This gives every answer the benefit of what thousands of learners have struggled with.
+        try:
+            from app.services import knowledge_graph_service as _kg
+            global_stats = await _kg.get_concepts_matching_question(question)
+            if global_stats:
+                lines = ["**Collective Learning Intelligence (platform-wide data):**"]
+                for cname, s in list(global_stats.items())[:4]:
+                    if s["total_learners"] >= 2:
+                        struggle = s["struggle_rate"]
+                        avg_m = s["avg_mastery"]
+                        note = (
+                            f"{struggle}% of learners find this challenging"
+                            if struggle > 40
+                            else f"avg mastery {avg_m}% across {s['total_learners']} learners"
+                        )
+                        lines.append(f"  - '{cname}': {note}.")
+                if len(lines) > 1:
+                    global_intelligence = "\n".join(lines)
+                    combined_rag = (
+                        global_intelligence + "\n\n" + (combined_rag or "")
+                    ).strip() or None
+        except Exception as _ge:
+            logger.debug("Global intelligence enrichment skipped: %s", _ge)
+
+        # ── Step 3.6: Conversation history context ────────────────────────
+        # Prepend the last few turns so the reasoning engine maintains coherence.
+        if conversation_history:
+            recent_turns = conversation_history[-6:]  # last 3 exchanges
+            history_lines = ["**Prior conversation context:**"]
+            for msg in recent_turns:
+                role_label = "Student" if msg.get("role") == "user" else "Tutor"
+                content_preview = str(msg.get("content", ""))[:300]
+                history_lines.append(f"  [{role_label}]: {content_preview}")
+            history_str = "\n".join(history_lines)
+            combined_rag = (history_str + "\n\n" + (combined_rag or "")).strip() or None
+
         # ── Step 4: 7-layer AI Brain (NLI + trust scoring inside) ─────────
         result = await reason_with_context(
             question=question,

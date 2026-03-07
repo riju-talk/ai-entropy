@@ -1,15 +1,8 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { PrismaClient } from "@prisma/client"
 
-let __prisma__: PrismaClient | undefined
-function getPrisma() {
-	if (!__prisma__) {
-		__prisma__ = new PrismaClient({ log: ["error", "warn"] })
-	}
-	return __prisma__
-}
+const AI_AGENT_URL = process.env.AI_AGENT_URL || "http://localhost:8000"
 
 export const dynamic = "force-dynamic"
 
@@ -21,59 +14,25 @@ export async function GET() {
 			return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 		}
 
-		const user = await getPrisma().user.findUnique({
-			where: { email: session.user.email },
-			select: { id: true },
-		})
-
-		if (!user) {
-			return NextResponse.json({ error: "User not found" }, { status: 404 })
+		const userId = (session.user as any).id
+		if (!userId) {
+			return NextResponse.json({ error: "User ID not found in session" }, { status: 400 })
 		}
 
-		// Fetch user's unlocked achievements with details
-		const achievementUnlocks = await getPrisma().achievementUnlock.findMany({
-			where: { userId: user.id },
-			include: {
-				achievement: {
-					select: {
-						id: true,
-						name: true,
-						description: true,
-						icon: true,
-						rarity: true,
-						points: true,
-					},
-				},
-			},
-			orderBy: { unlockedAt: "desc" },
-		})
+		const resp = await fetch(
+			`${AI_AGENT_URL}/api/gamification/achievements/${encodeURIComponent(userId)}`,
+			{ cache: "no-store" }
+		)
 
-		// Fetch user's granted badges with details
-		const badgeGrants = await getPrisma().badgeGrant.findMany({
-			where: { userId: user.id },
-			include: {
-				badge: {
-					select: {
-						id: true,
-						name: true,
-						icon: true,
-						type: true,
-					},
-				},
-			},
-			orderBy: { grantedAt: "desc" },
-		})
+		if (!resp.ok) {
+			console.error("[API][ME/ACHIEVEMENTS] Backend error:", resp.status)
+			return NextResponse.json({ error: "Failed to fetch achievements" }, { status: resp.status })
+		}
 
-		return NextResponse.json({
-			achievements: achievementUnlocks.map((unlock) => ({
-				...unlock.achievement,
-				unlockedAt: unlock.unlockedAt,
-			})),
-			badges: badgeGrants.map((grant) => ({
-				...grant.badge,
-				grantedAt: grant.grantedAt,
-			})),
-		})
+		// AI backend returns a flat list of achievements with unlocked/unlocked_at fields.
+		// Wrap it to match the existing response shape {achievements, badges}.
+		const achievements = await resp.json()
+		return NextResponse.json({ achievements, badges: [] })
 	} catch (error) {
 		console.error("Error fetching user achievements:", error)
 		return NextResponse.json(

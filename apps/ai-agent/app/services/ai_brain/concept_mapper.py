@@ -95,7 +95,7 @@ async def resolve_concepts_to_graph(concept_matches: List[ConceptMatch]) -> List
     Returns:
         Same concepts but with concept_id filled in if found in graph
     """
-    driver = get_driver()
+    driver = await get_driver()
     if driver is None:
         logger.warning("Neo4j driver not available - skipping graph resolution")
         return concept_matches

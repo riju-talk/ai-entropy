@@ -21,6 +21,7 @@ from typing import Optional, List
 from pathlib import Path
 import logging
 import io
+import mimetypes
 
 from app.core.config import settings
 
@@ -277,4 +278,59 @@ async def upload_documents(
         "s3_uploads": s3_uploads,
         "errors":     errors,
     }
+
+
+@router.post("/presign")
+async def presign_upload(body: dict):
+    """
+    Generate a presigned PUT URL for direct browser-to-S3 upload.
+
+    Body: { "user_id": str, "filename": str, "content_type": str (optional) }
+    Returns: { "upload_url": str, "s3_key": str, "doc_id": str, "bucket": str }
+    """
+    s3_svc = _get_s3()
+    if not s3_svc:
+        raise HTTPException(503, detail="S3 is not configured (S3_BUCKET_NAME missing).")
+
+    user_id      = (body.get("user_id") or "anonymous").strip()
+    filename     = (body.get("filename") or "upload").strip()
+    content_type = body.get("content_type") or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+
+    import uuid, os as _os
+    from datetime import datetime as _dt
+    doc_id = str(uuid.uuid4())
+    ts     = _dt.utcnow().strftime("%Y%m%d%H%M%S")
+    ext    = _os.path.splitext(filename)[1] or ""
+    s3_key = f"documents/{user_id}/{ts}-{doc_id}{ext}"
+
+    upload_url = s3_svc.get_presigned_upload_url(s3_key, content_type=content_type)
+    return {
+        "upload_url": upload_url,
+        "s3_key":     s3_key,
+        "doc_id":     doc_id,
+        "bucket":     s3_svc.bucket,
+        "content_type": content_type,
+    }
+
+
+@router.get("/download")
+async def download_url(s3_key: str):
+    """
+    Generate a presigned GET URL for downloading a document from S3.
+
+    Query param: s3_key (e.g. documents/user123/20260101-uuid.pdf)
+    Returns: { "download_url": str, "expires_in": int }
+    """
+    s3_svc = _get_s3()
+    if not s3_svc:
+        raise HTTPException(503, detail="S3 is not configured.")
+
+    if not s3_key:
+        raise HTTPException(400, detail="s3_key is required.")
+
+    if not s3_svc.file_exists(s3_key):
+        raise HTTPException(404, detail="File not found in S3.")
+
+    url = s3_svc.get_presigned_url(s3_key)
+    return {"download_url": url, "s3_key": s3_key, "expires_in": 3600}
 

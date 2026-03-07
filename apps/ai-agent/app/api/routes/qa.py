@@ -8,7 +8,7 @@ Response includes a `cognitive_trace` block so the frontend CognitiveTraceCard
 can render real data instead of mock values.
 """
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, model_validator
 import logging
@@ -17,6 +17,7 @@ import math
 
 from app.services import reasoning_service
 from app.services.agentic_rag_service import agentic_rag_service
+from app.services.mastery_service import track_qa_interaction
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -53,7 +54,7 @@ async def qa_health():
 
 
 @router.post("/", summary="Ask a question (legacy /api/qa)")
-async def post_qa(payload: QAInput):
+async def post_qa(payload: QAInput, background_tasks: BackgroundTasks):
     if not payload.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
@@ -83,6 +84,13 @@ async def post_qa(payload: QAInput):
         difficulty_norm = round(min(1.0, max(0.0, difficulty_level / 10.0)), 2)
         confidence = float(result_dict.get("confidence_score") or 0.8)
         mastery_impact = max(1, min(5, math.ceil(confidence * 5)))
+        detected_concept: str = result_dict.get("concept", "")
+
+        # Fire-and-forget: persist mastery for this QA interaction
+        if payload.userId and detected_concept:
+            background_tasks.add_task(
+                track_qa_interaction, payload.userId, detected_concept, confidence
+            )
 
         return {
             # ── Primary answer ─────────────────────────────────────────────

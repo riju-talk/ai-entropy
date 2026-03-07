@@ -193,8 +193,7 @@ _mount("reasoning",      "app.api.routes.reasoning",      "/reasoning")
 _mount("evaluation",     "app.api.routes.evaluation",     "/evaluation")
 _mount("mastery",        "app.api.routes.mastery",        "/mastery")
 _mount("graph",          "app.api.routes.graph",          "/graph")
-# Gamification is handled exclusively by Next.js
-# _mount("gamification",   "app.api.routes.gamification",   "/gamification")
+_mount("gamification",   "app.api.routes.gamification",   "/gamification")
 
 # ---------------------------------------------------------------------------
 # Legacy / existing routes  (keep working for frontend)

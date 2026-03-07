@@ -10,6 +10,7 @@ from typing import List, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from prisma.fields import Json
 from app.core.database import get_db
 
 logger = logging.getLogger(__name__)
@@ -141,28 +142,26 @@ async def store_content_embedding(
     try:
         db = get_db()
         
-        await db.content_embedding.upsert({
-            "where": {
-                "contentId_contentType": {
+        await db.contentembedding.upsert(
+            where={
+                "contentType_contentId": {
                     "contentId": content_id,
                     "contentType": content_type
                 }
             },
-            "create": {
-                "contentId": content_id,
-                "contentType": content_type,
-                "userId": user_id,
-                "embedding": embedding,
-                "contentHash": content_hash,
-                "textLength": len(text)
-            },
-            "update": {
-                "embedding": embedding,
-                "contentHash": content_hash,
-                "textLength": len(text),
-                "updatedAt": datetime.utcnow()
+            data={
+                "create": {
+                    "contentId": content_id,
+                    "contentType": content_type,
+                    "userId": user_id,
+                    "text": text,
+                    "embedding": Json(embedding),
+                },
+                "update": {
+                    "embedding": Json(embedding),
+                }
             }
-        })
+        )
         
         logger.info(f"Stored embedding for {content_type} {content_id}")
     
@@ -196,29 +195,18 @@ async def find_similar_content(
         # Get recent content of same type
         since = datetime.utcnow() - timedelta(days=lookback_days)
         
-        candidates = await db.content_embedding.find_many({
-            "where": {
+        candidates = await db.contentembedding.find_many(
+            where={
                 "contentType": content_type,
                 "createdAt": {"gte": since}
             },
-            "take": 1000  # Limit search space
-        })
+            take=1000  # Limit search space
+        )
         
         matches = []
         
         for candidate in candidates:
-            # Check exact hash match first
-            if candidate.contentHash == content_hash:
-                matches.append(SimilarityMatch(
-                    content_id=candidate.contentId,
-                    content_type=candidate.contentType,
-                    user_id=candidate.userId,
-                    similarity=1.0,
-                    created_at=candidate.createdAt
-                ))
-                continue
-            
-            # Compute cosine similarity
+            # Compute cosine similarity directly (no contentHash field in schema)
             similarity = cosine_similarity(embedding, candidate.embedding)
             
             if similarity >= MODERATE_SIMILARITY_THRESHOLD:

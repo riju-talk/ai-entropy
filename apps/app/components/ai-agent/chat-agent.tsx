@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 import {
   Send, Loader2, User, BrainCircuit, Globe, Zap, Network,
   FlaskConical, ChevronDown, CheckCircle2, Layers, MessageSquare, Trophy,
-  Atom, ScanLine, Mic, MicOff,
+  Atom, ScanLine, Mic, MicOff, PlusCircle, BookOpen, CalendarDays, Bell,
 } from "lucide-react"
 import { ModeSelector, type LearningMode } from "./mode-selector"
 import { CognitiveTraceCard, type CognitiveTrace } from "./cognitive-trace-card"
@@ -281,10 +281,92 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
   const [masteryUpdate, setMasteryUpdate] = useState<{ conceptId: string; delta: number } | undefined>()
   const [structuredStep, setStructuredStep] = useState(0)
   const [voiceActive, setVoiceActive] = useState(false)
+  const [conversationId, setConversationId] = useState<string | undefined>()
+  const [reviewQueue, setReviewQueue] = useState<{ concept: string; mastery: number; urgency: string; suggested_prompt: string }[]>([])
+  const [studyPlanGoal, setStudyPlanGoal] = useState("")
+  const [studyPlanDays, setStudyPlanDays] = useState(7)
+  const [studyPlan, setStudyPlan] = useState<any | null>(null)
+  const [studyPlanLoading, setStudyPlanLoading] = useState(false)
+  const [showStudyPlan, setShowStudyPlan] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { toast } = useToast()
   const { data: session } = useSession()
+  const userId = session?.user?.id
+
+  // Load most recent conversation on mount
+  useEffect(() => {
+    if (!userId) return
+    fetch(`/api/ai-agent/conversations?user_id=${encodeURIComponent(userId)}`)
+      .then(r => r.json())
+      .then(data => {
+        const convs: any[] = data.conversations || []
+        if (convs.length === 0) return
+        const latest = convs[0]
+        setConversationId(latest.id)
+        // Load messages for this conversation
+        return fetch(`/api/ai-agent/conversations?user_id=${encodeURIComponent(userId)}&id=${latest.id}`)
+          .then(r => r.json())
+          .then(conv => {
+            const msgs: Message[] = (conv.messages || []).map((m: any) => ({
+              id: m.id,
+              role: m.role as "user" | "assistant",
+              content: m.content,
+              timestamp: new Date(m.createdAt),
+            }))
+            if (msgs.length > 0) setMessages(msgs)
+          })
+      })
+      .catch(() => {/* offline — start fresh */})
+  }, [userId])
+
+  // Fetch spaced repetition review queue
+  useEffect(() => {
+    if (!userId) return
+    fetch(`/api/ai-agent/mastery?action=review-queue&user_id=${encodeURIComponent(userId)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.queue?.length) setReviewQueue(data.queue)
+      })
+      .catch(() => {})
+  }, [userId])
+
+  // Generate study plan
+  const generateStudyPlan = useCallback(async () => {
+    if (!userId || !studyPlanGoal.trim()) return
+    setStudyPlanLoading(true)
+    try {
+      const res = await fetch("/api/ai-agent/mastery?action=study-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, goal: studyPlanGoal.trim(), days: studyPlanDays }),
+      })
+      const plan = await res.json()
+      setStudyPlan(plan)
+      setShowStudyPlan(true)
+    } catch { /* silent */ }
+    finally { setStudyPlanLoading(false) }
+  }, [userId, studyPlanGoal, studyPlanDays])
+
+  // Start a new chat session
+  const startNewChat = useCallback(async () => {
+    if (!userId) return
+    try {
+      const res = await fetch("/api/ai-agent/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      })
+      const conv = await res.json()
+      setConversationId(conv.id)
+      setMessages([])
+      setStructuredStep(0)
+      setActiveConceptId(undefined)
+    } catch {
+      setConversationId(undefined)
+      setMessages([])
+    }
+  }, [userId])
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -306,6 +388,19 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
   const sendMessage = useCallback(async () => {
     const text = input.trim()
     if (!text || loading) return
+
+    // If userId present but no conversation yet, create one first
+    if (userId && !conversationId) {
+      try {
+        const res = await fetch("/api/ai-agent/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId }),
+        })
+        const conv = await res.json()
+        setConversationId(conv.id)
+      } catch { /* continue without persisting */ }
+    }
 
     const detectedLang = detectLanguage(text)
     if (detectedLang === "hindi" && language === "auto") {
@@ -350,11 +445,18 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
           systemPrompt: systemHints || undefined,
           mode,
           language,
+          userId: userId || undefined,
+          conversationId: conversationId || undefined,
         }),
       })
 
       if (!response.ok) throw new Error("API error")
       const data = await response.json()
+
+      // Track conversation ID returned by the server
+      if (data.conversationId && !conversationId) {
+        setConversationId(data.conversationId)
+      }
 
       // Use real cognitive trace from backend if available; fall back to mock
       const trace: CognitiveTrace = data.cognitive_trace
@@ -420,7 +522,14 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
     } finally {
       setLoading(false)
     }
-  }, [input, loading, mode, language, structuredStep, contextDoc, toast])
+  }, [input, loading, mode, language, structuredStep, contextDoc, toast, userId, conversationId, startNewChat])
+
+  // Dismiss a review item by auto-asking the suggested prompt
+  const triggerReview = useCallback((item: typeof reviewQueue[0]) => {
+    setInput(item.suggested_prompt)
+    setReviewQueue(prev => prev.filter(r => r.concept !== item.concept))
+    inputRef.current?.focus()
+  }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -437,7 +546,54 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
   return (
     <div className="flex flex-col h-full bg-[#0a0a0f] relative">
 
-      {/* ── Exam Mode Overlay ── */}
+      {/* ── Study Plan Modal ── */}
+      {showStudyPlan && studyPlan && (
+        <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4">
+          <div className="w-full max-w-lg bg-[#0f0f1a] border border-purple-500/20 rounded-2xl p-5 mt-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-white/80">{studyPlan.title || "Your Study Plan"}</h3>
+                <p className="text-[10px] text-purple-400/60 mt-0.5">{studyPlan.final_outcome || studyPlan.goal}</p>
+              </div>
+              <button onClick={() => setShowStudyPlan(false)} className="text-white/20 hover:text-white/50 text-xs">✕</button>
+            </div>
+            <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+              {(studyPlan.daily_plan || []).map((day: any) => (
+                <div key={day.day} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-[9px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">Day {day.day}</span>
+                    <span className="text-[11px] font-semibold text-white/70">{day.concept_focus}</span>
+                  </div>
+                  <ul className="space-y-0.5">
+                    {(day.tasks || []).map((task: string, ti: number) => (
+                      <li key={ti} className="flex gap-1.5 items-start">
+                        <span className="text-emerald-400 text-[10px] mt-0.5">›</span>
+                        <span className="text-[10px] text-white/40 leading-relaxed">{task}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {day.milestone && (
+                    <p className="text-[9px] text-amber-400/60 mt-1.5 flex items-center gap-1">
+                      <Trophy className="h-2.5 w-2.5" />{day.milestone}
+                    </p>
+                  )}
+                  <p className="text-[8px] text-white/20 mt-1 font-mono">{day.estimated_minutes} min</p>
+                </div>
+              ))}
+            </div>
+            {studyPlan.success_metrics && (
+              <div className="mt-3 pt-3 border-t border-white/[0.06]">
+                <p className="text-[9px] text-white/30 uppercase tracking-widest mb-1">Success Metrics</p>
+                {studyPlan.success_metrics.map((m: string, i: number) => (
+                  <p key={i} className="text-[10px] text-emerald-400/60">✓ {m}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Exam Mode Overlay ── */}}
       {showExam && (
         <ExamModeOverlay
           onExit={() => { setShowExam(false); setMode("chat") }}
@@ -453,7 +609,36 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
         />
       )}
 
-      {/* ── Context doc banner ── */}
+      {/* ── Spaced Repetition Review Banner ── */}
+      {reviewQueue.length > 0 && messages.length === 0 && (
+        <div className="flex-shrink-0 border-b border-amber-500/10 bg-amber-500/[0.03] px-4 py-2">
+          <div className="flex items-center gap-2 mb-1.5">
+            <Bell className="h-3 w-3 text-amber-400/70" />
+            <span className="text-[9px] font-bold text-amber-400/70 uppercase tracking-widest">
+              {reviewQueue.filter(r => r.urgency === "critical").length > 0 ? "⚠ Critical Review Due" : "Review Due"}
+              <span className="ml-1.5 text-amber-400/40">({reviewQueue.length} concept{reviewQueue.length > 1 ? "s" : ""})</span>
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {reviewQueue.slice(0, 5).map(item => (
+              <button
+                key={item.concept}
+                onClick={() => triggerReview(item)}
+                className={cn(
+                  "px-2.5 py-1 rounded-lg border text-[9px] font-bold transition-all hover:scale-[1.02]",
+                  item.urgency === "critical"
+                    ? "bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/15"
+                    : "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/15"
+                )}
+              >
+                {item.concept} · {item.mastery}%
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Context doc banner ── */}}
       {contextDoc && (
         <div className="flex-shrink-0 flex items-center gap-2 px-5 py-1.5 bg-cyan-500/5 border-b border-cyan-500/10">
           <ScanLine className="h-3 w-3 text-cyan-400" />
@@ -473,7 +658,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
       {showGraph && (
         <div className="flex-shrink-0 border-b border-white/[0.06] bg-[#0c0c14]">
           <LiveKnowledgeGraph
-            userId={session?.user?.id}
+            userId={userId}
             activeConceptId={activeConceptId}
             masteryUpdate={masteryUpdate}
             height={180}
@@ -498,6 +683,18 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
 
         {/* Control strip */}
         <div className="flex items-center gap-2 px-4 py-2 border-b border-white/[0.04] overflow-x-auto">
+
+          {/* New Chat button */}
+          {userId && (
+            <button
+              onClick={startNewChat}
+              title="New Chat"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/[0.06] bg-white/[0.02] text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-white/50 hover:border-white/10 transition-all flex-shrink-0"
+            >
+              <PlusCircle className="h-3 w-3" />
+              <span className="hidden sm:inline">New</span>
+            </button>
+          )}
 
           {/* Mode selector */}
           <ModeSelector mode={mode} onChange={setMode} disabled={loading} />
@@ -538,6 +735,24 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
             <Network className="h-3 w-3" />
             <span className="hidden xl:inline">Graph</span>
           </button>
+
+          {/* Study Plan button */}
+          {userId && (
+            <button
+              onClick={() => {
+                if (showStudyPlan && studyPlan) { setShowStudyPlan(true); return }
+                const goal = input.trim() || "Master the current topic"
+                setStudyPlanGoal(goal)
+                generateStudyPlan()
+              }}
+              disabled={studyPlanLoading}
+              title="Generate AI Study Plan from your current goal"
+              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-500/20 bg-purple-500/5 text-purple-400/60 text-[9px] font-bold uppercase tracking-widest hover:bg-purple-500/10 hover:text-purple-400 transition-all flex-shrink-0 disabled:opacity-40"
+            >
+              {studyPlanLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <CalendarDays className="h-3 w-3" />}
+              <span className="hidden xl:inline">Plan</span>
+            </button>
+          )}
 
           {/* Exam simulation shortcut */}
           <button

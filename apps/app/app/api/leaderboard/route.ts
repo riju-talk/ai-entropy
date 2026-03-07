@@ -1,16 +1,26 @@
-import { NextResponse } from "next/server";
-import { getLeaderboard } from "@/lib/gamification";
+import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
+const AI_AGENT_URL = process.env.AI_AGENT_URL || "http://localhost:8000";
+
+export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
-        const period = (searchParams.get("period") as "all" | "weekly" | "monthly") || "all";
+        const limit = searchParams.get("limit") || "100";
 
-        const leaderboard = await getLeaderboard(period);
+        const resp = await fetch(
+            `${AI_AGENT_URL}/api/gamification/leaderboard/xp?limit=${limit}`,
+            { cache: "no-store" }
+        );
 
-        return NextResponse.json(leaderboard);
+        if (!resp.ok) {
+            console.error("[API][LEADERBOARD] Backend error:", resp.status);
+            return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: resp.status });
+        }
+
+        const data = await resp.json();
+        return NextResponse.json(data);
     } catch (error) {
         console.error("Error fetching leaderboard:", error);
         return NextResponse.json(

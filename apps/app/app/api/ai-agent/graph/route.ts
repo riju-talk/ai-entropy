@@ -19,6 +19,10 @@ export async function GET(req: NextRequest) {
     let upstreamPath: string
 
     switch (action) {
+      case "user-graph":
+        if (!userId) return NextResponse.json({ error: "user_id is required" }, { status: 400 })
+        upstreamPath = `/api/graph/user-graph/${encodeURIComponent(userId)}`
+        break
       case "context":
         if (!concept) return NextResponse.json({ error: "concept is required" }, { status: 400 })
         upstreamPath = `/api/graph/context/${encodeURIComponent(concept)}`

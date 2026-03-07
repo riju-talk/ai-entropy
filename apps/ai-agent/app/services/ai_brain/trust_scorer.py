@@ -58,23 +58,14 @@ async def calculate_trust_score(user_id: str) -> TrustResult:
     """
     db = get_db()
     
-    # Get user data
-    user = await db.user.find_unique({
-        "where": {"id": user_id},
-        "include": {
+    # Get user data (basic fields only; relations fetched separately as needed)
+    user = await db.user.find_unique(
+        where={"id": user_id},
+        include={
             "masteryRecords": True,
-            "answers": {
-                "include": {
-                    "upvotes": True,
-                    "downvotes": True
-                }
-            },
-            "doubts": True,
-            "upvotes": True,
-            "downvotes": True,
-            "abuseFlags": {"where": {"resolved": False}}
+            "abuseFlags": True,
         }
-    })
+    )
     
     if not user:
         # Return default for new users
@@ -95,14 +86,16 @@ async def calculate_trust_score(user_id: str) -> TrustResult:
         )
     
     # Calculate each component
-    mastery_reliability = await calculate_mastery_reliability(user_id, user.masteryRecords)
+    mastery_reliability = await calculate_mastery_reliability(user_id, user.masteryRecords if user.masteryRecords else [])
     nli_track_record = await calculate_nli_track_record(user_id)
-    community_validation = calculate_community_validation(user.answers)
+    # Fetch answers separately with votes included
+    db_answers = await db.answer.find_many(where={"authorId": user_id}, include={"votes": True})
+    community_validation = calculate_community_validation(db_answers)
     account_age_trust = calculate_account_age_trust(user.createdAt)
     interaction_entropy = await calculate_interaction_entropy(user_id)
-    vote_pattern_score = await calculate_vote_pattern_score(user_id, user.upvotes, user.downvotes)
+    vote_pattern_score = await calculate_vote_pattern_score(user_id, [], [])
     similarity_flags = calculate_similarity_penalty(user_id)
-    abuse_flags = calculate_abuse_penalty(user.abuseFlags)
+    abuse_flags = calculate_abuse_penalty(user.abuseFlags if user.abuseFlags else [])
     ip_clustering_risk = await calculate_ip_clustering_risk(user_id)
     
     components = TrustComponents(
@@ -166,16 +159,16 @@ async def calculate_nli_track_record(user_id: str) -> float:
     """
     db = get_db()
     
-    fact_checks = await db.fact_check_log.find_many({
-        "where": {"userId": user_id},
-        "orderBy": {"timestamp": "desc"},
-        "take": 100  # Last 100 checks
-    })
+    fact_checks = await db.factchecklog.find_many(
+        where={"userId": user_id},
+        order_by={"createdAt": "desc"},
+        take=100  # Last 100 checks
+    )
     
     if not fact_checks:
         return 0.5
     
-    passed = sum(1 for check in fact_checks if check.verdict == "PASS")
+    passed = sum(1 for check in fact_checks if check.safeToDisplay)
     total = len(fact_checks)
     
     return passed / total if total > 0 else 0.5
@@ -194,8 +187,10 @@ def calculate_community_validation(answers) -> float:
     total_downvotes = 0
     
     for answer in answers:
-        total_upvotes += len(answer.upvotes) if hasattr(answer, 'upvotes') else 0
-        total_downvotes += len(answer.downvotes) if hasattr(answer, 'downvotes') else 0
+        votes = answer.votes if hasattr(answer, 'votes') and answer.votes else []
+        from prisma.enums import VoteType
+        total_upvotes += sum(1 for v in votes if v.type == VoteType.UP)
+        total_downvotes += sum(1 for v in votes if v.type == VoteType.DOWN)
     
     total_votes = total_upvotes + total_downvotes
     
@@ -231,19 +226,13 @@ async def calculate_interaction_entropy(user_id: str) -> float:
     """
     db = get_db()
     
-    # Get user's interactions
-    interactions = await db.execute_raw(f"""
-        SELECT DISTINCT target_user_id
-        FROM (
-            SELECT "answererId" as target_user_id FROM "Answer" WHERE "userId" = '{user_id}'
-            UNION
-            SELECT "userId" as target_user_id FROM "Vote" WHERE "voterId" = '{user_id}'
-            UNION
-            SELECT "userId" as target_user_id FROM "Comment" WHERE "authorId" = '{user_id}'
-        ) interactions
-    """)
-    
-    unique_users = len(interactions) if interactions else 0
+    # Count unique users this person has interacted with
+    try:
+        doubt_vote_users = await db.doubtvote.find_many(where={"userId": user_id})
+        answer_vote_users = await db.answervote.find_many(where={"userId": user_id})
+        unique_users = len({v.doubtId for v in doubt_vote_users} | {v.answerId for v in answer_vote_users})
+    except Exception:
+        unique_users = 0
     
     # More unique interactions = higher entropy
     if unique_users < 2:
@@ -303,7 +292,7 @@ def calculate_abuse_penalty(abuse_flags) -> float:
     
     Direct penalty for active abuse flags.
     """
-    active_flags = [f for f in abuse_flags if not f.resolved]
+    active_flags = [f for f in abuse_flags if f.status == "PENDING"]
     
     if not active_flags:
         return 1.0

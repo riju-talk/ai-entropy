@@ -52,6 +52,20 @@ async def add_prerequisite(request: AddPrerequisiteRequest) -> dict:
         raise HTTPException(status_code=500, detail="Graph write error")
 
 
+@router.get("/user-graph/{user_id}", summary="Personalised graph: only concepts the user has studied")
+async def get_user_graph(user_id: str) -> dict:
+    """
+    Returns only the Concept nodes that appear in this user's mastery records,
+    plus PREREQUISITE_OF edges between those concepts.
+    Empty `nodes` array means the user hasn't studied anything yet.
+    """
+    try:
+        return await kg.get_user_graph(user_id=user_id)
+    except Exception as exc:
+        logger.exception("get_user_graph failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Graph read error")
+
+
 @router.get("/nodes", summary="All concept nodes + prerequisite edges (LiveKnowledgeGraph feed)")
 async def get_all_nodes(user_id: Optional[str] = None) -> dict:
     """

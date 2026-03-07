@@ -10,6 +10,7 @@ from typing import List, Optional, Dict, Any
 from enum import Enum
 from dataclasses import dataclass
 
+from prisma.fields import Json
 from app.core.llm import generate_json
 from app.core.database import get_db
 
@@ -109,6 +110,37 @@ Use:
 - FLAG: Claim is likely incorrect or misleading
 """
 
+# Maximum claims to validate per response — keeps Bedrock calls bounded
+MAX_CLAIMS = 3
+
+BATCH_NLI_VALIDATION_PROMPT = """Validate the following claims about computer science/mathematics.
+
+Claims (JSON):
+{claims_json}
+
+Context: {context}
+
+For EACH claim, evaluate accuracy based on:
+1. Technical correctness
+2. Common misconceptions
+3. Edge cases
+4. Accepted definitions
+
+Return a JSON object with a "results" array with one item per claim, in the same order:
+{{
+  "results": [
+    {{
+      "verdict": "PASS|UNCERTAIN|FLAG",
+      "confidence": 0.0,
+      "reasoning": "brief explanation",
+      "evidence": "correction or supporting evidence if needed"
+    }}
+  ]
+}}
+
+Use PASS for correct claims, UNCERTAIN when context is insufficient, FLAG for likely incorrect claims.
+"""
+
 
 async def extract_claims(response_text: str) -> List[Claim]:
     """
@@ -195,6 +227,59 @@ async def validate_claim(claim: Claim, context: str = "") -> ValidationResult:
         )
 
 
+async def validate_claims_batch(claims: List[Claim], context: str = "") -> List[ValidationResult]:
+    """
+    Validate all claims in a single LLM call.
+
+    Replaces the per-claim loop to avoid Bedrock throttling.
+    """
+    if not claims:
+        return []
+    try:
+        import json as _json
+        claims_json = _json.dumps(
+            [{"text": c.text, "type": c.claim_type} for c in claims], indent=2
+        )
+        prompt = BATCH_NLI_VALIDATION_PROMPT.format(
+            claims_json=claims_json,
+            context=context or "General CS/Math knowledge",
+        )
+        result = await generate_json(
+            prompt,
+            system_prompt="You are an expert fact-checker for computer science and mathematics education.",
+        )
+        raw_results = result.get("results", [])
+        validation_results: List[ValidationResult] = []
+        for i, r in enumerate(raw_results):
+            try:
+                validation_results.append(
+                    ValidationResult(
+                        verdict=NLIVerdict(r["verdict"]),
+                        confidence=float(r["confidence"]),
+                        reasoning=r["reasoning"],
+                        evidence=r.get("evidence"),
+                    )
+                )
+                logger.info(f"Validated claim: {r['verdict']} (confidence: {float(r['confidence']):.2f})")
+            except Exception as parse_err:
+                logger.warning(f"Failed to parse claim result {i}: {parse_err}")
+                validation_results.append(
+                    ValidationResult(verdict=NLIVerdict.UNCERTAIN, confidence=0.5, reasoning=f"Parse error: {parse_err}")
+                )
+        # Pad if LLM returned fewer results than claims
+        while len(validation_results) < len(claims):
+            validation_results.append(
+                ValidationResult(verdict=NLIVerdict.UNCERTAIN, confidence=0.5, reasoning="No result returned by validator")
+            )
+        return validation_results
+    except Exception as e:
+        logger.error(f"Batch claim validation failed: {e}")
+        return [
+            ValidationResult(verdict=NLIVerdict.UNCERTAIN, confidence=0.5, reasoning=f"Validation error: {str(e)}")
+            for _ in claims
+        ]
+
+
 async def validate_response(
     response_text: str,
     context: str = "",
@@ -213,9 +298,10 @@ async def validate_response(
     Returns:
         NLIReport with all validation results
     """
-    # Extract claims
+    # Extract claims, capped at MAX_CLAIMS to keep Bedrock usage bounded
     claims = await extract_claims(response_text)
-    
+    claims = claims[:MAX_CLAIMS]
+
     if not claims:
         # No verifiable claims - pass by default (might be explanation/example)
         return NLIReport(
@@ -225,12 +311,9 @@ async def validate_response(
             overall_confidence=1.0,
             flags_count=0
         )
-    
-    # Validate each claim
-    results = []
-    for claim in claims:
-        validation = await validate_claim(claim, context)
-        results.append(validation)
+
+    # Validate all claims in a single LLM call to avoid throttling
+    results = await validate_claims_batch(claims, context)
     
     # Compute overall verdict
     flags_count = sum(1 for r in results if r.verdict == NLIVerdict.FLAG)
@@ -279,28 +362,28 @@ async def log_fact_check(
     try:
         db = get_db()
         
-        await db.fact_check_log.create({
-            "data": {
-                "userId": user_id,
-                "contentType": content_type,
-                "contentId": content_id,
-                "verdict": report.overall_verdict.value,
-                "confidence": report.overall_confidence,
-                "claimsChecked": len(report.claims),
-                "flagsRaised": report.flags_count,
-                "details": {
-                    "claims": [
-                        {
-                            "text": c.text,
-                            "type": c.claim_type,
-                            "verdict": r.verdict.value,
-                            "confidence": r.confidence,
-                            "reasoning": r.reasoning
-                        }
-                        for c, r in zip(report.claims, report.results)
-                    ]
-                }
-            }
+        await db.factchecklog.create(data={
+            "userId": user_id,
+            "generatedText": f"{content_type}:{content_id}",
+            "contextUsed": "",
+            "claimsChecked": len(report.claims),
+            "entailmentCount": sum(1 for r in report.results if r.verdict.value == "PASS"),
+            "contradictionCount": report.flags_count,
+            "neutralCount": len(report.results) - sum(1 for r in report.results if r.verdict.value in ("PASS", "FLAG")),
+            "overallConfidence": report.overall_confidence,
+            "safeToDisplay": report.overall_verdict.value != "FLAG",
+            "checks": Json({
+                "claims": [
+                    {
+                        "text": c.text,
+                        "type": c.claim_type,
+                        "verdict": r.verdict.value,
+                        "confidence": r.confidence,
+                        "reasoning": r.reasoning
+                    }
+                    for c, r in zip(report.claims, report.results)
+                ]
+            })
         })
         
         logger.info(f"Logged fact-check for {content_type} {content_id}: {report.overall_verdict.value}")

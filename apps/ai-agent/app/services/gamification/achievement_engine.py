@@ -8,6 +8,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 
+from prisma.fields import Json
 from app.core.database import get_db
 from app.services.events.event_definitions import Event, EventType
 
@@ -182,13 +183,12 @@ async def check_and_unlock_achievements(user_id: str, triggering_event: Event) -
     """
     db = get_db()
     
-    # Get user's current achievement progress
-    progress_records = await db.achievement_progress.find_many({
-        "where": {"userId": user_id},
-        "include": {"achievement": True}
-    })
+    # Get user's already-unlocked achievement IDs
+    unlock_records = await db.achievementunlock.find_many(
+        where={"userId": user_id}
+    )
     
-    unlocked_ids = {p.achievementId for p in progress_records if p.unlockedAt is not None}
+    unlocked_ids = {r.achievementId for r in unlock_records}
     
     newly_unlocked = []
     
@@ -223,128 +223,121 @@ async def check_achievement_criteria(user_id: str, achievement: Dict, event: Eve
     try:
         if criteria_type == "answer_accepted":
             # Count accepted answers
-            count = await db.answer.count({
-                "where": {
-                    "userId": user_id,
-                    "isAccepted": True
+            count = await db.answer.count(
+                where={
+                    "authorId": user_id,
+                    "isAnswered": {"not": None}
                 }
-            })
+            )
             return count >= criteria["count"]
         
         elif criteria_type == "mastery_threshold":
             # Count concepts above threshold
-            count = await db.mastery_record.count({
-                "where": {
+            count = await db.masteryrecord.count(
+                where={
                     "userId": user_id,
                     "masteryScore": {"gte": criteria["threshold"]}
                 }
-            })
+            )
             return count >= criteria["count"]
         
         elif criteria_type == "streak":
             # Check current streak
-            user = await db.user.find_unique({
-                "where": {"id": user_id},
-                "select": {"currentStreak": True}
-            })
-            return user.currentStreak >= criteria["days"]
+            streak = await db.streak.find_unique(where={"userId": user_id})
+            return (streak.currentStreak >= criteria["days"]) if streak else False
         
         elif criteria_type == "total_upvotes":
             # Count total upvotes received
-            answers = await db.answer.find_many({
-                "where": {"userId": user_id},
-                "include": {"upvotes": True}
-            })
-            total_upvotes = sum(len(a.upvotes) for a in answers)
+            answers = await db.answer.find_many(
+                where={"authorId": user_id},
+                include={"votes": True}
+            )
+            total_upvotes = sum(len(a.votes) for a in answers)
             return total_upvotes >= criteria["count"]
         
         elif criteria_type == "trust_score":
             # Check trust score
-            trust = await db.trust_score.find_unique({
-                "where": {"userId": user_id},
-                "select": {"score": True}
-            })
+            trust = await db.trustscore.find_unique(
+                where={"userId": user_id}
+            )
             return trust.score >= criteria["threshold"] if trust else False
         
         elif criteria_type == "nli_passes":
             # Count passed fact-checks
-            count = await db.fact_check_log.count({
-                "where": {
+            count = await db.factchecklog.count(
+                where={
                     "userId": user_id,
-                    "verdict": "PASS"
+                    "safeToDisplay": True
                 }
-            })
+            )
             return count >= criteria["count"]
         
         elif criteria_type == "votes_cast":
-            # Count votes cast by user
-            count = await db.vote.count({
-                "where": {"voterId": user_id}
-            })
-            return count >= criteria["count"]
+            # Count votes cast by user (both doubt and answer votes)
+            doubt_count = await db.doubtvote.count(where={"userId": user_id})
+            answer_count = await db.answervote.count(where={"userId": user_id})
+            return (doubt_count + answer_count) >= criteria["count"]
         
         elif criteria_type == "quality_doubts":
-            # Count doubts with upvotes
-            doubts = await db.doubt.find_many({
-                "where": {"userId": user_id},
-                "include": {"upvotes": True}
-            })
-            quality_doubts = [d for d in doubts if len(d.upvotes) >= criteria["upvote_threshold"]]
+            # Count doubts with upvotes meeting threshold
+            doubts = await db.doubt.find_many(
+                where={"authorId": user_id}
+            )
+            quality_doubts = [d for d in doubts if d.upvotes >= criteria["upvote_threshold"]]
             return len(quality_doubts) >= criteria["count"]
         
         elif criteria_type == "account_age":
             # Check account age
-            user = await db.user.find_unique({
-                "where": {"id": user_id},
-                "select": {"createdAt": True}
-            })
+            user = await db.user.find_unique(
+                where={"id": user_id}
+            )
             age_days = (datetime.now() - user.createdAt).days
             return age_days >= criteria["days"]
         
         elif criteria_type == "unique_users_helped":
             # Count unique users who accepted your answers
-            answers = await db.answer.find_many({
-                "where": {
-                    "userId": user_id,
-                    "isAccepted": True
+            answers = await db.answer.find_many(
+                where={
+                    "authorId": user_id,
+                    "isAnswered": {"not": None}
                 },
-                "include": {
+                include={
                     "doubt": {
-                        "select": {"userId": True}
+                        "select": {"authorId": True}
                     }
                 }
-            })
-            unique_users = {a.doubt.userId for a in answers}
+            )
+            unique_users = {a.doubt.authorId for a in answers if a.doubt}
             return len(unique_users) >= criteria["count"]
         
         elif criteria_type == "fast_response":
             # Count answers submitted within time limit
-            answers = await db.answer.find_many({
-                "where": {"userId": user_id},
-                "include": {
+            answers = await db.answer.find_many(
+                where={"authorId": user_id},
+                include={
                     "doubt": {
                         "select": {"createdAt": True}
                     }
                 }
-            })
+            )
             time_limit = timedelta(minutes=criteria["time_limit_minutes"])
             fast_responses = [
                 a for a in answers
-                if (a.createdAt - a.doubt.createdAt) <= time_limit
+                if a.doubt and (a.createdAt - a.doubt.createdAt) <= time_limit
             ]
             return len(fast_responses) >= criteria["count"]
         
         elif criteria_type == "difficult_concept_mastery":
             # Check mastery of difficult concept
-            count = await db.mastery_record.count({
-                "where": {
+            count = await db.masteryrecord.count(
+                where={
                     "userId": user_id,
                     "masteryScore": {"gte": criteria["mastery_threshold"]},
                     "concept": {
                         "difficulty": {"gte": criteria["difficulty_threshold"]}
                     }
                 }
-            })
+            )
             return count >= 1
         
         else:
@@ -370,13 +363,9 @@ async def validate_achievement_unlock(user_id: str, achievement: Dict) -> bool:
     criteria = achievement["criteria"]
     
     # Common validations
-    user = await db.user.find_unique({
-        "where": {"id": user_id},
-        "select": {
-            "createdAt": True,
-            "trustScoreCache": True
-        }
-    })
+    user = await db.user.find_unique(
+        where={"id": user_id}
+    )
     
     # Minimum account age (1 day)
     if (datetime.now() - user.createdAt).days < 1:
@@ -391,11 +380,10 @@ async def validate_achievement_unlock(user_id: str, achievement: Dict) -> bool:
     # Criteria-specific validation
     if criteria["type"] in ["answer_accepted", "total_upvotes"]:
         # Validate time span for answer-based achievements
-        answers = await db.answer.find_many({
-            "where": {"userId": user_id},
-            "orderBy": {"createdAt": "asc"},
-            "select": {"createdAt": True}
-        })
+        answers = await db.answer.find_many(
+            where={"authorId": user_id},
+            order_by={"createdAt": "asc"}
+        )
         
         if len(answers) >= 2:
             time_span = (answers[-1].createdAt - answers[0].createdAt).total_seconds()
@@ -407,28 +395,25 @@ async def validate_achievement_unlock(user_id: str, achievement: Dict) -> bool:
     
     elif criteria["type"] == "unique_users_helped":
         # Validate unique users are genuine
-        answers = await db.answer.find_many({
-            "where": {
-                "userId": user_id,
-                "isAccepted": True
+        answers = await db.answer.find_many(
+            where={
+                "authorId": user_id,
+                "isAnswered": {"not": None}
             },
-            "include": {
+            include={
                 "doubt": {
-                    "select": {
-                        "userId": True,
-                        "user": {
-                            "select": {"trustScoreCache": True}
-                        }
+                    "include": {
+                        "author": True
                     }
                 }
             }
-        })
+        )
         
         # Check that helped users have reasonable trust scores
-        helped_users = [a.doubt for a in answers]
-        low_trust_count = sum(1 for u in helped_users if u.user.trustScoreCache < 0.3)
+        helped_authors = [a.doubt.author for a in answers if a.doubt and a.doubt.author]
+        low_trust_count = sum(1 for u in helped_authors if u.trustScoreCache < 0.3)
         
-        if low_trust_count > len(helped_users) * 0.5:
+        if low_trust_count > len(helped_authors) * 0.5:
             logger.warning(f"Achievement unlock blocked: too many low-trust users helped")
             return False
     
@@ -441,48 +426,49 @@ async def unlock_achievement(user_id: str, achievement: Dict) -> Dict[str, Any]:
     """
     db = get_db()
     
-    # Get or create achievement record
-    achievement_record = await db.achievement.upsert({
-        "where": {"key": achievement["id"]},
-        "update": {},
-        "create": {
-            "key": achievement["id"],
-            "name": achievement["name"],
-            "description": achievement["description"],
-            "xpReward": achievement["xp_reward"],
-            "category": "LEARNING"
+    # Get or create achievement record using name as unique identifier
+    achievement_record = await db.achievement.upsert(
+        where={"name": achievement["name"]},
+        data={
+            "update": {},
+            "create": {
+                "type": _get_achievement_type(achievement["id"]),
+                "name": achievement["name"],
+                "description": achievement["description"],
+                "criteria": Json(achievement["criteria"]),
+                "points": achievement["xp_reward"],
+                "rarity": _get_achievement_rarity(achievement["xp_reward"]),
+            }
         }
-    })
+    )
     
-    # Create progress record
-    progress = await db.achievement_progress.create({
-        "data": {
+    # Create unlock record
+    unlock = await db.achievementunlock.create(
+        data={
             "userId": user_id,
             "achievementId": achievement_record.id,
-            "progress": 100,
-            "unlockedAt": datetime.now()
         }
-    })
+    )
     
     # Award XP
     xp_reward = achievement["xp_reward"]
     
-    await db.xp_ledger.create({
-        "data": {
+    await db.xpledger.create(
+        data={
             "userId": user_id,
             "eventType": "ACHIEVEMENT_UNLOCKED",
             "baseXP": xp_reward,
             "trustMult": 1.0,
             "finalXP": xp_reward,
             "reason": f"Achievement unlocked: {achievement['name']}",
-            "metadata": {"achievement_id": achievement["id"]}
+            "metadata": Json({"achievement_id": achievement["id"]})
         }
-    })
+    )
     
-    await db.user.update({
-        "where": {"id": user_id},
-        "data": {"totalXP": {"increment": xp_reward}}
-    })
+    await db.user.update(
+        where={"id": user_id},
+        data={"totalXP": {"increment": xp_reward}}
+    )
     
     logger.info(f"Achievement unlocked: {achievement['name']} for user {user_id} (+{xp_reward} XP)")
     
@@ -490,8 +476,40 @@ async def unlock_achievement(user_id: str, achievement: Dict) -> Dict[str, Any]:
         "id": achievement["id"],
         "name": achievement["name"],
         "xp_reward": xp_reward,
-        "unlocked_at": progress.unlockedAt
+        "unlocked_at": unlock.unlockedAt
     }
 
 
-logger.info("Achievement engine initialized")
+def _get_achievement_type(achievement_id: str) -> str:
+    """Map internal achievement ID to AchievementType enum value."""
+    _type_map = {
+        "first_correct_answer": "PROBLEM_SOLVER",
+        "concept_master_all": "SUBJECT_EXPERT",
+        "polymath": "SUBJECT_EXPERT",
+        "consistent_learner": "STREAK_MASTER",
+        "marathon_learner": "STREAK_MASTER",
+        "helpful_contributor": "MENTOR",
+        "trusted_expert": "TOP_CONTRIBUTOR",
+        "fact_checked": "KNOWLEDGE_SEEKER",
+        "community_validator": "COMMUNITY_LEADER",
+        "doubt_resolver": "MENTOR",
+        "knowledge_seeker": "KNOWLEDGE_SEEKER",
+        "early_adopter": "RISING_STAR",
+        "mentor": "MENTOR",
+        "fast_responder": "PROBLEM_SOLVER",
+        "deep_diver": "SUBJECT_EXPERT",
+    }
+    return _type_map.get(achievement_id, "TOP_CONTRIBUTOR")
+
+
+def _get_achievement_rarity(xp_reward: int) -> str:
+    """Map XP reward to AchievementRarity enum value."""
+    if xp_reward >= 2000:
+        return "LEGENDARY"
+    elif xp_reward >= 1200:
+        return "EPIC"
+    elif xp_reward >= 700:
+        return "RARE"
+    elif xp_reward >= 300:
+        return "UNCOMMON"
+    return "COMMON"

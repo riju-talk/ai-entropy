@@ -24,8 +24,8 @@ from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
 
-AWS_REGION       = os.getenv("AWS_REGION",       "ap-northeast-1")
-S3_BUCKET_NAME   = os.getenv("S3_BUCKET_NAME",   "Entropy AI-documents")
+AWS_REGION       = os.getenv("AWS_REGION",       "eu-north-1")
+S3_BUCKET_NAME   = os.getenv("S3_BUCKET_NAME",   "entropy-main")
 PRESIGN_EXPIRY   = int(os.getenv("S3_PRESIGN_EXPIRY_SECS", "3600"))  # 1 hour
 
 

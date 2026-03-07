@@ -4,7 +4,7 @@ Entropy AI Gamification API Routes
 Endpoints for leaderboards, achievements, XP tracking, and streaks.
 """
 import logging
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
@@ -24,6 +24,7 @@ from app.services.gamification.streak_manager import (
     update_user_streak
 )
 from app.services.ai_brain.trust_scorer import calculate_trust_score
+from app.services.events.event_definitions import Event, EventType
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,8 @@ class TrustScoreResponse(BaseModel):
 class UserStatsResponse(BaseModel):
     user_id: str
     total_xp: int
+    level: int
+    tier: str
     reputation: int
     trust_score: float
     trust_tier: str
@@ -83,6 +86,138 @@ class UserStatsResponse(BaseModel):
     longest_streak: int
     achievements_unlocked: int
     total_achievements: int
+
+
+class GamificationEventRequest(BaseModel):
+    user_id: str
+    event_type: str
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+
+class GamificationEventResponse(BaseModel):
+    xp_awarded: int
+    new_total_xp: int
+    level: int
+    tier: str
+    streak_updated: bool
+    milestone_reached: bool
+    achievements_unlocked: List[str]
+
+
+# ============================================================
+# Level Calculation
+# ============================================================
+
+_XP_BASE = 100
+_XP_MULTIPLIER = 1.5
+
+_TIER_MAP = [
+    (0, "INITIATE"),
+    (5, "CONTRIBUTOR"),
+    (15, "AUTHORITY"),
+    (30, "LUMINARY"),
+    (50, "SAGE"),
+]
+
+
+def _xp_for_level(level: int) -> int:
+    if level <= 1:
+        return 0
+    return int(_XP_BASE * (_XP_MULTIPLIER ** (level - 2)))
+
+
+def calculate_level(total_xp: int) -> int:
+    level = 1
+    while True:
+        next_xp = _xp_for_level(level + 1)
+        if total_xp < next_xp:
+            break
+        level += 1
+    return level
+
+
+def get_tier(level: int) -> str:
+    tier = "INITIATE"
+    for threshold, name in _TIER_MAP:
+        if level >= threshold:
+            tier = name
+    return tier
+
+
+# ============================================================
+# Unified Gamification Event Endpoint
+# ============================================================
+
+# Event types that are considered "meaningful activity" for streak updates
+_STREAK_QUALIFYING_EVENTS = {
+    "ANSWER_ACCEPTED", "ANSWER_SUBMITTED", "DOUBT_CREATED", "DOUBT_RESOLVED",
+    "VOTE_CAST", "CONCEPT_ATTEMPTED", "CONCEPT_COMPLETED", "MASTERY_GAIN",
+    "MASTERY_UPDATED", "QUALITY_DOUBT", "HELPFUL_VOTE", "DAILY_LOGIN",
+}
+
+
+@router.post("/event", response_model=GamificationEventResponse)
+async def process_gamification_event(request: GamificationEventRequest):
+    """
+    Unified gamification event handler.
+
+    Awards smart XP (with trust/NLI/difficulty multipliers), updates streak,
+    and checks/unlocks achievements — all in a single atomic call.
+
+    This is the ONLY entry point for XP awards. Next.js routes must call this
+    instead of writing directly to the database.
+    """
+    user_id = request.user_id
+    event_type = request.event_type.upper()
+    metadata = request.metadata or {}
+
+    try:
+        # 1. Award XP (writes to xp_ledger + increments user.totalXP)
+        xp_awarded = await award_xp(user_id, event_type, metadata)
+
+        # 2. Fetch updated user totalXP for level calculation
+        db = get_db()
+        user = await db.user.find_unique(where={"id": user_id})
+        new_total_xp = user.totalXP if user else 0
+
+        level = calculate_level(new_total_xp)
+        tier = get_tier(level)
+
+        # 3. Update streak for qualifying events
+        streak_updated = False
+        milestone_reached = False
+        if event_type in _STREAK_QUALIFYING_EVENTS:
+            streak_result = await update_user_streak(user_id)
+            streak_updated = True
+            milestone_reached = streak_result.milestone_reached
+
+        # 4. Build a minimal Event object and check achievements
+        try:
+            ai_event_type = EventType(event_type)
+        except ValueError:
+            ai_event_type = EventType.XP_AWARDED  # Fallback for unknown types
+
+        triggering_event = Event(
+            event_type=ai_event_type,
+            user_id=user_id,
+            metadata=metadata
+        )
+        newly_unlocked = await check_and_unlock_achievements(user_id, triggering_event)
+        achievement_names = [a["name"] for a in newly_unlocked] if newly_unlocked else []
+
+        return GamificationEventResponse(
+            xp_awarded=xp_awarded,
+            new_total_xp=new_total_xp,
+            level=level,
+            tier=tier,
+            streak_updated=streak_updated,
+            milestone_reached=milestone_reached,
+            achievements_unlocked=achievement_names
+        )
+
+    except Exception as e:
+        logger.error(f"Gamification event failed for user {user_id}, event {event_type}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process gamification event")
 
 
 # ============================================================
@@ -120,12 +255,12 @@ async def get_user_xp_ledger(
     """
     try:
         db = get_db()
-        ledger_entries = await db.xp_ledger.find_many({
-            "where": {"userId": user_id},
-            "orderBy": {"timestamp": "desc"},
-            "skip": offset,
-            "take": limit
-        })
+        ledger_entries = await db.xpledger.find_many(
+            where={"userId": user_id},
+            order_by={"createdAt": "desc"},
+            skip=offset,
+            take=limit
+        )
         
         return {
             "user_id": user_id,
@@ -152,19 +287,12 @@ async def get_xp_leaderboard(
     """
     try:
         db = get_db()
-        users = await db.user.find_many({
-            "orderBy": {"totalXP": "desc"},
-            "skip": offset,
-            "take": limit,
-            "select": {
-                "id": True,
-                "name": True,
-                "totalXP": True,
-                "reputation": True,
-                "trustScoreCache": True
-            }
-        })
-        
+        users = await db.user.find_many(
+            order_by={"totalXP": "desc"},
+            skip=offset,
+            take=limit,
+        )
+
         leaderboard = [
             LeaderboardEntry(
                 user_id=user.id,
@@ -176,7 +304,7 @@ async def get_xp_leaderboard(
             )
             for i, user in enumerate(users)
         ]
-        
+
         return leaderboard
     except Exception as e:
         logger.error(f"Failed to fetch XP leaderboard: {e}")
@@ -193,18 +321,11 @@ async def get_reputation_leaderboard(
     """
     try:
         db = get_db()
-        users = await db.user.find_many({
-            "orderBy": {"reputation": "desc"},
-            "skip": offset,
-            "take": limit,
-            "select": {
-                "id": True,
-                "name": True,
-                "totalXP": True,
-                "reputation": True,
-                "trustScoreCache": True
-            }
-        })
+        users = await db.user.find_many(
+            order_by={"reputation": "desc"},
+            skip=offset,
+            take=limit,
+        )
         
         leaderboard = [
             LeaderboardEntry(
@@ -238,31 +359,31 @@ async def get_user_achievements(user_id: str):
         
         db = get_db()
         
-        # Get user's achievement progress
-        progress_records = await db.achievement_progress.find_many({
-            "where": {"userId": user_id},
-            "include": {"achievement": True}
-        })
+        # Get user's unlocked achievements
+        unlock_records = await db.achievementunlock.find_many(
+            where={"userId": user_id},
+            include={"achievement": True}
+        )
         
-        # Map achievement IDs to progress
-        progress_map = {
-            p.achievement.key: p
-            for p in progress_records
-            if hasattr(p, 'achievement') and p.achievement
+        # Map achievement name to unlock record
+        unlocked_by_name = {
+            r.achievement.name: r
+            for r in unlock_records
+            if r.achievement
         }
         
         achievements = []
         for achievement in ACHIEVEMENTS:
-            progress = progress_map.get(achievement["id"])
+            unlock = unlocked_by_name.get(achievement["name"])
             
             achievements.append(AchievementResponse(
                 id=achievement["id"],
                 name=achievement["name"],
                 description=achievement["description"],
                 xp_reward=achievement["xp_reward"],
-                unlocked=progress is not None and progress.unlockedAt is not None,
-                unlocked_at=progress.unlockedAt if progress else None,
-                progress=progress.progress if progress else 0
+                unlocked=unlock is not None,
+                unlocked_at=unlock.unlockedAt if unlock else None,
+                progress=100 if unlock else 0
             ))
         
         return achievements
@@ -335,18 +456,9 @@ async def get_user_stats(user_id: str):
         from app.services.gamification.achievement_engine import ACHIEVEMENTS
         
         db = get_db()
-        
+
         # Get user data
-        user = await db.user.find_unique({
-            "where": {"id": user_id},
-            "select": {
-                "totalXP": True,
-                "reputation": True,
-                "trustScoreCache": True,
-                "currentStreak": True,
-                "longestStreak": True
-            }
-        })
+        user = await db.user.find_unique(where={"id": user_id})
         
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -354,22 +466,26 @@ async def get_user_stats(user_id: str):
         # Get trust tier
         trust_result = await calculate_trust_score(user_id)
         
+        # Get streak data from Streak model
+        streak = await db.streak.find_unique(where={"userId": user_id})
+        current_streak = streak.currentStreak if streak else 0
+        longest_streak = streak.longestStreak if streak else 0
+        
         # Count unlocked achievements
-        unlocked_count = await db.achievement_progress.count({
-            "where": {
-                "userId": user_id,
-                "unlockedAt": {"not": None}
-            }
-        })
+        unlocked_count = await db.achievementunlock.count(
+            where={"userId": user_id}
+        )
         
         return UserStatsResponse(
             user_id=user_id,
             total_xp=user.totalXP or 0,
+            level=calculate_level(user.totalXP or 0),
+            tier=get_tier(calculate_level(user.totalXP or 0)),
             reputation=user.reputation or 0,
             trust_score=user.trustScoreCache or 0.5,
             trust_tier=trust_result.tier,
-            current_streak=user.currentStreak or 0,
-            longest_streak=user.longestStreak or 0,
+            current_streak=current_streak,
+            longest_streak=longest_streak,
             achievements_unlocked=unlocked_count,
             total_achievements=len(ACHIEVEMENTS)
         )

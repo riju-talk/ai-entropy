@@ -226,6 +226,125 @@ async def count_concepts() -> int:
         return 0
 
 
+async def get_concepts_matching_question(question: str) -> dict:
+    """
+    Find Concept nodes whose names appear in the question text, then return
+    platform-wide aggregate stats (total learners, avg mastery, struggle rate).
+
+    Used by the agentic RAG pipeline to inject collective learning intelligence
+    into every AI answer — e.g. "73% of learners find this concept challenging."
+    """
+    try:
+        driver = await get_driver()
+        async with driver.session() as session:
+            result = await session.run(
+                """
+                MATCH (c:Concept)
+                WHERE toLower($question) CONTAINS toLower(c.name)
+                WITH c LIMIT 5
+                OPTIONAL MATCH (u:User)-[r:MASTERED_BY]->(c)
+                RETURN c.name AS concept,
+                       count(u) AS total_learners,
+                       avg(COALESCE(r.score, 0.0)) AS avg_mastery,
+                       sum(CASE WHEN r.score < 0.4 THEN 1 ELSE 0 END) AS struggling_count
+                """,
+                question=question,
+            )
+            records = await result.data()
+            stats: dict = {}
+            for r in records:
+                total = int(r.get("total_learners") or 0)
+                struggling = int(r.get("struggling_count") or 0)
+                stats[r["concept"]] = {
+                    "total_learners": total,
+                    "avg_mastery": round(float(r["avg_mastery"] or 0) * 100, 1),
+                    "struggle_rate": round(struggling / total * 100) if total > 0 else 0,
+                }
+            return stats
+    except Exception as exc:
+        logger.warning("get_concepts_matching_question failed: %s", exc)
+        return {}
+
+
+async def get_user_graph(user_id: str) -> dict:
+    """
+    Return only the Concept nodes the user has interacted with (via mastery records),
+    plus PREREQUISITE_OF edges between those concepts.
+
+    This gives a personalised graph showing only *what this user has learned*,
+    rather than the full knowledge base.
+    """
+    # 1. Pull concept names from Prisma mastery records for this user
+    from app.core.database import get_db
+    concept_names: list[str] = []
+    try:
+        db = await get_db()
+        records = await db.masteryrecord.find_many(
+            where={"userId": user_id},
+            include={"concept": True},
+        )
+        concept_names = [r.concept.name for r in records if r.concept]
+    except Exception as exc:
+        logger.warning("get_user_graph: Prisma query failed: %s", exc)
+
+    if not concept_names:
+        return {"nodes": [], "edges": []}
+
+    driver = await get_driver()
+    nodes: list = []
+    edges: list = []
+
+    async with driver.session() as session:
+        # Fetch only the user's concepts with mastery scores
+        result = await session.run(
+            """
+            MATCH (c:Concept)
+            WHERE c.name IN $names
+            OPTIONAL MATCH (u:User {id: $user_id})-[r:MASTERED_BY]->(c)
+            RETURN c.name AS id,
+                   c.name AS label,
+                   COALESCE(r.score, 0.0) AS mastery_score,
+                   COALESCE(c.domain, '') AS domain,
+                   COALESCE(c.difficulty, 1) AS difficulty
+            ORDER BY c.name
+            """,
+            names=concept_names,
+            user_id=user_id,
+        )
+        records_data = await result.data()
+        node_ids = set()
+        for r in records_data:
+            node_ids.add(r["id"])
+            nodes.append({
+                "id": r["id"],
+                "label": r["label"],
+                "mastery": round(float(r["mastery_score"]) * 100, 1),
+                "domain": r["domain"],
+                "difficulty": r["difficulty"],
+            })
+
+        # Fetch edges only between concepts the user has studied
+        if node_ids:
+            edge_result = await session.run(
+                """
+                MATCH (pre:Concept)-[rel:PREREQUISITE_OF]->(con:Concept)
+                WHERE pre.name IN $names AND con.name IN $names
+                RETURN pre.name AS from_node, con.name AS to_node,
+                       COALESCE(rel.strength, 1.0) AS strength
+                """,
+                names=list(node_ids),
+            )
+            edge_records = await edge_result.data()
+            for er in edge_records:
+                edges.append({
+                    "from": er["from_node"],
+                    "to": er["to_node"],
+                    "strength": float(er["strength"]),
+                })
+
+    return {"nodes": nodes, "edges": edges}
+
+
 async def get_all_nodes(user_id: Optional[str] = None) -> dict:
     """
     Return all Concept nodes with optional per-user mastery scores,
