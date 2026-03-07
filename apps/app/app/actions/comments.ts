@@ -1,153 +1,100 @@
-"use server"
+﻿"use server"
 
 import { revalidatePath } from "next/cache"
 import { getServerSession } from "next-auth"
 import { PrismaClient } from "@prisma/client"
 import { authOptions } from "@/lib/auth"
-import { createCommentSchema, voteSchema } from "@/lib/validations"
 import type { VoteType } from "@prisma/client"
 
-let __prisma__: PrismaClient | undefined;
+let __prisma__: PrismaClient | undefined
 function getPrisma() {
   if (!__prisma__) {
-    __prisma__ = new PrismaClient({ log: ["error", "warn"] });
+    __prisma__ = new PrismaClient({ log: ["error", "warn"] })
   }
-  return __prisma__;
+  return __prisma__
 }
+
+// In this codebase, "comments" are stored as Answers.
+// These functions bridge the component API to the Answer model.
 
 export async function createComment(formData: FormData) {
   const session = await getServerSession(authOptions)
+  const content = formData.get("content") as string
+  const doubtId = formData.get("doubtId") as string
 
-  const data = {
-    content: formData.get("content") as string,
-    doubtId: formData.get("doubtId") as string,
-    parentId: (formData.get("parentId") as string) || undefined,
-    isAnonymous: formData.get("isAnonymous") === "true",
-  }
-
-  const validatedData = createCommentSchema.parse(data)
-
-  await getPrisma().comment.create({
+  await getPrisma().answer.create({
     data: {
-      ...validatedData,
-      authorId: validatedData.isAnonymous ? null : session?.user?.id,
+      content,
+      doubtId,
+      authorId: session?.user?.id || "",
     },
   })
 
-  revalidatePath(`/doubt/${validatedData.doubtId}`)
+  revalidatePath(`/doubt/${doubtId}`)
 }
 
 export async function voteOnComment(commentId: string, voteType: VoteType) {
+  // commentId is an answerId in this schema
   const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Authentication required")
 
-  if (!session?.user?.id) {
-    throw new Error("Authentication required")
-  }
-
-  const validatedData = voteSchema.parse({ type: voteType, commentId })
-
-  // Check if user already voted
-  const existingVote = await getPrisma().vote.findUnique({
-    where: {
-      userId_commentId: {
-        userId: session.user.id,
-        commentId,
-      },
-    },
+  const existing = await getPrisma().answerVote.findUnique({
+    where: { userId_answerId: { userId: session.user.id, answerId: commentId } },
   })
 
-  if (existingVote) {
-    if (existingVote.type === voteType) {
-      // Remove vote if same type
-      await getPrisma().vote.delete({
-        where: { id: existingVote.id },
-      })
+  if (existing) {
+    if (existing.type === voteType) {
+      await getPrisma().answerVote.delete({ where: { id: existing.id } })
     } else {
-      // Update vote type
-      await getPrisma().vote.update({
-        where: { id: existingVote.id },
-        data: { type: voteType },
-      })
+      await getPrisma().answerVote.update({ where: { id: existing.id }, data: { type: voteType } })
     }
   } else {
-    // Create new vote
-    await getPrisma().vote.create({
-      data: {
-        type: voteType,
-        userId: session.user.id,
-        commentId,
-      },
+    await getPrisma().answerVote.create({
+      data: { type: voteType, userId: session.user.id, answerId: commentId },
     })
   }
 
-  // Update comment vote count
-  const voteCount = await getPrisma().vote.aggregate({
-    where: { commentId },
-    _sum: {
-      type: true,
-    },
+  const votes = await getPrisma().answerVote.groupBy({
+    by: ["type"],
+    where: { answerId: commentId },
+    _count: true,
   })
+  const up = votes.find((v) => v.type === "UP")?._count ?? 0
+  const down = votes.find((v) => v.type === "DOWN")?._count ?? 0
 
-  await getPrisma().comment.update({
+  const answer = await getPrisma().answer.update({
     where: { id: commentId },
-    data: { votes: voteCount._sum.type || 0 },
-  })
-
-  const comment = await getPrisma().comment.findUnique({
-    where: { id: commentId },
+    data: { upvotes: up, downvotes: down },
     select: { doubtId: true },
   })
-
-  if (comment) {
-    revalidatePath(`/doubt/${comment.doubtId}`)
-  }
+  revalidatePath(`/doubt/${answer.doubtId}`)
 }
 
 export async function markCommentAsAccepted(commentId: string) {
+  // commentId is an answerId in this schema
   const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Authentication required")
 
-  if (!session?.user?.id) {
-    throw new Error("Authentication required")
-  }
-
-  const comment = await getPrisma().comment.findUnique({
+  const answer = await getPrisma().answer.findUnique({
     where: { id: commentId },
-    include: {
-      doubt: {
-        select: {
-          authorId: true,
-          id: true,
-        },
-      },
-    },
+    select: { doubtId: true, doubt: { select: { authorId: true } } },
   })
 
-  if (!comment || comment.doubt.authorId !== session.user.id) {
+  if (!answer || answer.doubt.authorId !== session.user.id) {
     throw new Error("Only the doubt author can mark answers as accepted")
   }
 
-  // Unmark other accepted answers for this doubt
-  await getPrisma().comment.updateMany({
-    where: {
-      doubtId: comment.doubtId,
-      isAccepted: true,
-    },
-    data: {
-      isAccepted: false,
-    },
+  await getPrisma().answer.updateMany({
+    where: { doubtId: answer.doubtId, isAccepted: true },
+    data: { isAccepted: false },
   })
-
-  // Mark this comment as accepted
-  await getPrisma().comment.update({
+  await getPrisma().answer.update({
     where: { id: commentId },
     data: { isAccepted: true },
   })
-
-  // Mark doubt as resolved
   await getPrisma().doubt.update({
-    where: { id: comment.doubtId },
+    where: { id: answer.doubtId },
     data: { isResolved: true },
   })
-
-  revalidatePath(`/doubt/${comment.doubtId}`)
+  revalidatePath(`/doubt/${answer.doubtId}`)
 }

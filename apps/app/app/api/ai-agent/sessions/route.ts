@@ -26,16 +26,11 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url)
-    const sessionType = (searchParams.get("type") || null) as
-      | "QA"
-      | "MINDMAP"
-      | "QUIZ"
-      | "FLASHCARDS"
-      | null
+    const sessionType = (searchParams.get("type") || null) as string | null
 
     console.log("[AI-AGENT][SESSIONS] Query params:", { sessionType })
 
-    const sessions = await prisma.aIChatSession.findMany({
+    const sessions = await prisma.conversation.findMany({
       where: {
         userId: user.id,
         ...(sessionType && { sessionType }),
@@ -46,10 +41,7 @@ export async function GET(req: NextRequest) {
           take: 1,
         },
         _count: {
-          select: {
-            messages: true,
-            documents: true,
-          },
+          select: { messages: true },
         },
       },
       orderBy: { updatedAt: "desc" },
@@ -89,7 +81,7 @@ export async function POST(req: NextRequest) {
 
     console.log("[AI-AGENT][SESSIONS] Creating session with body:", { sessionType })
 
-    const chatSession = await prisma.aIChatSession.create({
+    const chatSession = await prisma.conversation.create({
       data: {
         userId: user.id,
         sessionType: sessionType || "QA",

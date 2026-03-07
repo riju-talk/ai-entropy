@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { PrismaClient } from "@prisma/client"
+import { PrismaClient, PointEventType } from "@prisma/client"
 const prisma = new PrismaClient()
 
 // GET /api/users/me/credits - Get current user's credits
@@ -74,13 +74,12 @@ export async function POST(request: Request) {
       });
 
       // Create ledger entry
-      await tx.points_ledger.create({
+      await tx.pointsLedger.create({
         data: {
           userId: session.user.id,
-          eventType: "CREDITS_REDEEMED",
+          eventType: PointEventType.STREAK_BONUS,
           points: -cost,
           description: `Redeemed ${cost} credits for ${action}`,
-          createdAt: new Date(),
         },
       });
 
@@ -103,8 +102,6 @@ export async function POST(request: Request) {
     if (error.message === "Insufficient credits") {
       return NextResponse.json({
         error: "Insufficient credits",
-        required: cost,
-        available: await getCurrentCredits(session.user.id)
       }, { status: 402 });
     }
 

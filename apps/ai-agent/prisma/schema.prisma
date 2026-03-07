@@ -116,6 +116,7 @@ model Doubt {
   upvotes         Int              @default(0)
   isResolved      Boolean          @default(false)
   isInCommunity   Boolean          @default(false)
+  views           Int              @default(0)
   answers         Answer[]
   communityDoubts CommunityDoubt[]
   votes           DoubtVote[]
@@ -137,6 +138,9 @@ model Answer {
   updatedAt    DateTime     @updatedAt
   isAnswered   String?      @unique @db.Uuid
   isAiAssisted Boolean      @default(false)
+  isAccepted   Boolean      @default(false)
+  upvotes      Int          @default(0)
+  downvotes    Int          @default(0)
   votes        AnswerVote[]
   author       User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
   doubt        Doubt        @relation(fields: [doubtId], references: [id], onDelete: Cascade)
@@ -203,6 +207,7 @@ model PointsLedger {
   eventType   PointEventType
   points      Int
   description String?
+  doubtId     String?
   createdAt   DateTime       @default(now())
   user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -539,6 +544,7 @@ enum PointEventType {
   STREAK_BONUS
   ACHIEVEMENT_UNLOCKED
   BADGE_EARNED
+  CREDITS_REDEEMED
 }
 
 enum AchievementType {

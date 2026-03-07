@@ -166,7 +166,7 @@ export async function getDoubtById(id: string) {
           role: true,
         },
       },
-      comments: {
+      answers: {
         include: {
           author: {
             select: {
@@ -178,7 +178,7 @@ export async function getDoubtById(id: string) {
           },
           _count: {
             select: {
-              userVotes: true,
+              votes: true,
             },
           },
         },
@@ -188,8 +188,8 @@ export async function getDoubtById(id: string) {
       },
       _count: {
         select: {
-          comments: true,
-          userVotes: true,
+          answers: true,
+          votes: true,
         },
       },
     },

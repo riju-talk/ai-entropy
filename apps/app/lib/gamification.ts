@@ -49,6 +49,7 @@ export const POINT_VALUES: Record<PointEventType, number> = {
     [PointEventType.STREAK_BONUS]: 50,
     [PointEventType.ACHIEVEMENT_UNLOCKED]: 0,
     [PointEventType.BADGE_EARNED]: 30,
+    [PointEventType.CREDITS_REDEEMED]: 0,
 };
 
 // Map Next.js PointEventType to AI backend event type strings
@@ -63,6 +64,7 @@ const POINT_EVENT_TO_AI_EVENT: Record<PointEventType, string> = {
     [PointEventType.STREAK_BONUS]: "STREAK_MILESTONE",
     [PointEventType.ACHIEVEMENT_UNLOCKED]: "ACHIEVEMENT_UNLOCKED",
     [PointEventType.BADGE_EARNED]: "BADGE_EARNED",
+    [PointEventType.CREDITS_REDEEMED]: "CREDITS_REDEEMED",
 };
 
 interface AwardXPOptions {

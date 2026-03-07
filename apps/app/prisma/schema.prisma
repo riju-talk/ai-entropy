@@ -48,6 +48,7 @@ model User {
   isShadowBanned       Boolean               @default(false)
   isSuspended          Boolean               @default(false)
   leaderboardOptOut    Boolean               @default(false)
+  tier                 String                @default("INITIATE")
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   accounts             Account[]
@@ -69,7 +70,6 @@ model User {
   discounts            UserDiscount[]
   achievementProgress  AchievementProgress[]
   documents            Document[]
-  tier                 String                @default("INITIATE")
 
   @@index([createdAt])
   @@map("users")
@@ -114,6 +114,7 @@ model Doubt {
   upvotes         Int              @default(0)
   isResolved      Boolean          @default(false)
   isInCommunity   Boolean          @default(false)
+  views           Int              @default(0)
   answers         Answer[]
   communityDoubts CommunityDoubt[]
   votes           DoubtVote[]
@@ -135,6 +136,9 @@ model Answer {
   updatedAt    DateTime     @updatedAt
   isAnswered   String?      @unique @db.Uuid
   isAiAssisted Boolean      @default(false)
+  isAccepted   Boolean      @default(false)
+  upvotes      Int          @default(0)
+  downvotes    Int          @default(0)
   votes        AnswerVote[]
   author     User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
   doubt      Doubt        @relation(fields: [doubtId], references: [id], onDelete: Cascade)
@@ -201,6 +205,7 @@ model PointsLedger {
   eventType   PointEventType
   points      Int
   description String?
+  doubtId     String?
   createdAt   DateTime       @default(now())
   user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -311,16 +316,19 @@ model LeaderboardSnapshot {
 }
 
 model Conversation {
-  id        String    @id @default(cuid())
-  userId    String
-  title     String?
-  context   Json?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages  Message[]
+  id           String    @id @default(cuid())
+  userId       String
+  title        String?
+  context      Json?
+  sessionType  String    @default("QA")
+  systemPrompt String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages     Message[]
 
   @@index([userId, createdAt])
+  @@index([userId, sessionType])
   @@map("conversations")
 }
 
@@ -370,7 +378,11 @@ model AchievementProgress {
   achievementId  String
   current        Int         @default(0)
   target         Int
-  lastUpdated    DateTime    @default(now())
+  uniqueUsers    String[]
+  validatedCount Int         @default(0)
+  firstDate      DateTime?
+  lastDate       DateTime    @default(now()) @map("last_updated")
+  daySpan        Int         @default(0)
   user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   achievement    Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
 
@@ -425,29 +437,28 @@ model CommunityDoubt {
   @@map("community_doubts")
 }
 
-// AI-agent-owned tables — preserved to prevent data loss, not managed by TS code
 model Concept {
-  id          String   @id
-  name        String   @unique
-  description String?
-  domain      String?
-  difficulty  Int      @default(1)
-  embedding   Json?
-  synonyms    String[]
-  keywords    String[]
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime
+  id             String          @id @default(cuid())
+  name           String          @unique
+  description    String?
+  domain         String?
+  difficulty     Int             @default(1)
+  embedding      Json?
+  synonyms       String[]
+  keywords       String[]
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  masteryRecords MasteryRecord[]
 
   @@index([difficulty])
   @@index([domain])
   @@index([isActive])
   @@map("concepts")
-  @@ignore
 }
 
 model EventLog {
-  id          String    @id
+  id          String    @id @default(cuid())
   eventType   String
   userId      String?
   targetId    String?
@@ -459,11 +470,10 @@ model EventLog {
   @@index([processedAt])
   @@index([userId, emittedAt])
   @@map("event_logs")
-  @@ignore
 }
 
 model MasteryRecord {
-  id               String    @id
+  id               String    @id @default(cuid())
   userId           String
   conceptId        String
   totalAttempts    Int       @default(0)
@@ -472,16 +482,16 @@ model MasteryRecord {
   confidenceWeight Float     @default(1)
   lastSeen         DateTime?
   createdAt        DateTime  @default(now())
-  updatedAt        DateTime
+  updatedAt        DateTime  @updatedAt
+  concept          Concept   @relation(fields: [conceptId], references: [id], onDelete: Cascade)
 
   @@unique([userId, conceptId])
   @@index([userId])
   @@map("mastery_records")
-  @@ignore
 }
 
 model XpLedger {
-  id            String   @id
+  id            String   @id @default(cuid())
   userId        String
   eventType     String
   conceptId     String?
@@ -501,7 +511,6 @@ model XpLedger {
   @@index([flagged])
   @@index([userId, createdAt])
   @@map("xp_ledger")
-  @@ignore
 }
 
 enum Role {
@@ -540,6 +549,7 @@ enum PointEventType {
   STREAK_BONUS
   ACHIEVEMENT_UNLOCKED
   BADGE_EARNED
+  CREDITS_REDEEMED
 }
 
 enum AchievementType {

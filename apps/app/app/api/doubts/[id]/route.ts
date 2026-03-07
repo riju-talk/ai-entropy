@@ -19,7 +19,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
             reputation: true
           }
         },
-        comments: {
+        answers: {
           include: {
             author: {
               select: {
@@ -29,22 +29,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
                 image: true,
                 reputation: true
               }
-            },
-            replies: {
-              include: {
-                author: {
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    image: true
-                  }
-                }
-              }
             }
-          },
-          where: {
-            parentId: null // Only get top-level comments
           },
           orderBy: {
             createdAt: 'asc'
@@ -59,7 +44,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     return NextResponse.json({ 
       ...doubt, 
-      answers: doubt.comments // Map comments to answers for backward compatibility
+      comments: doubt.answers
     });
   } catch (error) {
     console.error("Error in doubt detail route:", error);

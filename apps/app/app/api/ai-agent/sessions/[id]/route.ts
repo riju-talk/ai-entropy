@@ -31,7 +31,7 @@ export async function GET(
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const chatSession = await getPrisma().aIChatSession.findFirst({
+    const chatSession = await getPrisma().conversation.findFirst({
       where: {
         id: params.id,
         userId: user.id,
@@ -40,7 +40,6 @@ export async function GET(
         messages: {
           orderBy: { createdAt: "asc" },
         },
-        documents: true,
       },
     })
 
@@ -48,7 +47,7 @@ export async function GET(
       return NextResponse.json({ error: "Session not found" }, { status: 404 })
     }
 
-    return NextResponse.json({ session: chatSession })
+    return NextResponse.json({ session: { ...chatSession, documents: [] } })
   } catch (error) {
     console.error("Error fetching session:", error)
     return NextResponse.json({ error: "Failed to fetch session" }, { status: 500 })
@@ -77,18 +76,15 @@ export async function PATCH(
 
     const { systemPrompt } = await req.json()
 
-    const chatSession = await getPrisma().aIChatSession.updateMany({
+    const result = await getPrisma().conversation.updateMany({
       where: {
         id: params.id,
         userId: user.id,
       },
-      data: {
-        systemPrompt,
-        updatedAt: new Date(),
-      },
+      data: { systemPrompt },
     })
 
-    if (chatSession.count === 0) {
+    if (result.count === 0) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 })
     }
 
@@ -119,7 +115,7 @@ export async function DELETE(
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    await getPrisma().aIChatSession.deleteMany({
+    await getPrisma().conversation.deleteMany({
       where: {
         id: params.id,
         userId: user.id,

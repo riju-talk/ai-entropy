@@ -55,7 +55,7 @@ export async function acceptAnswer(answerId: string, doubtId: string) {
     // Get the answer to find the answerer's ID
     const answer = await getPrisma().answer.findUnique({
       where: { id: answerId },
-      select: { userId: true },
+      select: { authorId: true },
     })
 
     if (!answer) {
@@ -70,7 +70,7 @@ export async function acceptAnswer(answerId: string, doubtId: string) {
 
     // Award 2 credits to the answerer for having their answer accepted
     await awardCredits(
-      answer.userId,
+      answer.authorId,
       "ANSWER_ACCEPTED",
       2,
       `Answer accepted for doubt ${doubtId}`,
@@ -138,24 +138,10 @@ export async function voteOnAnswer(answerId: string, voteType: "UP" | "DOWN") {
 
   const answer = await getPrisma().answer.update({
     where: { id: answerId },
-    data: {
-      upvotes,
-      downvotes,
-    },
-    select: {
-      doubtId: true,
-      doubt: {
-        select: {
-          communityId: true,
-        },
-      },
-    },
+    data: { upvotes, downvotes },
+    select: { doubtId: true },
   })
 
   revalidatePath(`/doubt/${answer.doubtId}`)
-  if (answer.doubt.communityId) {
-    revalidatePath(`/communities/${answer.doubt.communityId}`)
-  }
-
   return { success: true }
 }

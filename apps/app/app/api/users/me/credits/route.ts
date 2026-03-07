@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, PointEventType } from "@prisma/client";
 
 let __prisma__: PrismaClient | undefined;
 function getPrisma() {
@@ -93,10 +93,9 @@ export async function POST(request: Request) {
       await tx.pointsLedger.create({
         data: {
           userId: user.id,
-          eventType: "CREDITS_REDEEMED",
+          eventType: PointEventType.CREDITS_REDEEMED,
           points: -cost,
           description: `Redeemed ${cost} credits for ${action}`,
-          createdAt: new Date(),
         },
       });
 
