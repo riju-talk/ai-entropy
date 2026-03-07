@@ -24,8 +24,8 @@ from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
 
-AWS_REGION       = os.getenv("AWS_REGION",       "eu-north-1")
-S3_BUCKET_NAME   = os.getenv("S3_BUCKET_NAME",   "entropy-main")
+AWS_REGION       = os.getenv("AWS_REGION",       "us-east-1")
+S3_BUCKET_NAME   = os.getenv("S3_BUCKET_NAME",   "entropy-doc-main")
 PRESIGN_EXPIRY   = int(os.getenv("S3_PRESIGN_EXPIRY_SECS", "3600"))  # 1 hour
 
 
@@ -104,7 +104,12 @@ class S3Service:
             s3_key,
             ExtraArgs={
                 "ContentType": ct,
-                "Metadata": {"user_id": user_id, "doc_id": doc_id, "original_name": filename},
+                "Metadata": {
+                    "user_id": user_id,
+                    "doc_id": doc_id,
+                    # S3 metadata must be ASCII — encode any non-ASCII chars
+                    "original_name": filename.encode("ascii", errors="replace").decode("ascii"),
+                },
             },
         )
         logger.info("Uploaded fileobj â†’ s3://%s/%s", self.bucket, s3_key)

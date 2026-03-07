@@ -1,11 +1,11 @@
 """
-Entropy AI â€” Knowledge Graph Service (Neo4j)
+Entropy AI — Knowledge Graph Service (Neo4j)
 
 This is the brain of Entropy AI. Every concept lives as a node.
 Prerequisites, mastery, and relationships are graph edges.
 
-Node labels:  Concept, User
-Relationships: PREREQUISITE_OF, PART_OF, ATTEMPTED_BY, MASTERED_BY
+Node labels:  Concept, User, Document
+Relationships: PREREQUISITE_OF, PART_OF, ATTEMPTED_BY, MASTERED_BY, CONTAINS
 """
 from __future__ import annotations
 import logging
@@ -50,7 +50,13 @@ async def add_concept(
     domain: str = "",
     difficulty: int = 1,
 ) -> dict:
-    """Create or update a Concept node."""
+    """Create or update a Concept node (name is always stored in English)."""
+    # Normalise to English so the graph never contains non-Latin concept names.
+    try:
+        from app.services import multilingual_service as _ml
+        name = await _ml.normalize_concept_to_english(name) or name
+    except Exception:
+        pass
     driver = await get_driver()
     async with driver.session() as session:
         result = await session.run(
@@ -134,8 +140,13 @@ async def fetch_concept_context(concept: str) -> dict:
 async def record_mastery(user_id: str, concept: str, mastery_score: float) -> None:
     """
     Store or update MASTERED_BY relationship with a score property.
-    Score is float 0-1.
+    Score is float 0-1.  Concept name is normalised to English.
     """
+    try:
+        from app.services import multilingual_service as _ml
+        concept = await _ml.normalize_concept_to_english(concept) or concept
+    except Exception:
+        pass
     driver = await get_driver()
     async with driver.session() as session:
         await session.run(
@@ -198,6 +209,100 @@ async def get_recommended_path(user_id: str, target_concept: str) -> List[str]:
         )
         record = await result.single()
         return record["path_nodes"] if record else [target_concept]
+
+
+# ---------------------------------------------------------------------------
+# Document ↔ Concept tracking
+# ---------------------------------------------------------------------------
+
+async def link_document_concept(source: str, user_id: str, concept_name: str) -> None:
+    """
+    Create a Document node (keyed by source filename + user_id) and link it
+    to a Concept via CONTAINS.  Used during upload so we can clean up the graph
+    when the document is deleted.
+    """
+    driver = await get_driver()
+    async with driver.session() as session:
+        await session.run(
+            """
+            MERGE (d:Document {source: $source, user_id: $user_id})
+            MERGE (c:Concept   {name: $concept})
+            MERGE (d)-[:CONTAINS]->(c)
+            """,
+            source=source,
+            user_id=user_id,
+            concept=concept_name,
+        )
+
+
+async def remove_document_from_graph(source: str, user_id: str) -> dict:
+    """
+    Delete a Document node (and its CONTAINS edges).
+
+    For every Concept that was exclusively provided by this document
+    (i.e. no other Document CONTAINS it for this user), also remove the
+    user's MASTERED_BY relationship to that concept.
+
+    Global Concept nodes are kept — they benefit other users.
+
+    Returns: {"removed_doc": bool, "cleaned_mastery": int}
+    """
+    driver = await get_driver()
+    cleaned = 0
+    removed = False
+    try:
+        async with driver.session() as session:
+            # 1. Find concepts only this doc provides for this user
+            result = await session.run(
+                """
+                MATCH (d:Document {source: $source, user_id: $user_id})-[:CONTAINS]->(c:Concept)
+                WHERE NOT EXISTS {
+                    MATCH (other:Document {user_id: $user_id})-[:CONTAINS]->(c)
+                    WHERE other.source <> $source
+                }
+                RETURN c.name AS concept
+                """,
+                source=source,
+                user_id=user_id,
+            )
+            exclusive_concepts = [r["concept"] async for r in result]
+
+            # 2. Remove MASTERED_BY for those exclusive concepts
+            if exclusive_concepts:
+                res2 = await session.run(
+                    """
+                    MATCH (u:User {id: $user_id})-[r:MASTERED_BY]->(c:Concept)
+                    WHERE c.name IN $concepts
+                    DELETE r
+                    RETURN count(r) AS cnt
+                    """,
+                    user_id=user_id,
+                    concepts=exclusive_concepts,
+                )
+                record = await res2.single()
+                cleaned = record["cnt"] if record else 0
+
+            # 3. Delete the Document node (cascades CONTAINS edges)
+            res3 = await session.run(
+                """
+                MATCH (d:Document {source: $source, user_id: $user_id})
+                DETACH DELETE d
+                RETURN count(d) AS cnt
+                """,
+                source=source,
+                user_id=user_id,
+            )
+            r3 = await res3.single()
+            removed = bool(r3 and r3["cnt"] > 0)
+
+        logger.info(
+            "[GRAPH] Removed doc '%s' for user %s — cleaned %d mastery edges",
+            source, user_id, cleaned,
+        )
+    except Exception as exc:
+        logger.warning("[GRAPH] remove_document_from_graph failed: %s", exc)
+
+    return {"removed_doc": removed, "cleaned_mastery": cleaned}
 
 
 # ---------------------------------------------------------------------------

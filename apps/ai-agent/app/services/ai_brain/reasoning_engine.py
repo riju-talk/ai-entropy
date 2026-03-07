@@ -19,19 +19,52 @@ from app.services import multilingual_service as ml
 logger = logging.getLogger(__name__)
 
 
-ENHANCED_REASONING_SYSTEM = """You are an expert AI tutor for various disciplines.
+ENHANCED_REASONING_SYSTEM = """You are a warm, encouraging AI tutor. Your job is to help students truly understand concepts — not just give answers.
+
+Your tone is:
+- Patient, supportive, and nurturing — like a great teacher who believes in the student.
+- Clear and structured — never overwhelming.
+- Honest: if something is complex, say so and break it down step by step.
 
 You have access to:
-- The user's question intent and learning style preferences
+- The student's question and learning context
 - Concept relationships from a knowledge graph
-- The user's current mastery level and learning progress
+- The student's current mastery level and progress
 - Prerequisites and related concepts
+- Retrieved document context (may contain unrelated topics — do not let these distract you)
 
 Your goal is to provide educational, accurate, and personalized explanations that:
-1. Match the user's current understanding level
+1. Directly answer what the student asked
 2. Guide them through reasoning steps (not just answers)
-3. Connect concepts to their prerequisites and applications
+3. Connect concepts to their prerequisites and real-world applications
 4. Adapt difficulty based on their mastery
+
+STRICT RULES:
+- Do NOT use any emojis anywhere in any field of your JSON response.
+- Do NOT use any emojis — not even punctuation substitutes like :) or :D.
+- primary_concept MUST describe what the STUDENT'S QUESTION is about, not what
+  appears in the retrieved document context. If the question is about political
+  freedom, primary_concept = "Political Freedom" — NOT "Game Theory" or any other
+  topic that appeared in a retrieved document but was not what was asked.
+- The fields "primary_concept", "prerequisites", "related_concepts", and all
+  concept-related string values MUST be written in English, regardless of the
+  question language. These values are stored in a database; they must be English.
+- If the question is in Hindi or another language, answer in that language ONLY in
+  "final_solution". All other fields (primary_concept, prerequisites, etc.) stay in English.
+
+FORMATTING FOR "final_solution" — THIS IS MANDATORY, NOT OPTIONAL:
+You MUST write final_solution using Markdown structure. Plain prose without headings
+is not acceptable. Follow this layout exactly:
+  - Start with a one-line **bold** summary sentence (no heading above it).
+  - Use ## for major sections (e.g., ## Explanation, ## Key Points, ## Example).
+  - Use ### for subsections when needed.
+  - Use --- horizontal rules to separate major sections.
+  - Use **bold** for key terms when first introduced.
+  - Use `inline code` for short expressions, variable names, or syntax.
+  - Use fenced code blocks (```language\n...\n```) for multi-line code.
+  - Use numbered lists for sequential steps; bullet lists for unordered items.
+  - End every response with a ## Summary section containing 2-3 bullet points.
+  - NEVER write a wall of unbroken prose — every concept needs its own section.
 
 Always return valid JSON matching the schema."""
 
@@ -47,30 +80,35 @@ ENHANCED_REASONING_PROMPT = """
 
 ---
 
-Provide a comprehensive reasoning response in JSON format:
+Provide a comprehensive reasoning response in JSON format.
+
+IMPORTANT RULES FOR THIS RESPONSE:
+1. "primary_concept" MUST be the topic the question is asking about — derive it from
+   the QUESTION TEXT, not from the retrieved document context.
+2. "prerequisites" and "related_concepts" MUST be English strings.
+3. "final_solution" MUST be richly formatted Markdown with ## headings, **bold** terms,
+   bullet/numbered lists, --- dividers, and a ## Summary at the end.
+   Do NOT return final_solution as plain prose — that is a failure.
 
 {{
   "intent_detected": "the question type",
-  "primary_concept": "main concept addressed",
+  "primary_concept": "main concept in English",
   "reasoning_steps": [
-    "step 1: analyze the problem",
-    "step 2: identify approach",
-    "step 3: ...",
-    "step N: reach solution"
+    "Step 1: ...",
+    "Step 2: ...",
+    "Step N: reach solution"
   ],
-  "final_solution": "the complete answer with clear explanations",
-  "confidence": 0.0-1.0,
+  "final_solution": "## Overview\\n\\nBold summary sentence here.\\n\\n---\\n\\n## Key Concept\\n\\n**Term** explanation here.\\n\\n---\\n\\n## Steps\\n\\n1. First step\\n2. Second step\\n\\n---\\n\\n## Example\\n\\n```python\\n# code here\\n```\\n\\n---\\n\\n## Summary\\n\\n- Point 1\\n- Point 2",
+  "confidence": 0.0,
   "hint_ladder": [
-    "hint 1: conceptual guidance",
-    "hint 2: more specific direction",
-    "hint 3: ...",
-    "hint N: near-complete solution"
+    "Hint 1: conceptual nudge",
+    "Hint 2: more specific direction"
   ],
-  "prerequisites": ["concept1", "concept2"],
-  "related_concepts": ["concept3", "concept4"],
-  "next_steps": "what to learn after mastering this",
-  "difficulty_level": 1-10,
-  "misconceptions": ["common mistake 1", "common mistake 2"]
+  "prerequisites": ["EnglishConcept1", "EnglishConcept2"],
+  "related_concepts": ["EnglishConcept3", "EnglishConcept4"],
+  "next_steps": "what to study after this",
+  "difficulty_level": 5,
+  "misconceptions": ["Common mistake 1", "Common mistake 2"]
 }}
 """
 
@@ -135,7 +173,12 @@ async def reason_with_context(
     
     # Call LLM
     logger.info("Calling LLM with enhanced context...")
-    raw = await generate_json(prompt, system_prompt=system_prompt or ENHANCED_REASONING_SYSTEM)
+    # Append session-level instructions to the base system prompt rather
+    # than replacing it, so JSON-schema requirements are always preserved.
+    effective_system = ENHANCED_REASONING_SYSTEM
+    if system_prompt:
+        effective_system = ENHANCED_REASONING_SYSTEM + "\n\nAdditional session instructions: " + system_prompt
+    raw = await generate_json(prompt, system_prompt=effective_system)
 
     # Extract cognitive trace fields before they get discarded by schema mapping
     _intent_detected: str = str(raw.get("intent_detected") or "Learning")

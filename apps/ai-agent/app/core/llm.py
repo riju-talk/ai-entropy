@@ -36,8 +36,12 @@ async def generate_json(
     temp = temperature if temperature is not None else settings.LLM_TEMPERATURE
     json_system = (
         system_prompt
-        + "\n\nCRITICAL: Your entire response must be a single valid JSON object. "
-        + "Do NOT include markdown code fences, just raw JSON."
+        + "\n\nCRITICAL: Your entire response must be a single raw JSON object."
+        + "\n- Do NOT wrap the JSON in ```json code fences or any other outer wrapper."
+        + "\n- String values INSIDE the JSON — especially \"final_solution\" — MUST use rich"
+        + " markdown formatting: ## headings, **bold**, bullet lists, numbered lists,"
+        + " fenced code blocks, and --- horizontal rules exactly as instructed."
+        + "\n- Only the JSON object itself must not be wrapped in code fences."
     )
     for attempt in range(3):
         raw = await _run_sync(svc.generate, prompt, system=json_system, temperature=temp)

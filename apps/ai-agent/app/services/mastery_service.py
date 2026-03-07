@@ -32,6 +32,9 @@ logger = logging.getLogger(__name__)
 DECAY_DAYS = 7
 STRUGGLE_THRESHOLD = 0.4
 MASTERED_THRESHOLD = 0.8
+# Bayesian smoothing: prevents instant 100% on the first correct answer.
+# First correct: 1/(1+3)*1.0 = 25%. Ten correct of ten: 10/13*1.0 ≈ 77%.
+PRIOR_ATTEMPTS = 3
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +86,15 @@ def _compute_confidence_weight(
 
 async def update_mastery(req: MasteryUpdateRequest) -> MasteryUpdateResponse:
     """Process one attempt and return updated mastery state (persisted to DB)."""
+    # Always persist concepts in English so Cognitive Studio displays are readable.
+    try:
+        from app.services import multilingual_service as _ml
+        english_concept = await _ml.normalize_concept_to_english(req.concept)
+        if english_concept and english_concept != req.concept:
+            req = req.model_copy(update={"concept": english_concept})
+    except Exception as _e:
+        logger.debug("Concept normalisation skipped: %s", _e)
+
     db = _get_db_safe()
     if db is None:
         logger.warning("DB unavailable; mastery not persisted for user %s", req.user_id)
@@ -109,7 +121,7 @@ async def update_mastery(req: MasteryUpdateRequest) -> MasteryUpdateResponse:
             new_conf = _compute_confidence_weight(
                 existing.confidenceWeight, existing.lastSeen, req.hints_used
             )
-            new_mastery = round((correct / total) * new_conf, 4)
+            new_mastery = round((correct / (total + PRIOR_ATTEMPTS)) * new_conf, 4)
 
             await db.masteryrecord.update(
                 where={"id": existing.id},
@@ -126,7 +138,7 @@ async def update_mastery(req: MasteryUpdateRequest) -> MasteryUpdateResponse:
             total = 1
             correct = 1 if req.is_correct else 0
             new_conf = _compute_confidence_weight(1.0, None, req.hints_used)
-            new_mastery = round((correct / total) * new_conf, 4)
+            new_mastery = round((correct / (total + PRIOR_ATTEMPTS)) * new_conf, 4)
 
             await db.masteryrecord.create(
                 data={
@@ -187,6 +199,12 @@ async def track_qa_interaction(
     """
     if not user_id or not concept:
         return
+    # Normalize concept to English before persisting
+    try:
+        from app.services import multilingual_service as _ml
+        concept = await _ml.normalize_concept_to_english(concept)
+    except Exception:
+        pass
     req = MasteryUpdateRequest(
         user_id=user_id,
         concept=concept,

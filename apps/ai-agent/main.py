@@ -15,6 +15,8 @@ from app.api.routes.documents import router as documents_router
 from app.api.routes.qa import router as qa_router
 from app.api.routes.mindmap import router as mindmap_router
 from app.api.routes.quiz import router as quiz_router
+from app.api.routes.mastery import router as mastery_router
+from app.api.routes.graph import router as graph_router
 
 app = FastAPI(
     title="Entropy AI Agent",

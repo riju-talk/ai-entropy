@@ -29,7 +29,6 @@ import { cn } from "@/lib/utils"
 import { getUserDocuments } from "@/app/actions/documents"
 import { getCognitiveProfile, type CognitiveProfile, type ConceptRecord } from "@/app/actions/cognitive"
 import { DocumentList } from "./document-list"
-import { DocumentUpload } from "./document-upload"
 import {
     RadarChart,
     Radar,
@@ -108,6 +107,7 @@ export function NotebookLayout({
 }: NotebookLayoutProps) {
     const { data: session } = useSession()
     const [docCount, setDocCount] = useState(0)
+    const [docRefreshKey, setDocRefreshKey] = useState(0)
     const [showHeatmap, setShowHeatmap] = useState(false)
     const [activeConceptsExpanded, setActiveConceptsExpanded] = useState(true)
     const [assetsExpanded, setAssetsExpanded] = useState(true)
@@ -139,6 +139,20 @@ export function NotebookLayout({
         if (profile) setDocCount(profile.doc_count)
     }, [profile])
 
+    // ── Real-time Cognitive Studio refresh ──────────────────────────────
+    // Polls every 10 s; also fires on 'mastery-updated' browser events
+    // that ChatAgent dispatches after each successful AI response.
+    useEffect(() => {
+        if (!session?.user?.id) return
+        const iv = setInterval(fetchProfile, 10_000)
+        const onUpdate = () => fetchProfile()
+        window.addEventListener("mastery-updated", onUpdate)
+        return () => {
+            clearInterval(iv)
+            window.removeEventListener("mastery-updated", onUpdate)
+        }
+    }, [session?.user?.id, fetchProfile])
+
     // ── Derived display values ───────────────────────────
     const masteryData = profile ? conceptsToRadarData(profile.concepts) : []
     const weakSet = new Set(profile?.weak_concepts ?? [])
@@ -150,13 +164,15 @@ export function NotebookLayout({
     const reasoning = profile?.reasoning ?? 0
     const speed = profile?.speed ?? 0
     const accuracy = profile?.accuracy ?? 0
-    const hasData = (profile?.concepts.length ?? 0) > 0
+    // NOTE: split from `(?? 0) > 0` — SWC TSX parser misreads `>` as JSX
+    const conceptLen = profile?.concepts?.length ?? 0
+    const hasData = conceptLen > 0
 
     return (
         <div className="flex h-[calc(100vh-4rem)] bg-[#0a0a0f] overflow-hidden font-mono">
 
             {/* ── LEFT PANEL: KNOWLEDGE MEMORY ── */}
-            <div className="w-72 border-r border-white/[0.06] flex flex-col bg-[#0c0c14]">
+            <div className="w-72 border-r border-white/[0.06] flex flex-col bg-[#0c0c14] overflow-hidden">
                 <div className="px-4 py-3 border-b border-white/[0.06]">
                     <div className="flex items-center gap-2 mb-0.5">
                         <BrainCircuit className="h-3.5 w-3.5 text-cyan-400" />
@@ -165,8 +181,8 @@ export function NotebookLayout({
                     <p className="text-[9px] text-white/20 tracking-wide">Cognitive loading layer active</p>
                 </div>
 
-                <ScrollArea className="flex-1">
-                    <div className="p-3 space-y-4">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
+                    <div className="p-3 space-y-4 w-full min-w-0">
 
                         {/* Active Concepts */}
                         <div>
@@ -229,14 +245,13 @@ export function NotebookLayout({
                                 <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/40 group-hover:text-white/60">Learning Assets</span>
                             </button>
                             {assetsExpanded && (
-                                <div className="space-y-1">
-                                    <DocumentUpload userId={session?.user?.id} />
-                                    <DocumentList userId={session?.user?.id} selectedDocId={selectedDocId} onSelect={onDocSelect} />
+                                <div className="min-w-0 overflow-hidden">
+                                    <DocumentList userId={session?.user?.id} selectedDocId={selectedDocId} onSelect={onDocSelect} refreshKey={docRefreshKey} />
                                 </div>
                             )}
                         </div>
                     </div>
-                </ScrollArea>
+                </div>
 
                 <div className="px-4 py-3 border-t border-white/[0.06]">
                     <div className="flex items-center justify-between mb-1.5">

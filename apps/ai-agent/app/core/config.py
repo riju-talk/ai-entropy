@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5000"
 
     # ── S3 Document Storage ──────────────────────────────────────────────────
-    S3_BUCKET_NAME: str = "entropy-main"
+    S3_BUCKET_NAME: str = "entropy-doc-main"
     S3_PRESIGN_EXPIRY_SECS: int = 3600
 
     # ── Upload storage ───────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     VECTOR_DB: str = "pinecone"
     PINECONE_API_KEY: str = ""
     PINECONE_ENV: str = "us-east-1"
-    PINECONE_INDEX_NAME: str = "novyra-ai"
+    PINECONE_INDEX_NAME: str = "entropy-ai"
     PINECONE_HOST: str = ""
 
     # ── Embeddings ───────────────────────────────────────────────────────────

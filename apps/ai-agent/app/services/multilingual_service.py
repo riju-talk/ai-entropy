@@ -118,3 +118,40 @@ async def postprocess(english_text: str, target_lang: str) -> str:
     If target is English, returns as-is.
     """
     return await from_english(english_text, target_lang=target_lang)
+
+
+# ---------------------------------------------------------------------------
+# Concept normalisation — always store concepts in English
+# ---------------------------------------------------------------------------
+
+def _is_non_english(text: str) -> bool:
+    """
+    Returns True when >25% of characters fall outside basic Latin / ASCII.
+    Covers Devanagari, CJK, Arabic, Cyrillic, etc.
+    """
+    if not text:
+        return False
+    non_latin = sum(1 for c in text if ord(c) > 127)
+    return (non_latin / len(text)) > 0.25
+
+
+async def normalize_concept_to_english(concept: str) -> str:
+    """
+    Guarantee that a concept name is stored in English.
+
+    - If the string is already ASCII/Latin, title-case it and return.
+    - If it contains non-Latin characters, translate to English first.
+
+    This is called before every DB and Neo4j write so that concepts are
+    always stored as English strings regardless of the user's language.
+    """
+    concept = concept.strip()
+    if not concept:
+        return concept
+
+    if not _is_non_english(concept):
+        # Already English — just normalise casing
+        return concept.title()
+
+    translated = await to_english(concept, source_lang="auto")
+    return translated.strip().title()

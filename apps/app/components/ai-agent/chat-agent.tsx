@@ -10,11 +10,15 @@ import {
   Send, Loader2, User, BrainCircuit, Globe, Zap, Network,
   FlaskConical, ChevronDown, CheckCircle2, Layers, MessageSquare, Trophy,
   Atom, ScanLine, Mic, MicOff, PlusCircle, BookOpen, CalendarDays, Bell,
+  X, Link2, Tag, AlignLeft,
 } from "lucide-react"
+import dynamic from "next/dynamic"
 import { ModeSelector, type LearningMode } from "./mode-selector"
 import { CognitiveTraceCard, type CognitiveTrace } from "./cognitive-trace-card"
 import { ExamModeOverlay } from "./exam-mode-overlay"
-import { LiveKnowledgeGraph } from "./live-knowledge-graph"
+
+// Markdown renderer — loaded client-side only (SSR disabled)
+const MDPreview = dynamic(() => import("@uiw/react-markdown-preview"), { ssr: false })
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -42,6 +46,21 @@ function detectLanguage(text: string): "hindi" | "english" {
   // Unicode range for Devanagari: U+0900–U+097F
   const devanagariCount = (text.match(/[\u0900-\u097F]/g) || []).length
   return devanagariCount > 3 ? "hindi" : "english"
+}
+
+/** Map UI language selection to ISO-639 codes for the Python backend */
+function toLangCode(lang: Language, inputIsHindi: boolean): string {
+  if (lang === "hindi") return "hi"
+  if (lang === "bilingual") return "bilingual"
+  if (lang === "auto" && inputIsHindi) return "hi"
+  return "en"
+}
+
+/** Strip Unicode emoji characters from AI responses */
+function stripEmojis(text: string): string {
+  return text
+    .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27FF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1FAFF}]+/gu, "")
+    .trim()
 }
 
 function generateMockTrace(content: string, inputText: string): CognitiveTrace {
@@ -158,11 +177,16 @@ function MessageBubble({ msg, showTrace }: { msg: Message; showTrace: boolean })
           {msg.isStreaming ? (
             <TypingDots />
           ) : (
-            <p className={cn("text-[13px] leading-relaxed whitespace-pre-wrap",
-              detectedLang === "hindi" ? "text-orange-100/70" : "text-white/70"
+            <div className={cn(
+              "ai-markdown-response",
+              detectedLang === "hindi" && "hindi-response"
             )}>
-              {msg.content}
-            </p>
+              <MDPreview
+                source={stripEmojis(msg.content)}
+                wrapperElement={{ "data-color-mode": "dark" } as any}
+                style={{ backgroundColor: "transparent" }}
+              />
+            </div>
           )}
         </div>
 
@@ -275,6 +299,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
   const [mode, setMode] = useState<LearningMode>("chat")
   const [language, setLanguage] = useState<Language>("auto")
   const [showTrace, setShowTrace] = useState(true)
+  const [showTracePanel, setShowTracePanel] = useState(false)
   const [showGraph, setShowGraph] = useState(false)
   const [showExam, setShowExam] = useState(false)
   const [activeConceptId, setActiveConceptId] = useState<string | undefined>()
@@ -430,8 +455,9 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
 
     // Build the payload
     const systemHints = [
+      "Do not use any emojis in your response. Write with clear, professional academic text only.",
       language === "hindi" ? "Respond in Hindi (Devanagari script)." : "",
-      language === "bilingual" ? "Respond bilingually — technical terms in English, explanations in Hindi." : "",
+      language === "bilingual" ? "Respond bilingually — explain concepts in Hindi, write code/formulas in English." : "",
       mode === "structured" ? `This is structured learning step ${structuredStep + 1}/4. Validate reasoning before giving full answer.` : "",
       contextDoc ? `Context document: ${contextDoc.name || contextDoc.id}` : "",
     ].filter(Boolean).join(" ")
@@ -444,7 +470,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
           question: text,
           systemPrompt: systemHints || undefined,
           mode,
-          language,
+          language: toLangCode(language, detectedLang === "hindi"),
           userId: userId || undefined,
           conversationId: conversationId || undefined,
         }),
@@ -506,6 +532,9 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
             : m
         )
       )
+
+      // Notify Cognitive Studio panels to refresh mastery data in real time
+      window.dispatchEvent(new CustomEvent("mastery-updated"))
     } catch (err) {
       setMessages((prev) =>
         prev.map((m) =>
@@ -654,17 +683,16 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
         <StructuredModeGuide step={structuredStep} />
       )}
 
-      {/* ── Live Knowledge Graph (collapsible) ── */}
+      {/* ── Chat Concept Graph (collapsible) ── */}
       {showGraph && (
         <div className="flex-shrink-0 border-b border-white/[0.06] bg-[#0c0c14]">
-          <LiveKnowledgeGraph
-            userId={userId}
-            activeConceptId={activeConceptId}
-            masteryUpdate={masteryUpdate}
-            height={180}
-            className="mx-4 my-3"
-          />
+          <ChatConceptGraph messages={messages} className="mx-4 my-3" />
         </div>
+      )}
+
+      {/* ── Trace Panel overlay ── */}
+      {showTracePanel && (
+        <TracePanel messages={messages} contextDoc={contextDoc} onClose={() => setShowTracePanel(false)} />
       )}
 
       {/* ── Message feed ── */}
@@ -684,10 +712,10 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
         {/* Control strip */}
         <div className="flex items-center gap-2 px-4 py-2 border-b border-white/[0.04] overflow-x-auto">
 
-          {/* New Chat button */}
+          {/* New Chat button — under progress */}
           {userId && (
             <button
-              onClick={startNewChat}
+              onClick={() => toast({ title: "New Chat", description: "New session management is still under progress — coming soon." })}
               title="New Chat"
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/[0.06] bg-white/[0.02] text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-white/50 hover:border-white/10 transition-all flex-shrink-0"
             >
@@ -706,13 +734,13 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
 
           <div className="w-px h-4 bg-white/[0.08] flex-shrink-0 hidden lg:block" />
 
-          {/* Cognitive trace toggle */}
+          {/* Trace panel button — shows all references of the current chat */}
           <button
-            onClick={() => setShowTrace(v => !v)}
-            title="Toggle Cognitive Trace"
+            onClick={() => setShowTracePanel(v => !v)}
+            title="Show all references and reasoning traces for this chat"
             className={cn(
               "hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[9px] font-bold uppercase tracking-widest transition-all flex-shrink-0",
-              showTrace
+              showTracePanel
                 ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
                 : "bg-white/[0.02] border-white/[0.06] text-white/25 hover:text-white/45"
             )}
@@ -721,10 +749,10 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
             <span className="hidden xl:inline">Trace</span>
           </button>
 
-          {/* Graph toggle */}
+          {/* Graph toggle — concept graph of current chat */}
           <button
             onClick={() => setShowGraph(v => !v)}
-            title="Show Knowledge Graph"
+            title="Show concept graph of this conversation"
             className={cn(
               "hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[9px] font-bold uppercase tracking-widest transition-all flex-shrink-0",
               showGraph
@@ -754,7 +782,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
             </button>
           )}
 
-          {/* Exam simulation shortcut */}
+          {/* Exam simulation — opens setup+exam flow */}
           <button
             onClick={() => { setMode("exam"); setShowExam(true) }}
             title="Simulate Exam"
@@ -863,6 +891,213 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+// ─── TracePanel — all references & reasoning traces from current chat ─────────
+
+function TracePanel({ messages, contextDoc, onClose }: { messages: Message[]; contextDoc?: any; onClose: () => void }) {
+  const assistantMsgs = messages.filter(m => m.role === "assistant" && m.trace)
+
+  // Aggregate unique concepts with frequency
+  const conceptMap = new Map<string, { count: number; totalImpact: number; intents: string[] }>()
+  assistantMsgs.forEach(m => {
+    if (!m.trace) return
+    const key = m.trace.concept
+    const existing = conceptMap.get(key) || { count: 0, totalImpact: 0, intents: [] }
+    existing.count += 1
+    existing.totalImpact += m.trace.masteryImpact
+    if (m.trace.intent && !existing.intents.includes(m.trace.intent)) existing.intents.push(m.trace.intent)
+    conceptMap.set(key, existing)
+  })
+  const concepts = Array.from(conceptMap.entries())
+    .map(([name, v]) => ({ name, ...v }))
+    .sort((a, b) => b.count - a.count)
+
+  const intents = Array.from(new Set(assistantMsgs.map(m => m.trace?.intent).filter(Boolean)))
+  const avgMs = assistantMsgs.length
+    ? Math.round(assistantMsgs.reduce((s, m) => s + (m.trace?.inferenceMs ?? 0), 0) / assistantMsgs.length)
+    : 0
+
+  return (
+    <div className="absolute inset-0 z-40 bg-[#0a0a0f]/95 backdrop-blur-sm flex flex-col">
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-cyan-500/15 bg-cyan-500/[0.03] flex-shrink-0">
+        <BrainCircuit className="h-3.5 w-3.5 text-cyan-400" />
+        <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Conversation References</span>
+        <span className="text-[9px] text-white/20 font-mono ml-1">
+          {assistantMsgs.length} reasoning traces · {concepts.length} concepts
+        </span>
+        <button onClick={onClose} className="ml-auto text-white/20 hover:text-white/55 transition-colors">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-5 space-y-5">
+
+        {/* Source doc */}
+        {contextDoc && (
+          <section className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Link2 className="h-3 w-3 text-cyan-400/60" />
+              <span className="text-[9px] font-bold uppercase tracking-widest text-cyan-400/60">Source Document</span>
+            </div>
+            <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-cyan-500/[0.04] border border-cyan-500/15">
+              <AlignLeft className="h-3.5 w-3.5 text-cyan-400/50 shrink-0" />
+              <span className="text-[11px] text-white/60 truncate">{contextDoc.name || contextDoc.title || "Uploaded document"}</span>
+              <span className="text-[8px] text-cyan-400/40 font-mono ml-auto shrink-0">Grounded</span>
+            </div>
+          </section>
+        )}
+
+        {/* Concepts referenced */}
+        <section className="space-y-2">
+          <div className="flex items-center gap-1.5">
+            <Tag className="h-3 w-3 text-purple-400/60" />
+            <span className="text-[9px] font-bold uppercase tracking-widest text-purple-400/60">Concepts Referenced</span>
+            <span className="ml-auto text-[8px] text-white/20">{concepts.length} unique</span>
+          </div>
+          {concepts.length === 0
+            ? <p className="text-[9px] text-white/20 py-2">No concepts tracked yet — ask a question to start</p>
+            : (
+              <div className="space-y-1.5">
+                {concepts.map(c => (
+                  <div key={c.name} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:bg-white/[0.04] transition-colors">
+                    <div className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
+                    <span className="text-[11px] text-white/65 flex-1 truncate">{c.name}</span>
+                    <span className="text-[8px] text-purple-400/50 font-mono shrink-0">×{c.count}</span>
+                    <span className="text-[8px] text-emerald-400/50 font-mono shrink-0">+{c.totalImpact}%</span>
+                  </div>
+                ))}
+              </div>
+            )
+          }
+        </section>
+
+        {/* Reasoning intents */}
+        {intents.length > 0 && (
+          <section className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Layers className="h-3 w-3 text-amber-400/60" />
+              <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400/60">Query Intents Detected</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {intents.map(intent => (
+                <span key={intent} className="px-2.5 py-1 rounded-full bg-amber-500/[0.06] border border-amber-500/15 text-[9px] text-amber-400/70 font-mono">
+                  {intent}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Per-message trace timeline */}
+        <section className="space-y-2">
+          <div className="flex items-center gap-1.5">
+            <AlignLeft className="h-3 w-3 text-white/30" />
+            <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">Reasoning Timeline</span>
+            {avgMs > 0 && <span className="ml-auto text-[8px] text-white/20 font-mono">avg {avgMs}ms</span>}
+          </div>
+          {assistantMsgs.length === 0
+            ? <p className="text-[9px] text-white/20 py-2">No reasoning traces yet</p>
+            : (
+              <div className="space-y-1.5">
+                {assistantMsgs.map((m, i) => (
+                  <div key={m.id} className="flex gap-3 px-3 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                    <span className="text-[8px] text-white/20 font-mono w-4 shrink-0 mt-0.5">{i + 1}</span>
+                    <div className="flex-1 min-w-0 space-y-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[9px] font-bold text-cyan-400/70">{m.trace?.concept}</span>
+                        <span className="text-[8px] text-white/20">·</span>
+                        <span className="text-[8px] text-white/35">{m.trace?.intent}</span>
+                      </div>
+                      <p className="text-[10px] text-white/40 line-clamp-2 leading-relaxed">
+                        {m.content.slice(0, 120)}{m.content.length > 120 ? "…" : ""}
+                      </p>
+                    </div>
+                    <div className="shrink-0 flex flex-col items-end gap-0.5">
+                      <span className="text-[8px] text-purple-400/50 font-mono">+{m.trace?.masteryImpact}%</span>
+                      <span className="text-[7px] text-white/15 font-mono">{m.trace?.inferenceMs}ms</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          }
+        </section>
+      </div>
+    </div>
+  )
+}
+
+// ─── ChatConceptGraph — concept graph built from current chat traces ──────────
+
+function ChatConceptGraph({ messages, className }: { messages: Message[]; className?: string }) {
+  // Extract concepts from all assistant traces
+  const conceptFreq = new Map<string, number>()
+  const pairs: [string, string][] = []
+  const traceList = messages.filter(m => m.role === "assistant" && m.trace?.concept).map(m => m.trace!.concept)
+
+  traceList.forEach((c, i) => {
+    conceptFreq.set(c, (conceptFreq.get(c) || 0) + 1)
+    if (i > 0 && traceList[i - 1] !== c) pairs.push([traceList[i - 1], c])
+  })
+
+  const nodes = Array.from(conceptFreq.entries()).map(([label, freq], idx) => ({ id: label, label, freq, idx }))
+  const uniquePairs = Array.from(new Set(pairs.map(p => [p[0], p[1]].sort().join("|||")))).map(s => s.split("|||") as [string, string])
+
+  if (nodes.length === 0) {
+    return (
+      <div className={cn("flex items-center justify-center h-28", className)}>
+        <p className="text-[9px] text-white/20 text-center">Start asking questions to build the concept graph</p>
+      </div>
+    )
+  }
+
+  // Circular layout
+  const W = 500; const H = 140; const CX = W / 2; const CY = H / 2; const R = Math.min(CX, CY) * 0.72
+  const nodePos = nodes.map((n, i) => {
+    const angle = nodes.length === 1 ? 0 : (i / nodes.length) * Math.PI * 2 - Math.PI / 2
+    const r = nodes.length === 1 ? 0 : R
+    return { ...n, x: CX + Math.cos(angle) * r, y: CY + Math.sin(angle) * r }
+  })
+  const posMap = new Map(nodePos.map(n => [n.id, { x: n.x, y: n.y }]))
+  const nodeColors = ["#22d3ee", "#a78bfa", "#34d399", "#f59e0b", "#f87171", "#fb923c", "#e879f9"]
+
+  return (
+    <div className={cn("rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden", className)}>
+      <div className="flex items-center gap-2 px-3 pt-2.5 pb-1">
+        <Network className="h-3 w-3 text-purple-400/60" />
+        <span className="text-[9px] font-bold uppercase tracking-widest text-purple-400/60">Chat Concept Graph</span>
+        <span className="ml-auto text-[8px] text-white/20 font-mono">{nodes.length} concepts · {uniquePairs.length} links</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 130 }}>
+        {/* Edges */}
+        {uniquePairs.map(([a, b], i) => {
+          const pa = posMap.get(a); const pb = posMap.get(b)
+          if (!pa || !pb) return null
+          return <line key={i} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="rgba(255,255,255,0.06)" strokeWidth={1.5} />
+        })}
+        {/* Nodes */}
+        {nodePos.map((n, i) => {
+          const r = 4 + Math.min(n.freq * 2, 8)
+          const color = nodeColors[i % nodeColors.length]
+          return (
+            <g key={n.id}>
+              <circle cx={n.x} cy={n.y} r={r + 4} fill={color} fillOpacity={0.06} />
+              <circle cx={n.x} cy={n.y} r={r} fill={color} fillOpacity={0.25} stroke={color} strokeWidth={1} />
+              <text
+                x={n.x} y={n.y + r + 9}
+                textAnchor="middle"
+                fill="rgba(255,255,255,0.45)"
+                fontSize={8}
+                fontFamily="monospace"
+              >
+                {n.label.length > 14 ? n.label.slice(0, 13) + "…" : n.label}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
     </div>
   )
 }

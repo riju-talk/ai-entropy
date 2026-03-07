@@ -84,7 +84,15 @@ async def post_qa(payload: QAInput, background_tasks: BackgroundTasks):
         difficulty_norm = round(min(1.0, max(0.0, difficulty_level / 10.0)), 2)
         confidence = float(result_dict.get("confidence_score") or 0.8)
         mastery_impact = max(1, min(5, math.ceil(confidence * 5)))
-        detected_concept: str = result_dict.get("concept", "")
+
+        # Normalize concept to English (guard against non-English LLM output)
+        _raw_concept: str = result_dict.get("concept", "")
+        try:
+            from app.services import multilingual_service as _ml
+            import asyncio
+            detected_concept: str = await _ml.normalize_concept_to_english(_raw_concept) or _raw_concept
+        except Exception:
+            detected_concept = _raw_concept
 
         # Fire-and-forget: persist mastery for this QA interaction
         if payload.userId and detected_concept:
@@ -95,7 +103,7 @@ async def post_qa(payload: QAInput, background_tasks: BackgroundTasks):
         return {
             # ── Primary answer ─────────────────────────────────────────────
             "answer":            result_dict.get("answer", ""),
-            "concept":           result_dict.get("concept", ""),
+            "concept":           detected_concept,
             "prerequisites":     result_dict.get("prerequisites", []),
             "stepwise_reasoning": result_dict.get("stepwise_reasoning", []),
             "hint_ladder":       result_dict.get("hint_ladder", []),

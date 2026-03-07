@@ -2,24 +2,52 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { cn } from "@/lib/utils"
-import { Trophy, Timer, X, ChevronRight, Zap, BarChart3, Brain, CheckCircle2 } from "lucide-react"
+import { Trophy, Timer, X, ChevronRight, Zap, Brain, CheckCircle2, XCircle, Loader2, BookOpen, Settings2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-interface ExamQuestion {
+// ── Types ──────────────────────────────────────────────────────────────────
+
+interface MCQQuestion {
   question: string
-  userAnswer: string
-  confidence: number // 0-100
-  timeSpent: number  // seconds
-  score: number      // 0-100 rubric
+  options: string[]
+  correctAnswer: number   // index into options
+  explanation: string
+  isEssay: false
+}
+
+interface EssayQuestion {
+  question: string
+  keywords: string[]      // rubric keywords
+  isEssay: true
+  explanation: string
+}
+
+type ExamQuestion = MCQQuestion | EssayQuestion
+
+interface AnsweredQuestion {
+  question: string
+  userAnswer: string      // selected option text or essay text
+  selectedIdx?: number    // for MCQ
+  correctAnswer?: string  // for MCQ
+  isCorrect?: boolean     // for MCQ
+  score: number           // 0-100
+  timeSpent: number
 }
 
 interface ExamResultBreakdown {
-  questions: ExamQuestion[]
+  questions: AnsweredQuestion[]
   totalTime: number
   avgConfidence: number
   finalScore: number
   conceptsMastered: string[]
   conceptsWeak: string[]
+}
+
+interface ExamConfig {
+  topic: string
+  difficulty: "easy" | "medium" | "hard"
+  durationMin: number
+  numQuestions: number
 }
 
 interface ExamModeOverlayProps {
@@ -28,81 +56,261 @@ interface ExamModeOverlayProps {
   subject?: string
 }
 
-const EXAM_DURATION = 600 // 10 minutes in seconds
+// ── Fallback essay questions by topic keywords ─────────────────────────────
+function generateFallbackQuestions(topic: string, n: number, difficulty: string): EssayQuestion[] {
+  const base = [
+    { question: `Explain the core principles of ${topic}.`, keywords: [topic.toLowerCase().split(" ")[0], "principle", "concept", "define"] },
+    { question: `Describe how ${topic} is applied in practice with a real-world example.`, keywords: ["example", "apply", "use", "practice"] },
+    { question: `What are the most common challenges or misconceptions around ${topic}?`, keywords: ["challenge", "mistake", "common", "error", "misconception"] },
+    { question: `Compare and contrast two different approaches related to ${topic}.`, keywords: ["compare", "contrast", "difference", "similar", "versus"] },
+    { question: `If ${topic} were unavailable, what alternative would you use and why?`, keywords: ["alternative", "instead", "replace", "reason", "because"] },
+    { question: `Explain the historical development or evolution of ${topic}.`, keywords: ["history", "develop", "evolve", "origin", "change"] },
+    { question: `How does ${topic} relate to other concepts you have studied?`, keywords: ["relate", "connect", "link", "depend", "combine"] },
+    { question: `Provide a mathematical or logical derivation involving ${topic} if applicable.`, keywords: ["derive", "proof", "formula", "equation", "step"] },
+    { question: `What are the limitations or edge cases of ${topic}?`, keywords: ["limit", "edge", "case", "fail", "except"] },
+    { question: `Summarise ${topic} as if explaining it to someone with no background.`, keywords: ["simple", "basic", "explain", "understand", "mean"] },
+  ]
+  const diffExtra = difficulty === "hard" ? ` Provide a rigorous, detailed answer.` : difficulty === "medium" ? ` Include an example.` : ""
+  return base.slice(0, n).map(q => ({
+    question: q.question + diffExtra,
+    keywords: q.keywords,
+    isEssay: true as const,
+    explanation: `A good answer should clearly address ${topic} and use relevant terminology.`,
+  }))
+}
 
-export function ExamModeOverlay({ onExit, onComplete, subject = "General" }: ExamModeOverlayProps) {
+export function ExamModeOverlay({ onExit, onComplete, subject = "" }: ExamModeOverlayProps) {
+  // ── Setup phase ──────────────────────────────────────────────────────────
+  const [config, setConfig] = useState<ExamConfig>({
+    topic: subject || "",
+    difficulty: "medium",
+    durationMin: 10,
+    numQuestions: 5,
+  })
+  const [phase, setPhase] = useState<"configure" | "intro" | "exam" | "results">("configure")
+  const [questions, setQuestions] = useState<ExamQuestion[]>([])
+  const [fetchingQs, setFetchingQs] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+
+  // ── Exam runtime ──────────────────────────────────────────────────────────
+  const EXAM_DURATION = config.durationMin * 60
   const [timeLeft, setTimeLeft] = useState(EXAM_DURATION)
-  const [started, setStarted] = useState(false)
-  const [currentInput, setCurrentInput] = useState("")
-  const [confidence, setConfidence] = useState(50)
   const [questionIndex, setQuestionIndex] = useState(0)
-  const [answers, setAnswers] = useState<ExamQuestion[]>([])
-  const [showResults, setShowResults] = useState(false)
+  const [mcqSelected, setMcqSelected] = useState<number | undefined>(undefined)
+  const [essayInput, setEssayInput] = useState("")
+  const [answers, setAnswers] = useState<AnsweredQuestion[]>([])
   const [questionStartTime, setQuestionStartTime] = useState(Date.now())
 
-  const questions = [
-    "Define the Chain Rule and state when it applies.",
-    "Calculate the derivative of f(x) = sin(x²) using the Chain Rule.",
-    "Explain the relationship between derivatives and instantaneous rate of change.",
-    "What is the limit definition of a derivative?",
-    "Describe when a function is not differentiable at a point.",
-  ]
-
+  // Timer
   useEffect(() => {
-    if (!started || showResults) return
+    if (phase !== "exam") return
     if (timeLeft <= 0) { finalizeExam(); return }
     const t = setTimeout(() => setTimeLeft(v => v - 1), 1000)
     return () => clearTimeout(t)
-  }, [started, timeLeft, showResults])
+  }, [phase, timeLeft]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset timer when exam starts
+  useEffect(() => {
+    if (phase === "exam") setTimeLeft(config.durationMin * 60)
+  }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchQuestions = useCallback(async (cfg: ExamConfig) => {
+    setFetchingQs(true)
+    setFetchError(null)
+    try {
+      const res = await fetch("/api/ai-agent/quiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: cfg.topic,
+          difficulty: cfg.difficulty,
+          num_questions: cfg.numQuestions,
+          language: "english",
+        }),
+      })
+      if (!res.ok) throw new Error("backend error")
+      const data = await res.json()
+      const raw: any[] = data.questions || data || []
+      if (!Array.isArray(raw) || raw.length === 0) throw new Error("empty response")
+      const mcq: MCQQuestion[] = raw.slice(0, cfg.numQuestions).map((q: any) => ({
+        question: q.question || q.text || "",
+        options: q.options || q.choices || [],
+        correctAnswer: typeof q.correctAnswer === "number" ? q.correctAnswer
+          : typeof q.correct_answer === "number" ? q.correct_answer : 0,
+        explanation: q.explanation || "",
+        isEssay: false,
+      })).filter(q => q.question && q.options.length >= 2)
+      if (mcq.length === 0) throw new Error("invalid format")
+      setQuestions(mcq)
+    } catch {
+      // Fallback: generate essay questions
+      setFetchError("Using built-in question set (backend offline)")
+      setQuestions(generateFallbackQuestions(cfg.topic || "the topic", cfg.numQuestions, cfg.difficulty))
+    } finally {
+      setFetchingQs(false)
+    }
+  }, [])
+
+  const handleConfigure = async () => {
+    if (!config.topic.trim()) return
+    await fetchQuestions(config)
+    setPhase("intro")
+  }
 
   const finalizeExam = useCallback(() => {
-    const mockResult: ExamResultBreakdown = {
+    const totalScore = answers.length
+      ? Math.round(answers.reduce((s, a) => s + a.score, 0) / answers.length)
+      : 0
+    const mastered = answers.filter(a => a.score >= 70).map(a => a.question.slice(0, 30) + "…")
+    const weak = answers.filter(a => a.score < 50).map(a => a.question.slice(0, 30) + "…")
+    onComplete({
       questions: answers,
-      totalTime: EXAM_DURATION - timeLeft,
-      avgConfidence: answers.length
-        ? Math.round(answers.reduce((s, a) => s + a.confidence, 0) / answers.length)
-        : 0,
-      finalScore: answers.length
-        ? Math.round(answers.reduce((s, a) => s + a.score, 0) / answers.length)
-        : 0,
-      conceptsMastered: ["Chain Rule", "Derivatives"],
-      conceptsWeak: ["Limits", "Non-differentiability"],
-    }
-    setShowResults(true)
-    onComplete(mockResult)
-  }, [answers, timeLeft, onComplete])
+      totalTime: (config.durationMin * 60) - timeLeft,
+      avgConfidence: 0,
+      finalScore: totalScore,
+      conceptsMastered: mastered,
+      conceptsWeak: weak,
+    })
+    setPhase("results")
+  }, [answers, timeLeft, config.durationMin, onComplete])
 
-  const submitAnswer = () => {
-    if (!currentInput.trim()) return
+  const submitAnswer = useCallback(() => {
+    const q = questions[questionIndex]
+    if (!q) return
     const timeSpent = Math.round((Date.now() - questionStartTime) / 1000)
-    // Mock rubric scoring based on length and keywords
-    const keywords = ["derivative", "chain", "limit", "function", "differential", "rate", "slope"]
-    const hits = keywords.filter(k => currentInput.toLowerCase().includes(k)).length
-    const score = Math.min(100, 30 + hits * 12 + Math.min(currentInput.length / 5, 20))
 
-    setAnswers(prev => [...prev, {
-      question: questions[questionIndex],
-      userAnswer: currentInput,
-      confidence,
-      timeSpent,
-      score: Math.round(score),
-    }])
-    setCurrentInput("")
-    setConfidence(50)
+    let score = 0
+    let userAnswer = ""
+    let isCorrect: boolean | undefined
+    let correctAnswer: string | undefined
+
+    if (!q.isEssay) {
+      // MCQ: strict binary scoring
+      if (mcqSelected === undefined) return
+      isCorrect = mcqSelected === q.correctAnswer
+      score = isCorrect ? 100 : 0
+      userAnswer = q.options[mcqSelected] ?? ""
+      correctAnswer = q.options[q.correctAnswer] ?? ""
+    } else {
+      // Essay: keyword rubric
+      if (!essayInput.trim()) return
+      const ans = essayInput.toLowerCase()
+      const topicWords = config.topic.toLowerCase().split(/\s+/).filter(Boolean)
+      const keywordHits = q.keywords.filter(k => ans.includes(k)).length
+      const topicHits = topicWords.filter(k => ans.includes(k)).length
+      const lengthBonus = Math.min(essayInput.length / 8, 20)
+      score = Math.min(100, Math.round(25 + keywordHits * 12 + topicHits * 8 + lengthBonus))
+      userAnswer = essayInput
+    }
+
+    setAnswers(prev => [...prev, { question: q.question, userAnswer, selectedIdx: mcqSelected, isCorrect, correctAnswer, score, timeSpent }])
+    setMcqSelected(undefined)
+    setEssayInput("")
     setQuestionStartTime(Date.now())
 
     if (questionIndex + 1 >= questions.length) {
-      finalizeExam()
+      // Let finalizeExam pick up the new answers on next render
+      setTimeout(() => finalizeExam(), 50)
     } else {
       setQuestionIndex(prev => prev + 1)
     }
-  }
+  }, [questions, questionIndex, mcqSelected, essayInput, questionStartTime, config.topic, finalizeExam])
 
   const minutes = Math.floor(timeLeft / 60)
   const seconds = timeLeft % 60
   const timerColor = timeLeft < 60 ? "text-red-400" : timeLeft < 180 ? "text-amber-400" : "text-emerald-400"
 
-  if (!started) {
+  // ── Phase: Configure ──────────────────────────────────────────────────────
+  if (phase === "configure") {
+    const diffOpts: Array<ExamConfig["difficulty"]> = ["easy", "medium", "hard"]
+    const durations = [5, 10, 15, 20]
+    const qCounts = [3, 5, 7, 10]
+    const diffColors: Record<string, string> = {
+      easy: "bg-emerald-500/10 border-emerald-500/30 text-emerald-400",
+      medium: "bg-amber-500/10 border-amber-500/30 text-amber-400",
+      hard: "bg-red-500/10 border-red-500/30 text-red-400",
+    }
+    return (
+      <div className="fixed inset-0 z-50 bg-[#0a0a0f]/95 backdrop-blur-sm flex items-center justify-center overflow-y-auto py-4">
+        <div className="w-full max-w-lg mx-4 rounded-2xl border border-amber-500/20 bg-[#0e0e1a] p-7 space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+              <Settings2 className="h-5 w-5 text-amber-400" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white uppercase tracking-widest">Configure Exam</h2>
+              <p className="text-[10px] text-white/30 font-mono">Set topic, difficulty and duration before starting</p>
+            </div>
+            <button onClick={onExit} className="ml-auto text-white/20 hover:text-white/50 transition-colors"><X className="h-4 w-4" /></button>
+          </div>
+
+          {/* Topic */}
+          <div className="space-y-2">
+            <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/30">Subject / Topic</label>
+            <textarea
+              value={config.topic}
+              onChange={e => setConfig(c => ({ ...c, topic: e.target.value }))}
+              placeholder="e.g. Calculus · Photosynthesis · React Hooks · Keynesian Economics"
+              rows={2}
+              className="w-full resize-none bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-[13px] text-white/70 placeholder:text-white/15 focus:outline-none focus:ring-1 focus:ring-amber-500/30 focus:border-amber-500/25 transition-all font-sans"
+            />
+          </div>
+
+          {/* Difficulty */}
+          <div className="space-y-2">
+            <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/30">Difficulty</label>
+            <div className="flex gap-2">
+              {diffOpts.map(d => (
+                <button key={d} onClick={() => setConfig(c => ({ ...c, difficulty: d }))}
+                  className={cn("flex-1 py-2 rounded-lg border text-[9px] font-bold uppercase tracking-widest transition-all",
+                    config.difficulty === d ? diffColors[d] : "bg-white/[0.02] border-white/[0.06] text-white/20 hover:text-white/40"
+                  )}>{d}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Duration + Questions grid */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/30">Duration (min)</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {durations.map(d => (
+                  <button key={d} onClick={() => setConfig(c => ({ ...c, durationMin: d }))}
+                    className={cn("py-2 rounded-lg border text-[10px] font-bold transition-all",
+                      config.durationMin === d ? "bg-amber-500/10 border-amber-500/30 text-amber-400" : "bg-white/[0.02] border-white/[0.06] text-white/20 hover:text-white/40"
+                    )}>{d}m</button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/30">Questions</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {qCounts.map(n => (
+                  <button key={n} onClick={() => setConfig(c => ({ ...c, numQuestions: n }))}
+                    className={cn("py-2 rounded-lg border text-[10px] font-bold transition-all",
+                      config.numQuestions === n ? "bg-amber-500/10 border-amber-500/30 text-amber-400" : "bg-white/[0.02] border-white/[0.06] text-white/20 hover:text-white/40"
+                    )}>{n}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <Button
+            onClick={handleConfigure}
+            disabled={!config.topic.trim() || fetchingQs}
+            className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-black font-bold text-xs uppercase tracking-widest"
+          >
+            {fetchingQs ? <><Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />Generating questions…</> : <><BookOpen className="h-3.5 w-3.5 mr-2" />Build Exam</>}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Phase: Intro ──────────────────────────────────────────────────────────
+  const isMCQ = questions.length > 0 && !questions[0].isEssay
+
+  if (phase === "intro") {
     return (
       <div className="fixed inset-0 z-50 bg-[#0a0a0f]/95 backdrop-blur-sm flex items-center justify-center">
         <div className="w-full max-w-lg mx-4 rounded-2xl border border-amber-500/20 bg-[#0e0e1a] p-8 space-y-6">
@@ -112,22 +320,27 @@ export function ExamModeOverlay({ onExit, onComplete, subject = "General" }: Exa
             </div>
             <div>
               <h2 className="text-sm font-bold text-white uppercase tracking-widest">Exam Simulation</h2>
-              <p className="text-[10px] text-white/30 font-mono">Subject: {subject} · {questions.length} questions · {EXAM_DURATION / 60} min</p>
+              <p className="text-[10px] text-white/30 font-mono">{config.topic} · {questions.length} questions · {config.durationMin} min</p>
             </div>
           </div>
+          {fetchError && (
+            <div className="text-[9px] text-amber-400/60 bg-amber-500/5 border border-amber-500/10 rounded-lg px-3 py-2">{fetchError}</div>
+          )}
           <div className="space-y-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-            <RuleRow text="No hints provided" />
-            <RuleRow text="No cognitive trace shown" />
-            <RuleRow text="Confidence rating required per answer" />
-            <RuleRow text="Rubric-based automated scoring" />
+            <RuleRow text={isMCQ ? "Multiple-choice · objective scoring" : "Open answers · keyword rubric scoring"} />
+            <RuleRow text="No hints or cognitive trace shown" />
             <RuleRow text="Timer cannot be paused" />
+            <RuleRow text={`Difficulty: ${config.difficulty.toUpperCase()}`} />
           </div>
           <div className="flex gap-3">
             <Button
-              onClick={() => { setStarted(true); setQuestionStartTime(Date.now()) }}
+              onClick={() => { setPhase("exam"); setQuestionStartTime(Date.now()) }}
               className="flex-1 bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs uppercase tracking-widest"
             >
               <Zap className="h-3.5 w-3.5 mr-2" /> Begin Exam
+            </Button>
+            <Button variant="ghost" onClick={() => setPhase("configure")} className="text-white/30 hover:text-white/60 text-xs">
+              ← Reconfigure
             </Button>
             <Button variant="ghost" onClick={onExit} className="text-white/30 hover:text-white/60 text-xs">
               Cancel
@@ -138,13 +351,12 @@ export function ExamModeOverlay({ onExit, onComplete, subject = "General" }: Exa
     )
   }
 
-  if (showResults) {
+  // ── Phase: Results ──────────────────────────────────────────────────────
+  if (phase === "results") {
     const finalScore = answers.length
       ? Math.round(answers.reduce((s, a) => s + a.score, 0) / answers.length)
       : 0
-    const avgConf = answers.length
-      ? Math.round(answers.reduce((s, a) => s + a.confidence, 0) / answers.length)
-      : 0
+    const totalTime = config.durationMin * 60 - timeLeft
     return (
       <div className="fixed inset-0 z-50 bg-[#0a0a0f]/95 backdrop-blur-sm flex items-center justify-center overflow-y-auto py-8">
         <div className="w-full max-w-xl mx-4 rounded-2xl border border-cyan-500/20 bg-[#0e0e1a] p-8 space-y-6">
@@ -153,31 +365,37 @@ export function ExamModeOverlay({ onExit, onComplete, subject = "General" }: Exa
               <Brain className="h-8 w-8 text-cyan-400" />
             </div>
             <h2 className="text-sm font-bold text-white uppercase tracking-widest">Exam Complete</h2>
-            <p className="text-[10px] text-white/30 font-mono">Cognitive performance analysis</p>
+            <p className="text-[10px] text-white/30 font-mono">{config.topic} · {isMCQ ? "MCQ rubric" : "Keyword rubric"}</p>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <ScoreBox label="Final Score" value={`${finalScore}%`} sub="Rubric-based"
+            <ScoreBox label="Final Score" value={`${finalScore}%`} sub={isMCQ ? "Objective (MCQ)" : "Keyword rubric"}
               color={finalScore >= 70 ? "cyan" : finalScore >= 50 ? "amber" : "red"} />
-            <ScoreBox label="Avg Confidence" value={`${avgConf}%`} sub="Self-reported" color="purple" />
-            <ScoreBox label="Time Used" value={`${Math.floor((EXAM_DURATION - timeLeft) / 60)}m ${(EXAM_DURATION - timeLeft) % 60}s`} sub="of 10 min" color="slate" />
+            <ScoreBox label="Questions" value={`${answers.length}`} sub={`of ${config.numQuestions}`} color="purple" />
+            <ScoreBox label="Time Used" value={`${Math.floor(totalTime / 60)}m ${totalTime % 60}s`} sub={`of ${config.durationMin} min`} color="slate" />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
             <p className="text-[9px] text-white/30 uppercase tracking-widest font-bold">Per-Question Breakdown</p>
             {answers.map((a, i) => (
-              <div key={i} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 space-y-1">
+              <div key={i} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[9px] text-white/40 uppercase">Q{i + 1}</span>
+                  <span className="text-[9px] text-white/40 uppercase">Q{i + 1} · {a.timeSpent}s</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-[8px] text-white/20">{a.timeSpent}s</span>
-                    <span className={cn(
-                      "text-[9px] font-bold",
+                    {a.isCorrect !== undefined && (
+                      a.isCorrect
+                        ? <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                        : <XCircle className="h-3 w-3 text-red-400" />
+                    )}
+                    <span className={cn("text-[9px] font-bold",
                       a.score >= 70 ? "text-emerald-400" : a.score >= 50 ? "text-amber-400" : "text-red-400"
                     )}>{a.score}%</span>
                   </div>
                 </div>
-                <p className="text-[9px] text-white/50 line-clamp-1">{a.question}</p>
+                <p className="text-[9px] text-white/55 line-clamp-2">{a.question}</p>
+                {a.correctAnswer && !a.isCorrect && (
+                  <p className="text-[8px] text-emerald-400/60">✓ Correct: {a.correctAnswer}</p>
+                )}
                 <div className="h-0.5 bg-white/5 rounded-full overflow-hidden">
                   <div
                     className={cn("h-full rounded-full", a.score >= 70 ? "bg-emerald-500" : a.score >= 50 ? "bg-amber-500" : "bg-red-500")}
@@ -199,12 +417,16 @@ export function ExamModeOverlay({ onExit, onComplete, subject = "General" }: Exa
     )
   }
 
+  // ── Phase: Exam ─────────────────────────────────────────────────────────
+  const currentQ = questions[questionIndex]
+  if (!currentQ) return null
+
   return (
     <div className="fixed inset-0 z-50 bg-[#0a0a0f]/98 backdrop-blur-sm flex flex-col">
       {/* Exam header bar */}
       <div className="flex items-center gap-4 px-6 py-3 border-b border-amber-500/20 bg-amber-500/[0.03]">
         <Trophy className="h-4 w-4 text-amber-400" />
-        <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400">Exam Mode Active</span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400">{config.topic} Exam</span>
         <div className="flex items-center gap-1.5 ml-auto">
           <Timer className={cn("h-4 w-4", timerColor)} />
           <span className={cn("text-sm font-bold font-mono tabular-nums", timerColor)}>
@@ -222,57 +444,65 @@ export function ExamModeOverlay({ onExit, onComplete, subject = "General" }: Exa
         </button>
       </div>
 
+      {/* Progress bar */}
+      <div className="h-0.5 bg-white/5">
+        <div className="h-full bg-amber-500/60 transition-all duration-300" style={{ width: `${((questionIndex) / questions.length) * 100}%` }} />
+      </div>
+
       {/* Question area */}
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-2xl space-y-6">
+      <div className="flex-1 flex items-center justify-center p-8 overflow-y-auto">
+        <div className="w-full max-w-2xl space-y-5">
           <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-amber-400">Question {questionIndex + 1}</span>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-amber-400">
+                Question {questionIndex + 1} · {config.difficulty}
+              </span>
               <div className="flex-1 h-px bg-white/[0.06]" />
-              <span className="text-[8px] text-white/20 font-mono">No hints available</span>
+              <span className="text-[8px] text-white/20 font-mono">{isMCQ ? "MCQ" : "Open answer"} · No hints</span>
             </div>
-            <p className="text-sm text-white/80 leading-relaxed">{questions[questionIndex]}</p>
+            <p className="text-sm text-white/80 leading-relaxed">{currentQ.question}</p>
           </div>
 
-          <textarea
-            value={currentInput}
-            onChange={e => setCurrentInput(e.target.value)}
-            placeholder="Type your answer..."
-            className="w-full h-32 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white/70 placeholder:text-white/20 resize-none focus:outline-none focus:border-amber-500/30 transition-colors font-mono"
-          />
-
-          {/* Confidence slider */}
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-[9px] text-white/30 uppercase tracking-widest font-bold">Confidence Level</span>
-              <span className={cn(
-                "text-[9px] font-bold",
-                confidence >= 70 ? "text-emerald-400" : confidence >= 40 ? "text-amber-400" : "text-red-400"
-              )}>{confidence}%</span>
+          {/* MCQ options */}
+          {!currentQ.isEssay && (
+            <div className="space-y-2">
+              {currentQ.options.map((opt, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setMcqSelected(idx)}
+                  className={cn(
+                    "w-full text-left px-4 py-3 rounded-xl border text-[13px] transition-all",
+                    mcqSelected === idx
+                      ? "bg-amber-500/10 border-amber-500/40 text-amber-200"
+                      : "bg-white/[0.02] border-white/[0.06] text-white/60 hover:bg-white/[0.04] hover:border-white/10"
+                  )}
+                >
+                  <span className="font-mono text-[10px] text-white/30 mr-3">{String.fromCharCode(65 + idx)}.</span>
+                  {opt}
+                </button>
+              ))}
             </div>
-            <input
-              type="range"
-              min={0} max={100}
-              value={confidence}
-              onChange={e => setConfidence(Number(e.target.value))}
-              className="w-full accent-amber-500"
+          )}
+
+          {/* Essay input */}
+          {currentQ.isEssay && (
+            <textarea
+              value={essayInput}
+              onChange={e => setEssayInput(e.target.value)}
+              placeholder="Write your answer in detail…"
+              className="w-full h-36 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white/70 placeholder:text-white/20 resize-none focus:outline-none focus:border-amber-500/30 transition-colors font-sans"
             />
-            <div className="flex justify-between">
-              <span className="text-[7px] text-white/15">Not sure</span>
-              <span className="text-[7px] text-white/15">Very confident</span>
-            </div>
-          </div>
+          )}
 
           <button
             onClick={submitAnswer}
-            disabled={!currentInput.trim()}
+            disabled={currentQ.isEssay ? !essayInput.trim() : mcqSelected === undefined}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-black font-bold text-xs uppercase tracking-widest"
           >
-            {questionIndex + 1 >= questions.length ? (
-              <><CheckCircle2 className="h-4 w-4" /> Submit Final Answer</>
-            ) : (
-              <><ChevronRight className="h-4 w-4" /> Submit & Continue</>
-            )}
+            {questionIndex + 1 >= questions.length
+              ? <><CheckCircle2 className="h-4 w-4" /> Submit Final Answer</>
+              : <><ChevronRight className="h-4 w-4" /> Submit &amp; Continue</>
+            }
           </button>
         </div>
       </div>

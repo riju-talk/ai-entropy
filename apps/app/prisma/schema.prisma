@@ -9,7 +9,7 @@ datasource db {
 }
 
 model Account {
-  id                String  @id @default(cuid())
+  id                String  @id
   userId            String
   type              String
   provider          String
@@ -21,85 +21,9 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  users             users   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
-}
-
-model User {
-  id                   String                @id @default(cuid())
-  name                 String?
-  email                String                @unique
-  emailVerified        DateTime?
-  image                String?
-  role                 Role                  @default(STUDENT)
-  bio                  String?
-  university           String?
-  course               String?
-  year                 Int?
-  reputation           Int                   @default(0)
-  credits              Int                   @default(100)
-  subscriptionTier     String                @default("FREE")
-  documentCount        Int                   @default(0)
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  
-  // NEW: Trust & moderation
-  trustScoreCache      Float                 @default(0.5)
-  isShadowBanned       Boolean               @default(false)
-  isSuspended          Boolean               @default(false)
-  suspendedUntil       DateTime?
-  leaderboardOptOut    Boolean               @default(false)
-  lastActiveAt         DateTime              @default(now())
-  
-  // NEW: Accumulated totals (denormalized for performance)
-  totalXP              Int                   @default(0)
-  totalReputation      Int                   @default(0)
-  
-  accounts             Account[]
-  achievementUnlocks   AchievementUnlock[]
-  aiRecommendations    AIRecommendation[]
-  answerVotes          AnswerVote[]          @relation("AnswerVotes")
-  answers              Answer[]
-  badgeGrants          BadgeGrant[]
-  communities          Community[]
-  addedDoubts          CommunityDoubt[]
-  communityMemberships CommunityMember[]
-  conversations        Conversation[]
-  doubtVotes           DoubtVote[]           @relation("DoubtVotes")
-  doubts               Doubt[]
-  leaderboardSnapshots LeaderboardSnapshot[] @relation("UserLeaderboardSnapshots")
-  pointsLedger         PointsLedger[]
-  streaks              Streak?
-  userStats            UserStat?
-  discounts            UserDiscount[]
-  achievementProgress  AchievementProgress[]
-  documents            Document[]
-  tier                 String                @default("INITIATE")
-  
-  // NOVYRA AI Engine relations
-  conceptAttempts      ConceptAttempt[]
-  masteryRecords       MasteryRecord[]
-  rubricEvaluations    RubricEvaluation[]
-  
-  // NEW: Advanced system relations
-  xpLedger             XPLedger[]            @relation("XPLedger")
-  trustScore           TrustScore?
-  abuseFlags           AbuseFlag[]           @relation("AbuseFlags")
-  flagsReviewed        AbuseFlag[]           @relation("ReviewedFlags")
-  moderationsGiven     ModerationLog[]       @relation("ModerationsGiven")
-  moderationsReceived  ModerationLog[]       @relation("ModerationsReceived")
-  factCheckLogs        FactCheckLog[]
-  eventLogs            EventLog[]
-  reputationLedger     ReputationLedger[]
-  contentEmbeddings    ContentEmbedding[]
-  votesGiven           VoteGraph[]           @relation("VotesGiven")
-  votesReceived        VoteGraph[]           @relation("VotesReceived")
-
-  @@index([createdAt])
-  @@index([trustScoreCache])
-  @@index([totalXP])
-  @@map("users")
 }
 
 model VerificationToken {
@@ -110,100 +34,516 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model Document {
-  id        String   @id @default(cuid())
+model abuse_flags {
+  id                                  String        @id
+  userId                              String
+  flagType                            AbuseFlagType
+  severity                            Int
+  details                             Json
+  autoDetected                        Boolean       @default(true)
+  reviewedBy                          String?
+  reviewedAt                          DateTime?
+  status                              String        @default("PENDING")
+  createdAt                           DateTime      @default(now())
+  users_abuse_flags_reviewedByTousers users?        @relation("abuse_flags_reviewedByTousers", fields: [reviewedBy], references: [id])
+  users_abuse_flags_userIdTousers     users         @relation("abuse_flags_userIdTousers", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([flagType, createdAt])
+  @@index([status, severity])
+  @@index([userId, status])
+}
+
+model achievement_progress {
+  id             String       @id
+  userId         String
+  achievementId  String
+  current        Int          @default(0)
+  target         Int
+  lastUpdated    DateTime     @default(now())
+  uniqueUsers    String[]
+  firstDate      DateTime?
+  lastDate       DateTime?
+  daySpan        Int          @default(0)
+  validatedCount Int          @default(0)
+  achievements   achievements @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  users          users        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+}
+
+model achievement_unlocks {
+  id            String       @id
+  userId        String
+  achievementId String
+  unlockedAt    DateTime     @default(now())
+  achievements  achievements @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  users         users        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId, unlockedAt])
+}
+
+model achievements {
+  id                   String                 @id
+  type                 AchievementType
+  name                 String                 @unique
+  description          String
+  criteria             Json
+  points               Int
+  rarity               AchievementRarity
+  icon                 String?
+  createdAt            DateTime               @default(now())
+  achievement_progress achievement_progress[]
+  achievement_unlocks  achievement_unlocks[]
+}
+
+model ai_recommendations {
+  id        String   @id
   userId    String
-  title     String
-  type      String   @default("PDF") // PDF, TXT, DOCX
-  size      Int      @default(0)
-  pageCount Int      @default(0)
-  url       String?  // Optional URL if we store the file blob somewhere
-  pineconeId String? // Optional specific ID if we want to link
+  type      String
+  metadata  Json?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@map("documents")
 }
 
-model Doubt {
-  id              String           @id @default(cuid())
-  title           String
-  content         String
-  tags            String[]
-  isAnonymous     Boolean          @default(false)
-  authorId        String
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  subject         String           @default("OTHER")
-  downvotes       Int              @default(0)
-  upvotes         Int              @default(0)
-  isResolved      Boolean          @default(false)
-  isInCommunity   Boolean          @default(false)
-  answers         Answer[]
-  communityDoubts CommunityDoubt[]
-  votes           DoubtVote[]
-  author          User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
-
-  @@index([authorId])
-  @@index([createdAt])
-  @@index([subject])
-  @@index([isInCommunity])
-  @@map("doubts")
-}
-
-model Answer {
-  id         String       @id @default(cuid())
-  content    String
-  doubtId    String
-  authorId   String
-  createdAt  DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  isAnswered   String?      @unique @db.Uuid
-  isAiAssisted Boolean      @default(false)
-  votes        AnswerVote[]
-  author     User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  doubt      Doubt        @relation(fields: [doubtId], references: [id], onDelete: Cascade)
-
-  @@index([doubtId])
-  @@index([authorId])
-  @@index([createdAt])
-  @@map("answers")
-}
-
-model DoubtVote {
-  id        String   @id @default(cuid())
-  type      VoteType
-  userId    String
-  doubtId   String
-  createdAt DateTime @default(now())
-  doubt     Doubt    @relation(fields: [doubtId], references: [id], onDelete: Cascade)
-  user      User     @relation("DoubtVotes", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, doubtId])
-  @@index([userId])
-  @@index([doubtId])
-  @@map("doubt_votes")
-}
-
-model AnswerVote {
-  id        String   @id @default(cuid())
+model answer_votes {
+  id        String   @id
   type      VoteType
   userId    String
   answerId  String
   createdAt DateTime @default(now())
-  answer    Answer   @relation(fields: [answerId], references: [id], onDelete: Cascade)
-  user      User     @relation("AnswerVotes", fields: [userId], references: [id], onDelete: Cascade)
+  answers   answers  @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, answerId])
-  @@index([userId])
   @@index([answerId])
-  @@map("answer_votes")
+  @@index([userId])
 }
 
-model UserStat {
-  id                String   @id @default(cuid())
+model answers {
+  id           String         @id
+  content      String
+  doubtId      String
+  authorId     String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime
+  isAnswered   String?        @unique @db.Uuid
+  isAiAssisted Boolean        @default(false)
+  answer_votes answer_votes[]
+  users        users          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  doubts       doubts         @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@index([doubtId])
+}
+
+model badge_grants {
+  id        String   @id
+  userId    String
+  badgeId   String
+  grantedAt DateTime @default(now())
+  badges    badges   @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@index([userId, grantedAt])
+}
+
+model badges {
+  id           String         @id
+  type         BadgeType
+  name         String         @unique
+  description  String
+  icon         String?
+  color        String?
+  createdAt    DateTime       @default(now())
+  badge_grants badge_grants[]
+}
+
+model communities {
+  id          String   @id
+  name        String
+  description String?
+  subject     Subject?
+  isPublic    Boolean  @default(true)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  users       users?   @relation(fields: [createdBy], references: [id])
+
+  @@index([createdBy])
+  @@index([isPublic])
+  @@index([subject])
+}
+
+model community_doubts {
+  id          String   @id
+  communityId String
+  addedBy     String?
+  addedAt     DateTime @default(now())
+  doubtId     String
+  users       users?   @relation(fields: [addedBy], references: [id])
+  doubts      doubts   @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, doubtId])
+  @@index([communityId])
+  @@index([doubtId])
+}
+
+model community_members {
+  id          String        @id
+  userId      String
+  communityId String
+  role        CommunityRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+  users       users         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, communityId])
+  @@index([communityId])
+  @@index([userId])
+}
+
+model concept_attempts {
+  id                 String   @id
+  userId             String
+  conceptId          String
+  isCorrect          Boolean
+  timeTakenSeconds   Int?
+  hintsUsed          Int      @default(0)
+  masteryScoreBefore Float    @default(0)
+  masteryScoreAfter  Float    @default(0)
+  createdAt          DateTime @default(now())
+  concepts           concepts @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  users              users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, conceptId])
+}
+
+model concept_prerequisites {
+  id                                                      String   @id
+  conceptId                                               String
+  prerequisiteId                                          String
+  concepts_concept_prerequisites_conceptIdToconcepts      concepts @relation("concept_prerequisites_conceptIdToconcepts", fields: [conceptId], references: [id], onDelete: Cascade)
+  concepts_concept_prerequisites_prerequisiteIdToconcepts concepts @relation("concept_prerequisites_prerequisiteIdToconcepts", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+
+  @@unique([conceptId, prerequisiteId])
+}
+
+model concepts {
+  id                                                                   String                  @id
+  name                                                                 String                  @unique
+  description                                                          String?
+  domain                                                               String?
+  difficulty                                                           Int                     @default(1)
+  embedding                                                            Json?
+  synonyms                                                             String[]
+  keywords                                                             String[]
+  isActive                                                             Boolean                 @default(true)
+  createdAt                                                            DateTime                @default(now())
+  updatedAt                                                            DateTime
+  concept_attempts                                                     concept_attempts[]
+  concept_prerequisites_concept_prerequisites_conceptIdToconcepts      concept_prerequisites[] @relation("concept_prerequisites_conceptIdToconcepts")
+  concept_prerequisites_concept_prerequisites_prerequisiteIdToconcepts concept_prerequisites[] @relation("concept_prerequisites_prerequisiteIdToconcepts")
+  mastery_records                                                      mastery_records[]
+  xp_ledger                                                            xp_ledger[]
+
+  @@index([difficulty])
+  @@index([domain])
+  @@index([isActive])
+}
+
+model content_embeddings {
+  id          String   @id
+  contentType String
+  contentId   String
+  userId      String
+  embedding   Json
+  text        String
+  createdAt   DateTime @default(now())
+  users       users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([contentType, contentId])
+  @@index([userId])
+}
+
+model conversations {
+  id        String     @id
+  userId    String
+  title     String?
+  context   Json?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime
+  users     users      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  messages[]
+
+  @@index([userId, createdAt])
+}
+
+model documents {
+  id         String   @id
+  userId     String
+  title      String
+  type       String   @default("PDF")
+  size       Int      @default(0)
+  pageCount  Int      @default(0)
+  url        String?
+  pineconeId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+  users      users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model doubt_votes {
+  id        String   @id
+  type      VoteType
+  userId    String
+  doubtId   String
+  createdAt DateTime @default(now())
+  doubts    doubts   @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, doubtId])
+  @@index([doubtId])
+  @@index([userId])
+}
+
+model doubts {
+  id               String             @id
+  title            String
+  content          String
+  tags             String[]
+  isAnonymous      Boolean            @default(false)
+  authorId         String
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  subject          String             @default("OTHER")
+  downvotes        Int                @default(0)
+  upvotes          Int                @default(0)
+  isResolved       Boolean            @default(false)
+  isInCommunity    Boolean            @default(false)
+  answers          answers[]
+  community_doubts community_doubts[]
+  doubt_votes      doubt_votes[]
+  users            users              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@index([isInCommunity])
+  @@index([subject])
+}
+
+model event_logs {
+  id          String    @id
+  eventType   String
+  userId      String?
+  targetId    String?
+  metadata    Json
+  emittedAt   DateTime  @default(now())
+  processedAt DateTime?
+  users       users?    @relation(fields: [userId], references: [id])
+
+  @@index([eventType, emittedAt])
+  @@index([processedAt])
+  @@index([userId, emittedAt])
+}
+
+model fact_check_logs {
+  id                 String   @id
+  userId             String?
+  generatedText      String
+  contextUsed        String
+  claimsChecked      Int
+  entailmentCount    Int
+  contradictionCount Int
+  neutralCount       Int
+  overallConfidence  Float
+  safeToDisplay      Boolean
+  checks             Json
+  actionTaken        String?
+  createdAt          DateTime @default(now())
+  users              users?   @relation(fields: [userId], references: [id])
+
+  @@index([contradictionCount])
+  @@index([safeToDisplay])
+  @@index([userId, createdAt])
+}
+
+model leaderboard_snapshots {
+  id          String            @id
+  userId      String
+  period      LeaderboardPeriod
+  scope       LeaderboardScope
+  points      Int
+  rank        Int
+  periodStart DateTime
+  periodEnd   DateTime
+  createdAt   DateTime          @default(now())
+  users       users             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, period, scope, periodStart])
+  @@index([period, scope, periodStart])
+  @@index([period, scope, rank, periodStart])
+}
+
+model levels {
+  id        String   @id
+  level     Int      @unique
+  name      String
+  minPoints Int
+  maxPoints Int?
+  icon      String?
+  color     String?
+  createdAt DateTime @default(now())
+
+  @@index([minPoints])
+}
+
+model mastery_records {
+  id               String    @id
+  userId           String
+  conceptId        String
+  totalAttempts    Int       @default(0)
+  correctAttempts  Int       @default(0)
+  masteryScore     Float     @default(0)
+  confidenceWeight Float     @default(1)
+  lastSeen         DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime
+  concepts         concepts  @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  users            users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conceptId])
+  @@index([userId])
+}
+
+model messages {
+  id             String        @id
+  conversationId String
+  role           String
+  content        String
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+  conversations  conversations @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model moderation_logs {
+  id                                        String   @id
+  adminId                                   String
+  targetUserId                              String
+  action                                    String
+  reason                                    String
+  details                                   Json?
+  createdAt                                 DateTime @default(now())
+  users_moderation_logs_adminIdTousers      users    @relation("moderation_logs_adminIdTousers", fields: [adminId], references: [id])
+  users_moderation_logs_targetUserIdTousers users    @relation("moderation_logs_targetUserIdTousers", fields: [targetUserId], references: [id])
+
+  @@index([adminId])
+  @@index([targetUserId, createdAt])
+}
+
+model points_ledger {
+  id          String         @id
+  userId      String
+  eventType   PointEventType
+  points      Int
+  description String?
+  createdAt   DateTime       @default(now())
+  users       users          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([eventType])
+  @@index([userId, createdAt])
+}
+
+model reputation_ledger {
+  id         String   @id
+  userId     String
+  eventType  String
+  change     Int
+  reason     String
+  sourceId   String?
+  voterTrust Float?
+  createdAt  DateTime @default(now())
+  users      users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([eventType])
+  @@index([userId, createdAt])
+}
+
+model rubric_evaluations {
+  id              String   @id
+  userId          String
+  concept         String?
+  submission      String
+  rubricJson      Json
+  criterionScores Json
+  weightedTotal   Float
+  gradeLevel      String
+  overallFeedback String
+  improvementPlan Json
+  createdAt       DateTime @default(now())
+  users           users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model streaks {
+  id               String    @id
+  userId           String    @unique
+  currentStreak    Int       @default(0)
+  longestStreak    Int       @default(0)
+  lastActivityDate DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime
+  users            users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([lastActivityDate])
+}
+
+model trust_scores {
+  id                  String   @id
+  userId              String   @unique
+  score               Float    @default(0.5)
+  masteryReliability  Float    @default(0.5)
+  nliTrackRecord      Float    @default(0.7)
+  communityValidation Float    @default(0.5)
+  accountAgeTrust     Float    @default(0.5)
+  interactionEntropy  Float    @default(1.0)
+  votePatternScore    Float    @default(1.0)
+  similarityFlags     Int      @default(0)
+  abuseFlags          Int      @default(0)
+  ipClusteringRisk    Float    @default(0.0)
+  lastUpdated         DateTime @default(now())
+  historicalLow       Float    @default(0.5)
+  historicalHigh      Float    @default(0.5)
+  users               users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([score])
+}
+
+model user_discounts {
+  id              String    @id
+  userId          String
+  discountPercent Int
+  isActive        Boolean   @default(true)
+  unlockedAt      DateTime  @default(now())
+  expiresAt       DateTime?
+  source          String?
+  users           users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model user_stats {
+  id                String   @id
   userId            String   @unique
   totalPoints       Int      @default(0)
   currentLevel      Int      @default(1)
@@ -214,250 +554,198 @@ model UserStat {
   upvotesReceived   Int      @default(0)
   downvotesReceived Int      @default(0)
   createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt         DateTime
+  users             users    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([totalPoints])
   @@index([currentLevel])
-  @@map("user_stats")
+  @@index([totalPoints])
 }
 
-model PointsLedger {
-  id          String         @id @default(cuid())
-  userId      String
-  eventType   PointEventType
-  points      Int
-  description String?
-  createdAt   DateTime       @default(now())
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+model users {
+  id                                                  String                  @id
+  name                                                String?
+  email                                               String                  @unique
+  emailVerified                                       DateTime?
+  image                                               String?
+  role                                                Role                    @default(STUDENT)
+  bio                                                 String?
+  university                                          String?
+  course                                              String?
+  year                                                Int?
+  reputation                                          Int                     @default(0)
+  credits                                             Int                     @default(100)
+  subscriptionTier                                    String                  @default("FREE")
+  documentCount                                       Int                     @default(0)
+  createdAt                                           DateTime                @default(now())
+  updatedAt                                           DateTime
+  trustScoreCache                                     Float                   @default(0.5)
+  isShadowBanned                                      Boolean                 @default(false)
+  isSuspended                                         Boolean                 @default(false)
+  suspendedUntil                                      DateTime?
+  leaderboardOptOut                                   Boolean                 @default(false)
+  lastActiveAt                                        DateTime                @default(now())
+  totalXP                                             Int                     @default(0)
+  totalReputation                                     Int                     @default(0)
+  tier                                                String                  @default("INITIATE")
+  Account                                             Account[]
+  abuse_flags_abuse_flags_reviewedByTousers           abuse_flags[]           @relation("abuse_flags_reviewedByTousers")
+  abuse_flags_abuse_flags_userIdTousers               abuse_flags[]           @relation("abuse_flags_userIdTousers")
+  achievement_progress                                achievement_progress[]
+  achievement_unlocks                                 achievement_unlocks[]
+  ai_recommendations                                  ai_recommendations[]
+  answer_votes                                        answer_votes[]
+  answers                                             answers[]
+  badge_grants                                        badge_grants[]
+  communities                                         communities[]
+  community_doubts                                    community_doubts[]
+  community_members                                   community_members[]
+  concept_attempts                                    concept_attempts[]
+  content_embeddings                                  content_embeddings[]
+  conversations                                       conversations[]
+  documents                                           documents[]
+  doubt_votes                                         doubt_votes[]
+  doubts                                              doubts[]
+  event_logs                                          event_logs[]
+  fact_check_logs                                     fact_check_logs[]
+  leaderboard_snapshots                               leaderboard_snapshots[]
+  mastery_records                                     mastery_records[]
+  moderation_logs_moderation_logs_adminIdTousers      moderation_logs[]       @relation("moderation_logs_adminIdTousers")
+  moderation_logs_moderation_logs_targetUserIdTousers moderation_logs[]       @relation("moderation_logs_targetUserIdTousers")
+  points_ledger                                       points_ledger[]
+  reputation_ledger                                   reputation_ledger[]
+  rubric_evaluations                                  rubric_evaluations[]
+  streaks                                             streaks?
+  trust_scores                                        trust_scores?
+  user_discounts                                      user_discounts[]
+  user_stats                                          user_stats?
+  vote_graph_vote_graph_targetUserIdTousers           vote_graph[]            @relation("vote_graph_targetUserIdTousers")
+  vote_graph_vote_graph_voterIdTousers                vote_graph[]            @relation("vote_graph_voterIdTousers")
+  xp_ledger                                           xp_ledger[]
 
-  @@index([userId, createdAt])
-  @@index([eventType])
-  @@map("points_ledger")
+  @@index([createdAt])
+  @@index([totalXP])
+  @@index([trustScoreCache])
 }
 
-model Level {
-  id        String   @id @default(cuid())
-  level     Int      @unique
-  name      String
-  minPoints Int
-  maxPoints Int?
-  icon      String?
-  color     String?
-  createdAt DateTime @default(now())
+model vote_graph {
+  id                                   String   @id
+  voterId                              String
+  targetUserId                         String
+  voteCount                            Int      @default(0)
+  upvoteCount                          Int      @default(0)
+  downvoteCount                        Int      @default(0)
+  reciprocity                          Float    @default(0.0)
+  lastVoteAt                           DateTime @default(now())
+  users_vote_graph_targetUserIdTousers users    @relation("vote_graph_targetUserIdTousers", fields: [targetUserId], references: [id], onDelete: Cascade)
+  users_vote_graph_voterIdTousers      users    @relation("vote_graph_voterIdTousers", fields: [voterId], references: [id], onDelete: Cascade)
 
-  @@index([minPoints])
-  @@map("levels")
+  @@unique([voterId, targetUserId])
+  @@index([reciprocity])
 }
 
-model Achievement {
-  id          String              @id @default(cuid())
-  type        AchievementType
-  name        String              @unique
-  description String
-  criteria    Json
-  points      Int
-  rarity      AchievementRarity
-  icon        String?
-  createdAt   DateTime            @default(now())
-  unlocks     AchievementUnlock[]
-  progress    AchievementProgress[]
-
-  @@map("achievements")
-}
-
-model AchievementUnlock {
-  id            String      @id @default(cuid())
+model xp_ledger {
+  id            String    @id
   userId        String
-  achievementId String
-  unlockedAt    DateTime    @default(now())
-  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventType     String
+  conceptId     String?
+  baseXP        Int
+  masteryMult   Float     @default(1.0)
+  trustMult     Float     @default(1.0)
+  factCheckMult Float     @default(1.0)
+  timeDecay     Float     @default(1.0)
+  finalXP       Int
+  reason        String
+  metadata      Json?
+  flagged       Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  concepts      concepts? @relation(fields: [conceptId], references: [id])
+  users         users     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, achievementId])
-  @@index([userId, unlockedAt])
-  @@map("achievement_unlocks")
-}
-
-model Badge {
-  id          String       @id @default(cuid())
-  type        BadgeType
-  name        String       @unique
-  description String
-  icon        String?
-  color       String?
-  createdAt   DateTime     @default(now())
-  grants      BadgeGrant[]
-
-  @@map("badges")
-}
-
-model BadgeGrant {
-  id        String   @id @default(cuid())
-  userId    String
-  badgeId   String
-  grantedAt DateTime @default(now())
-  badge     Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, badgeId])
-  @@index([userId, grantedAt])
-  @@map("badge_grants")
-}
-
-model Streak {
-  id               String    @id @default(cuid())
-  userId           String    @unique
-  currentStreak    Int       @default(0)
-  longestStreak    Int       @default(0)
-  lastActivityDate DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([lastActivityDate])
-  @@map("streaks")
-}
-
-model LeaderboardSnapshot {
-  id          String            @id @default(cuid())
-  userId      String
-  period      LeaderboardPeriod
-  scope       LeaderboardScope
-  points      Int
-  rank        Int
-  periodStart DateTime
-  periodEnd   DateTime
-  createdAt   DateTime          @default(now())
-  user        User              @relation("UserLeaderboardSnapshots", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, period, scope, periodStart])
-  @@index([period, scope, periodStart])
-  @@index([period, scope, rank, periodStart])
-  @@map("leaderboard_snapshots")
-}
-
-model Conversation {
-  id        String    @id @default(cuid())
-  userId    String
-  title     String?
-  context   Json?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages  Message[]
-
+  @@index([conceptId])
+  @@index([eventType])
+  @@index([flagged])
   @@index([userId, createdAt])
-  @@map("conversations")
 }
 
-model AIRecommendation {
-  id        String   @id @default(cuid())
-  userId    String
-  type      String
-  metadata  Json?
-  createdAt DateTime @default(now())
-  content   String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("ai_recommendations")
+enum AbuseFlagType {
+  SIMILARITY_HIGH
+  VOTE_TRADING
+  LOW_ENTROPY
+  IP_CLUSTERING
+  STREAK_FRAUD
+  XP_FARMING
+  SPAM_POSTING
+  SOCKPUPPET
 }
 
-model Message {
-  id             String       @id @default(cuid())
-  conversationId String
-  role           String
-  content        String
-  metadata       Json?
-  createdAt      DateTime     @default(now())
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-
-  @@index([conversationId, createdAt])
-  @@map("messages")
+enum AchievementRarity {
+  COMMON
+  UNCOMMON
+  RARE
+  EPIC
+  LEGENDARY
 }
 
-model UserDiscount {
-  id               String       @id @default(cuid())
-  userId           String
-  discountPercent  Int
-  isActive         Boolean      @default(true)
-  unlockedAt       DateTime     @default(now())
-  expiresAt        DateTime?
-  source           String?      // e.g. "Scholar's Oath Achievement"
-  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("user_discounts")
+enum AchievementType {
+  FIRST_DOUBT
+  FIRST_COMMENT
+  PROBLEM_SOLVER
+  STREAK_MASTER
+  MENTOR
+  TOP_CONTRIBUTOR
+  SUBJECT_EXPERT
+  COMMUNITY_LEADER
+  RISING_STAR
+  KNOWLEDGE_SEEKER
 }
 
-model AchievementProgress {
-  id              String      @id @default(cuid())
-  userId          String
-  achievementId   String
-  current         Int         @default(0)
-  target          Int
-  lastUpdated     DateTime    @default(now())
-  
-  // NEW: Anti-gaming validation
-  uniqueUsers     String[]    // Track unique user interactions
-  firstDate       DateTime?   // Track time span
-  lastDate        DateTime?
-  daySpan         Int         @default(0)
-  validatedCount  Int         @default(0)  // Count of validated contributions
-  
-  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  achievement     Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, achievementId])
-  @@index([userId])
-  @@map("achievement_progress")
+enum BadgeType {
+  AI_MASTER
+  PHYSICS_GURU
+  MATH_WIZARD
+  CODE_NINJA
+  BIO_EXPERT
+  PROBLEM_SOLVER
+  HELPER
+  INNOVATOR
+  TUTOR
+  RESEARCH_STAR
 }
 
-model Community {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  subject     Subject?
-  isPublic    Boolean  @default(true)
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  users       User?    @relation(fields: [createdBy], references: [id])
-
-  @@index([createdBy])
-  @@index([isPublic])
-  @@index([subject])
-  @@map("communities")
+enum CommunityRole {
+  ADMIN
+  MODERATOR
+  MEMBER
 }
 
-model CommunityMember {
-  id          String        @id @default(cuid())
-  userId      String
-  communityId String
-  role        CommunityRole @default(MEMBER)
-  joinedAt    DateTime      @default(now())
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, communityId])
-  @@index([userId])
-  @@index([communityId])
-  @@map("community_members")
+enum LeaderboardPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  ALL_TIME
 }
 
-model CommunityDoubt {
-  id          String   @id @default(cuid())
-  communityId String
-  addedBy     String?
-  addedAt     DateTime @default(now())
-  doubtId     String
-  adder       User?    @relation(fields: [addedBy], references: [id])
-  doubt       Doubt    @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+enum LeaderboardScope {
+  GLOBAL
+  SUBJECT_CS
+  SUBJECT_MATH
+  SUBJECT_PHYSICS
+  SUBJECT_CHEMISTRY
+  SUBJECT_BIOLOGY
+  SUBJECT_ENGINEERING
+}
 
-  @@unique([communityId, doubtId])
-  @@index([communityId])
-  @@index([doubtId])
-  @@map("community_doubts")
+enum PointEventType {
+  DOUBT_CREATED
+  COMMENT_CREATED
+  UPVOTE_RECEIVED
+  DOWNVOTE_RECEIVED
+  ANSWER_ACCEPTED
+  DOUBT_RESOLVED
+  DAILY_LOGIN
+  STREAK_BONUS
+  ACHIEVEMENT_UNLOCKED
+  BADGE_EARNED
 }
 
 enum Role {
@@ -483,380 +771,4 @@ enum Subject {
 enum VoteType {
   UP
   DOWN
-}
-
-enum PointEventType {
-  DOUBT_CREATED
-  COMMENT_CREATED
-  UPVOTE_RECEIVED
-  DOWNVOTE_RECEIVED
-  ANSWER_ACCEPTED
-  DOUBT_RESOLVED
-  DAILY_LOGIN
-  STREAK_BONUS
-  ACHIEVEMENT_UNLOCKED
-  BADGE_EARNED
-}
-
-enum AchievementType {
-  FIRST_DOUBT
-  FIRST_COMMENT
-  PROBLEM_SOLVER
-  STREAK_MASTER
-  MENTOR
-  TOP_CONTRIBUTOR
-  SUBJECT_EXPERT
-  COMMUNITY_LEADER
-  RISING_STAR
-  KNOWLEDGE_SEEKER
-}
-
-enum AchievementRarity {
-  COMMON
-  UNCOMMON
-  RARE
-  EPIC
-  LEGENDARY
-}
-
-enum BadgeType {
-  AI_MASTER
-  PHYSICS_GURU
-  MATH_WIZARD
-  CODE_NINJA
-  BIO_EXPERT
-  PROBLEM_SOLVER
-  HELPER
-  INNOVATOR
-  TUTOR
-  RESEARCH_STAR
-}
-
-enum LeaderboardPeriod {
-  DAILY
-  WEEKLY
-  MONTHLY
-  ALL_TIME
-}
-
-enum LeaderboardScope {
-  GLOBAL
-  SUBJECT_CS
-  SUBJECT_MATH
-  SUBJECT_PHYSICS
-  SUBJECT_CHEMISTRY
-  SUBJECT_BIOLOGY
-  SUBJECT_ENGINEERING
-}
-
-enum CommunityRole {
-  ADMIN
-  MODERATOR
-  MEMBER
-}
-
-// ============================================================
-// NOVYRA AI Engine — Knowledge Graph, Mastery & Evaluation
-// ============================================================
-
-model Concept {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String?
-  domain      String?
-  difficulty  Int      @default(1)
-  
-  // NEW: AI Brain integration
-  embedding   Json?    // Vector embedding for similarity search
-  synonyms    String[] // Alternative names
-  keywords    String[] // For search
-  isActive    Boolean  @default(true)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  prerequisites   ConceptPrerequisite[] @relation("ConceptPrerequisites")
-  dependents      ConceptPrerequisite[] @relation("DependentConcepts")
-  masteryRecords  MasteryRecord[]
-  attempts        ConceptAttempt[]
-  xpEntries       XPLedger[]
-
-  @@index([domain])
-  @@index([difficulty])
-  @@index([isActive])
-  @@map("concepts")
-}
-
-model ConceptPrerequisite {
-  id             String  @id @default(cuid())
-  conceptId      String
-  prerequisiteId String
-  concept        Concept @relation("ConceptPrerequisites", fields: [conceptId], references: [id], onDelete: Cascade)
-  prerequisite   Concept @relation("DependentConcepts",   fields: [prerequisiteId], references: [id], onDelete: Cascade)
-
-  @@unique([conceptId, prerequisiteId])
-  @@map("concept_prerequisites")
-}
-
-model ConceptAttempt {
-  id                 String   @id @default(cuid())
-  userId             String
-  conceptId          String
-  isCorrect          Boolean
-  timeTakenSeconds   Int?
-  hintsUsed          Int      @default(0)
-  masteryScoreBefore Float    @default(0)
-  masteryScoreAfter  Float    @default(0)
-  createdAt          DateTime @default(now())
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  concept Concept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
-
-  @@index([userId, conceptId])
-  @@map("concept_attempts")
-}
-
-model MasteryRecord {
-  id                String   @id @default(cuid())
-  userId            String
-  conceptId         String
-  totalAttempts     Int      @default(0)
-  correctAttempts   Int      @default(0)
-  masteryScore      Float    @default(0)
-  confidenceWeight  Float    @default(1)
-  lastSeen          DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  concept Concept @relation(fields: [conceptId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, conceptId])
-  @@index([userId])
-  @@map("mastery_records")
-}
-
-model RubricEvaluation {
-  id              String   @id @default(cuid())
-  userId          String
-  concept         String?
-  submission      String   @db.Text
-  rubricJson      Json
-  criterionScores Json
-  weightedTotal   Float
-  gradeLevel      String
-  overallFeedback String   @db.Text
-  improvementPlan Json
-  createdAt       DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("rubric_evaluations")
-}
-
-// ============================================================
-// Advanced Gamification & Trust System
-// ============================================================
-
-model XPLedger {
-  id              String   @id @default(cuid())
-  userId          String
-  eventType       String   // XPEvent enum
-  conceptId       String?
-  
-  // XP breakdown
-  baseXP          Int
-  masteryMult     Float    @default(1.0)
-  trustMult       Float    @default(1.0)
-  factCheckMult   Float    @default(1.0)
-  timeDecay       Float    @default(1.0)
-  finalXP         Int
-  
-  // Audit
-  reason          String
-  metadata        Json?
-  flagged         Boolean  @default(false)
-  
-  createdAt       DateTime @default(now())
-  
-  user            User     @relation("XPLedger", fields: [userId], references: [id], onDelete: Cascade)
-  concept         Concept? @relation(fields: [conceptId], references: [id], onDelete: SetNull)
-  
-  @@index([userId, createdAt])
-  @@index([eventType])
-  @@index([conceptId])
-  @@index([flagged])
-  @@map("xp_ledger")
-}
-
-model TrustScore {
-  id                    String   @id @default(cuid())
-  userId                String   @unique
-  
-  // Overall score
-  score                 Float    @default(0.5)
-  
-  // Component breakdown
-  masteryReliability    Float    @default(0.5)
-  nliTrackRecord        Float    @default(0.7)
-  communityValidation   Float    @default(0.5)
-  accountAgeTrust       Float    @default(0.5)
-  interactionEntropy    Float    @default(1.0)
-  votePatternScore      Float    @default(1.0)
-  
-  // Penalties
-  similarityFlags       Int      @default(0)
-  abuseFlags            Int      @default(0)
-  ipClusteringRisk      Float    @default(0.0)
-  
-  // Metadata
-  lastUpdated           DateTime @default(now())
-  historicalLow         Float    @default(0.5)
-  historicalHigh        Float    @default(0.5)
-  
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@index([score])
-  @@map("trust_scores")
-}
-
-enum AbuseFlagType {
-  SIMILARITY_HIGH
-  VOTE_TRADING
-  LOW_ENTROPY
-  IP_CLUSTERING
-  STREAK_FRAUD
-  XP_FARMING
-  SPAM_POSTING
-  SOCKPUPPET
-}
-
-model AbuseFlag {
-  id            String        @id @default(cuid())
-  userId        String
-  flagType      AbuseFlagType
-  severity      Int           // 1-10
-  details       Json
-  autoDetected  Boolean       @default(true)
-  reviewedBy    String?
-  reviewedAt    DateTime?
-  status        String        @default("PENDING")  // PENDING | CONFIRMED | FALSE_POSITIVE
-  createdAt     DateTime      @default(now())
-  
-  user          User          @relation("AbuseFlags", fields: [userId], references: [id], onDelete: Cascade)
-  reviewer      User?         @relation("ReviewedFlags", fields: [reviewedBy], references: [id], onDelete: SetNull)
-  
-  @@index([userId, status])
-  @@index([flagType, createdAt])
-  @@index([status, severity])
-  @@map("abuse_flags")
-}
-
-model ModerationLog {
-  id          String   @id @default(cuid())
-  adminId     String
-  targetUserId String
-  action      String   // WARNING | SUSPEND | BAN | RESTORE
-  reason      String
-  details     Json?
-  createdAt   DateTime @default(now())
-  
-  admin       User     @relation("ModerationsGiven", fields: [adminId], references: [id])
-  targetUser  User     @relation("ModerationsReceived", fields: [targetUserId], references: [id])
-  
-  @@index([targetUserId, createdAt])
-  @@index([adminId])
-  @@map("moderation_logs")
-}
-
-model FactCheckLog {
-  id                  String   @id @default(cuid())
-  userId              String?
-  generatedText       String   @db.Text
-  contextUsed         String   @db.Text
-  claimsChecked       Int
-  entailmentCount     Int
-  contradictionCount  Int
-  neutralCount        Int
-  overallConfidence   Float
-  safeToDisplay       Boolean
-  checks              Json     // Array of ClaimCheck
-  actionTaken         String?  // DISPLAY | DISPLAY_WITH_WARNING | BLOCK | REGENERATE
-  createdAt           DateTime @default(now())
-  
-  user                User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  
-  @@index([userId, createdAt])
-  @@index([safeToDisplay])
-  @@index([contradictionCount])
-  @@map("fact_check_logs")
-}
-
-model EventLog {
-  id          String   @id @default(cuid())
-  eventType   String   // e.g., "ANSWER_ACCEPTED", "MASTERY_UPDATED"
-  userId      String?
-  targetId    String?  // ID of affected resource (answer, doubt, etc.)
-  metadata    Json
-  emittedAt   DateTime @default(now())
-  processedAt DateTime?
-  
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  
-  @@index([eventType, emittedAt])
-  @@index([userId, emittedAt])
-  @@index([processedAt])
-  @@map("event_logs")
-}
-
-model ReputationLedger {
-  id          String   @id @default(cuid())
-  userId      String
-  eventType   String   // ReputationEvent enum
-  change      Int      // Can be negative
-  reason      String
-  sourceId    String?  // ID of vote/answer that caused change
-  voterTrust  Float?   // Trust weight of voter
-  createdAt   DateTime @default(now())
-  
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@index([userId, createdAt])
-  @@index([eventType])
-  @@map("reputation_ledger")
-}
-
-model ContentEmbedding {
-  id          String   @id @default(cuid())
-  contentType String   // "answer" | "doubt"
-  contentId   String
-  userId      String
-  embedding   Json     // Store as JSON array
-  text        String   @db.Text
-  createdAt   DateTime @default(now())
-  
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@unique([contentType, contentId])
-  @@index([userId])
-  @@map("content_embeddings")
-}
-
-model VoteGraph {
-  id              String   @id @default(cuid())
-  voterId         String
-  targetUserId    String
-  voteCount       Int      @default(0)
-  upvoteCount     Int      @default(0)
-  downvoteCount   Int      @default(0)
-  reciprocity     Float    @default(0.0)
-  lastVoteAt      DateTime @default(now())
-  
-  voter           User     @relation("VotesGiven", fields: [voterId], references: [id], onDelete: Cascade)
-  targetUser      User     @relation("VotesReceived", fields: [targetUserId], references: [id], onDelete: Cascade)
-  
-  @@unique([voterId, targetUserId])
-  @@index([reciprocity])
-  @@map("vote_graph")
 }

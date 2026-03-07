@@ -16,12 +16,15 @@ S3 layout
   processed/{user_id}/{doc_id}.txt              ← extracted text (stored after embedding)
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File, Form
 from typing import Optional, List
 from pathlib import Path
+import asyncio
+import json
 import logging
 import io
 import mimetypes
+import re
 
 from app.core.config import settings
 
@@ -130,6 +133,83 @@ def _extract_text(content: bytes, filename: str) -> str:
     # Fallback — try UTF-8
     return content.decode(errors="ignore")
 
+# ── Knowledge-graph enrichment ───────────────────────────────────────────────
+
+async def _extract_and_update_graph(text: str, user_id: str, filename: str) -> None:
+    """
+    Background task: ask Claude to extract concepts + relationships from
+    the document text, then write them into the Neo4j knowledge graph.
+
+    We send the first ~6 000 characters (enough context, cheap to call).
+    Claude returns a JSON object like:
+      {
+        "concepts": [
+          {"name": "...", "description": "...", "domain": "...", "difficulty": 1-5},
+          ...
+        ],
+        "prerequisites": [
+          {"concept": "...", "requires": "..."},
+          ...
+        ]
+      }
+    """
+    try:
+        from app.services.bedrock_service import get_bedrock_service
+        from app.services import knowledge_graph_service as kg
+
+        svc    = get_bedrock_service()
+        sample = text[:6000].strip()
+
+        prompt = (
+            f"You are a knowledge-graph builder.\n"
+            f"Analyse the following document excerpt and extract:\n"
+            f"1. Key learning concepts (academic topics, terms, theories, methods).\n"
+            f"2. Prerequisite relationships — which concept must be understood before another.\n\n"
+            f"Return ONLY valid JSON in this exact schema (no markdown, no extra text):\n"
+            f'{{\n'
+            f'  "concepts": [{{"name": string, "description": string, "domain": string, "difficulty": 1-5}}],\n'
+            f'  "prerequisites": [{{"concept": string, "requires": string}}]\n'
+            f'}}\n\n'
+            f"Document excerpt from '{filename}':\n{sample}"
+        )
+
+        raw = svc.generate(prompt=prompt)
+
+        # Strip accidental markdown code fences
+        raw = re.sub(r"```(?:json)?\s*", "", raw).strip().rstrip("`")
+
+        data = json.loads(raw)
+        concepts     = data.get("concepts", [])
+        prerequisites = data.get("prerequisites", [])
+
+        for c in concepts:
+            name = (c.get("name") or "").strip()
+            if not name:
+                continue
+            await kg.add_concept(
+                name=name,
+                description=c.get("description") or "",
+                domain=c.get("domain") or "",
+                difficulty=int(c.get("difficulty") or 1),
+            )
+            # Track which document introduced each concept
+            await kg.link_document_concept(source=filename, user_id=user_id, concept_name=name)
+
+        for rel in prerequisites:
+            concept  = (rel.get("concept")  or "").strip()
+            requires = (rel.get("requires") or "").strip()
+            if concept and requires:
+                await kg.link_prerequisite(concept=concept, prerequisite=requires)
+
+        logger.info(
+            "[GRAPH] '%s' → %d concepts, %d prerequisite edges added to Neo4j",
+            filename, len(concepts), len(prerequisites),
+        )
+
+    except json.JSONDecodeError as exc:
+        logger.warning("[GRAPH] Claude returned non-JSON for '%s': %s", filename, exc)
+    except Exception as exc:
+        logger.warning("[GRAPH] knowledge-graph update failed for '%s': %s", filename, exc)
 
 # ── Route handlers ────────────────────────────────────────────────────────────
 
@@ -157,6 +237,7 @@ async def list_documents():
 
 @router.post("/upload")
 async def upload_documents(
+    background_tasks: BackgroundTasks,
     files:   Optional[List[UploadFile]] = File(None),
     user_id: Optional[str]             = Form(None),
 ):
@@ -262,6 +343,11 @@ async def upload_documents(
             await lc_svc.upsert_documents(chunks, collection_name=namespace)
             embedded_count += 1
 
+            # ── Step 6: update knowledge graph (background — non-blocking) ───
+            background_tasks.add_task(
+                _extract_and_update_graph, text, namespace, f.filename
+            )
+
         except HTTPException:
             raise
         except Exception as exc:
@@ -310,6 +396,66 @@ async def presign_upload(body: dict):
         "doc_id":     doc_id,
         "bucket":     s3_svc.bucket,
         "content_type": content_type,
+    }
+
+
+@router.delete("/by-source")
+async def delete_document_by_source(
+    user_id: str,
+    source: Optional[str] = None,
+    s3_key: Optional[str] = None,
+):
+    """
+    Remove a document's vectors from Pinecone and (optionally) its file from S3.
+
+    Query params:
+      user_id  — Pinecone namespace / S3 prefix
+      source   — original filename (used as Pinecone metadata filter)
+      s3_key   — S3 object key to delete
+    """
+    deleted_vectors = False
+    deleted_s3      = False
+
+    # ── 1. Remove vectors from Pinecone ───────────────────────────────────
+    if source:
+        try:
+            lc_svc = _get_langchain_service()
+            index  = lc_svc.pc.Index(lc_svc.index_name)
+            index.delete(filter={"source": source}, namespace=user_id)
+            deleted_vectors = True
+            logger.info("[DELETE] Pinecone vectors removed: source=%s namespace=%s", source, user_id)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.warning("[DELETE] Could not remove Pinecone vectors for source='%s': %s", source, exc)
+
+    # ── 2. Remove file from S3 ────────────────────────────────────────────
+    if s3_key:
+        s3_svc = _get_s3()
+        if s3_svc:
+            try:
+                s3_svc.delete_file(s3_key)
+                deleted_s3 = True
+                logger.info("[DELETE] S3 object removed: %s", s3_key)
+            except Exception as exc:
+                logger.warning("[DELETE] Could not delete S3 object '%s': %s", s3_key, exc)
+
+    # ── 3. Remove document node + orphaned mastery edges from knowledge graph
+    graph_result: dict = {}
+    if source:
+        try:
+            from app.services import knowledge_graph_service as kg
+            graph_result = await kg.remove_document_from_graph(
+                source=source, user_id=user_id
+            )
+        except Exception as exc:
+            logger.warning("[DELETE] Graph cleanup failed for '%s': %s", source, exc)
+
+    return {
+        "success":         True,
+        "deleted_vectors": deleted_vectors,
+        "deleted_s3":      deleted_s3,
+        "graph":           graph_result,
     }
 
 

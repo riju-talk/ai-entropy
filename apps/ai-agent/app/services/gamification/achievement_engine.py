@@ -6,13 +6,23 @@ Reference: docs/GAME_ENGINE_ARCHITECTURE.md
 """
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from prisma.fields import Json
 from app.core.database import get_db
 from app.services.events.event_definitions import Event, EventType
 
 logger = logging.getLogger(__name__)
+
+
+def _now() -> datetime:
+    """Return current UTC time as a timezone-naive datetime (matches Prisma defaults)."""
+    return datetime.utcnow()
+
+
+def _coerce_naive(dt: datetime) -> datetime:
+    """Strip timezone info so subtraction never raises offset-naive vs offset-aware."""
+    return dt.replace(tzinfo=None) if dt.tzinfo is not None else dt
 
 
 # Achievement definitions from GAME_ENGINE_ARCHITECTURE.md
@@ -291,7 +301,7 @@ async def check_achievement_criteria(user_id: str, achievement: Dict, event: Eve
             user = await db.user.find_unique(
                 where={"id": user_id}
             )
-            age_days = (datetime.now() - user.createdAt).days
+            age_days = (_now() - _coerce_naive(user.createdAt)).days
             return age_days >= criteria["days"]
         
         elif criteria_type == "unique_users_helped":
@@ -301,11 +311,7 @@ async def check_achievement_criteria(user_id: str, achievement: Dict, event: Eve
                     "authorId": user_id,
                     "isAnswered": {"not": None}
                 },
-                include={
-                    "doubt": {
-                        "select": {"authorId": True}
-                    }
-                }
+                include={"doubt": True}
             )
             unique_users = {a.doubt.authorId for a in answers if a.doubt}
             return len(unique_users) >= criteria["count"]
@@ -314,16 +320,12 @@ async def check_achievement_criteria(user_id: str, achievement: Dict, event: Eve
             # Count answers submitted within time limit
             answers = await db.answer.find_many(
                 where={"authorId": user_id},
-                include={
-                    "doubt": {
-                        "select": {"createdAt": True}
-                    }
-                }
+                include={"doubt": True}
             )
             time_limit = timedelta(minutes=criteria["time_limit_minutes"])
             fast_responses = [
                 a for a in answers
-                if a.doubt and (a.createdAt - a.doubt.createdAt) <= time_limit
+                if a.doubt and (_coerce_naive(a.createdAt) - _coerce_naive(a.doubt.createdAt)) <= time_limit
             ]
             return len(fast_responses) >= criteria["count"]
         
@@ -368,7 +370,7 @@ async def validate_achievement_unlock(user_id: str, achievement: Dict) -> bool:
     )
     
     # Minimum account age (1 day)
-    if (datetime.now() - user.createdAt).days < 1:
+    if (_now() - _coerce_naive(user.createdAt)).days < 1:
         logger.warning(f"Achievement unlock blocked: account too new ({user_id})")
         return False
     
@@ -386,7 +388,7 @@ async def validate_achievement_unlock(user_id: str, achievement: Dict) -> bool:
         )
         
         if len(answers) >= 2:
-            time_span = (answers[-1].createdAt - answers[0].createdAt).total_seconds()
+            time_span = (_coerce_naive(answers[-1].createdAt) - _coerce_naive(answers[0].createdAt)).total_seconds()
             min_span = 3600  # 1 hour minimum
             
             if time_span < min_span:

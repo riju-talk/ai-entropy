@@ -82,79 +82,29 @@ export async function POST(req: NextRequest) {
   }
 }
 
-    
-    if (!AI_AGENT_URL) {
-      return NextResponse.json({ error: "AI_AGENT_URL not configured" }, { status: 500 })
-    }
-
-    const formData = await req.formData()
-    console.log("[API][DOCUMENTS] Forwarding to backend");
-
-    // Forward the multipart request to AI agent backend (do NOT set Content-Type)
-    const uploadResp = await fetch(`${AI_AGENT_URL}/api/documents/upload`, {
-      method: "POST",
-      headers: {},
-      body: formData,
-    })
-
-    const text = await uploadResp.text()
-    if (!uploadResp.ok) {
-      console.error("[API][DOCUMENTS] Backend error:", uploadResp.status, text)
-      try {
-        const parsed = JSON.parse(text)
-        return NextResponse.json(parsed, { status: uploadResp.status })
-      } catch {
-        return NextResponse.json({ error: "Document processing failed" }, { status: 502 })
-      }
-    }
-
-    try {
-      const result = JSON.parse(text)
-      return NextResponse.json(result, { status: uploadResp.status })
-    } catch {
-      return new NextResponse(text, { status: uploadResp.status, headers: { "Content-Type": "text/plain" } })
-    }
-  } catch (err) {
-    console.error("[API][DOCUMENTS] Error:", err)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
-}
-
-// GET endpoint to list documents from backend
-export async function GET(req: NextRequest) {
+/**
+ * DELETE /api/ai-agent/documents?user_id=X&source=Y&s3_key=Z
+ *   → DELETE /api/documents/by-source?user_id=X&source=Y&s3_key=Z
+ *   Removes vectors from Pinecone and (if s3_key provided) the file from S3.
+ */
+export async function DELETE(req: NextRequest) {
   try {
-    console.log("[API][DOCUMENTS] GET request received");
-    
-    if (!AI_AGENT_URL) {
-      return NextResponse.json({ error: "AI_AGENT_URL not configured" }, { status: 500 })
-    }
+    const url = new URL(req.url)
+    const userId = url.searchParams.get("user_id") || ""
+    const source = url.searchParams.get("source") || ""
+    const s3Key  = url.searchParams.get("s3_key")  || ""
 
-    console.log("[API][DOCUMENTS] Forwarding to backend");
+    if (!userId) return NextResponse.json({ error: "user_id is required" }, { status: 400 })
 
-    const getResp = await fetch(`${AI_AGENT_URL}/api/documents/`, {
-      method: "GET",
-      headers: {},
-    })
+    const params = new URLSearchParams({ user_id: userId })
+    if (source) params.set("source", source)
+    if (s3Key)  params.set("s3_key", s3Key)
 
-    const text = await getResp.text()
-    if (!getResp.ok) {
-      console.error("[API][DOCUMENTS] Backend error:", getResp.status, text)
-      try {
-        const parsed = JSON.parse(text)
-        return NextResponse.json(parsed, { status: getResp.status })
-      } catch {
-        return NextResponse.json({ error: "Failed to fetch documents" }, { status: 502 })
-      }
-    }
-
-    try {
-      const result = JSON.parse(text)
-      return NextResponse.json(result, { status: getResp.status })
-    } catch {
-      return new NextResponse(text, { status: getResp.status, headers: { "Content-Type": "text/plain" } })
-    }
+    const res = await upstream(`/api/documents/by-source?${params.toString()}`, { method: "DELETE" })
+    if ((res as any).raw) return new NextResponse(String(res.body), { status: res.status })
+    return NextResponse.json(res.body, { status: res.status })
   } catch (err) {
-    console.error("[API][DOCUMENTS] Error:", err)
+    console.error("[API][DOCUMENTS] DELETE Error:", err)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

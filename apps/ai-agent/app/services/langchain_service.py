@@ -40,11 +40,17 @@ except Exception as e:
 
 
 class _BedrockEmbeddingsAdapter(LCEmbeddings):
-    """Wraps BedrockService.embed() as a LangChain Embeddings object for Pinecone."""
+    """Wraps BedrockService.embed_batch() as a LangChain Embeddings object for Pinecone.
+
+    Delegates to embed_batch() so the shared Semaphore + connection pool in
+    BedrockService are respected — avoids connection-pool exhaustion and
+    ThrottlingExceptions when many chunks are embedded in parallel.
+    """
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        svc = get_bedrock_service()
-        return [svc.embed(t).tolist() for t in texts]
+        if not texts:
+            return []
+        return get_bedrock_service().embed_batch(texts).tolist()
 
     def embed_query(self, text: str) -> List[float]:
         return get_bedrock_service().embed(text).tolist()
@@ -82,22 +88,7 @@ class LangChainService:
                 self.pinecone_index = self.pc.Index(host=settings.PINECONE_HOST)
                 logger.info(f"✅ Pinecone index connected via host: {settings.PINECONE_HOST}")
             else:
-                # Create index if not exists (serverless spec)
-                existing_indexes = [i.name for i in self.pc.list_indexes()]
-                if self.index_name not in existing_indexes:
-                    logger.info(f"Creating Pinecone index '{self.index_name}'...")
-                    self.pc.create_index(
-                        name=self.index_name,
-                        dimension=settings.EMBEDDING_DIMENSIONS,  # matches EMBEDDING_DIMENSIONS in config
-                        metric='cosine',
-                        spec=ServerlessSpec(
-                            cloud='aws',
-                            region=settings.PINECONE_ENV
-                        )
-                    )
-                    logger.info("✅ Pinecone Index Created")
-                else:
-                    logger.info(f"✅ Pinecone Index '{self.index_name}' found")
+                self._ensure_pinecone_index()
                 self.pinecone_index = self.pc.Index(self.index_name)
 
             # Initialize text splitter
@@ -116,7 +107,55 @@ class LangChainService:
         except Exception as e:
             logger.exception("❌ INITIALIZATION FAILED: %s", e)
             raise
-    
+
+    def _ensure_pinecone_index(self) -> None:
+        """Create the Pinecone index if it doesn't exist, or recreate it when
+        the stored dimension doesn't match EMBEDDING_DIMENSIONS.
+
+        A stale index (e.g. created with 768 dims but embeddings are now 1536)
+        causes a 400 Bad Request on every upsert. This method detects that and
+        deletes + recreates the index with the correct dimension automatically.
+        """
+        target_dim = settings.EMBEDDING_DIMENSIONS
+        existing = {i.name: i for i in self.pc.list_indexes()}
+
+        if self.index_name in existing:
+            # Describe the index to read its actual dimension
+            try:
+                info = self.pc.describe_index(self.index_name)
+                actual_dim = info.dimension
+                if actual_dim != target_dim:
+                    logger.warning(
+                        "Pinecone index '%s' has dimension %d but EMBEDDING_DIMENSIONS=%d. "
+                        "Deleting and recreating with correct dimension.",
+                        self.index_name, actual_dim, target_dim,
+                    )
+                    self.pc.delete_index(self.index_name)
+                    existing.pop(self.index_name)
+                else:
+                    logger.info(
+                        "✅ Pinecone index '%s' found (dim=%d)", self.index_name, actual_dim
+                    )
+                    return
+            except Exception as exc:
+                logger.warning("Could not describe Pinecone index: %s — will recreate", exc)
+                try:
+                    self.pc.delete_index(self.index_name)
+                except Exception:
+                    pass
+                existing.pop(self.index_name, None)
+
+        logger.info(
+            "Creating Pinecone index '%s' (dim=%d)...", self.index_name, target_dim
+        )
+        self.pc.create_index(
+            name=self.index_name,
+            dimension=target_dim,
+            metric="cosine",
+            spec=ServerlessSpec(cloud="aws", region=settings.PINECONE_ENV),
+        )
+        logger.info("✅ Pinecone index '%s' created (dim=%d)", self.index_name, target_dim)
+
     async def chat_with_fallback(
         self,
         message: str,
@@ -208,24 +247,49 @@ class LangChainService:
             return None
     
     async def upsert_documents(self, documents, collection_name):
-        """Upsert documents to Pinecone namespace"""
-        try:
-            logger.info(f"upsert_documents: namespace={collection_name} docs={len(documents)}")
-            
-            # PineconeVectorStore class methods are sync/async handled by langchain wrapper
-            # Use 'from_documents' to add to existing index
-            docsearch = PineconeVectorStore.from_documents(
-                documents=documents,
-                embedding=self.embeddings,
-                index_name=self.index_name,
-                namespace=collection_name
-            )
-            
-            logger.info(f"✅ Upserted {len(documents)} documents to Pinecone namespace {collection_name}")
-            return docsearch
-        except Exception as e:
-            logger.error(f"upsert_documents error: {e}")
-            raise
+        """Embed in parallel, then upsert directly to Pinecone in parallel batches."""
+        import asyncio
+        import uuid as _uuid
+        from concurrent.futures import ThreadPoolExecutor
+
+        logger.info(f"upsert_documents: namespace={collection_name} docs={len(documents)}")
+
+        texts     = [doc.page_content for doc in documents]
+        metadatas = [doc.metadata     for doc in documents]
+
+        # ── Step 1: embed all chunks in parallel ──────────────────────────────
+        embeddings = self.embeddings.embed_documents(texts)
+
+        # ── Step 2: build Pinecone vector records ─────────────────────────────
+        ALLOWED = (str, int, float, bool)      # Pinecone metadata value types
+        vectors = []
+        for text, emb, meta in zip(texts, embeddings, metadatas):
+            safe_meta = {k: v for k, v in meta.items() if isinstance(v, ALLOWED)}
+            safe_meta["text"] = text[:2000]    # kept for retrieval
+            vectors.append({
+                "id":       str(_uuid.uuid4()),
+                "values":   emb,
+                "metadata": safe_meta,
+            })
+
+        # ── Step 3: upsert in parallel batches of 100 ─────────────────────────
+        BATCH_SIZE = 100
+        batches = [vectors[i : i + BATCH_SIZE] for i in range(0, len(vectors), BATCH_SIZE)]
+
+        def _upsert_batch(batch):
+            self.pinecone_index.upsert(vectors=batch, namespace=collection_name)
+
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor(max_workers=min(10, len(batches))) as pool:
+            await asyncio.gather(*[
+                loop.run_in_executor(pool, _upsert_batch, batch)
+                for batch in batches
+            ])
+
+        logger.info(
+            f"✅ Upserted {len(vectors)} chunks to Pinecone namespace={collection_name} "
+            f"in {len(batches)} batch(es)"
+        )
     
     def split_documents(self, documents):
         """Split documents"""
