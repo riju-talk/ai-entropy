@@ -29,3 +29,8 @@ next-env.d.ts
 
 # Firebase service account key
 lib/entropy-53ac4-firebase-adminsdk-fbsvc-f91b846abc.json
+
+# amplify
+.amplify
+amplify_outputs*
+amplifyconfiguration*
