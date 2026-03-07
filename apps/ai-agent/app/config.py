@@ -98,6 +98,20 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # ── Lambda / SQS Configuration ────────────────────────────────────────────
+    # Set IS_LAMBDA=true in Lambda environment to enable parallel fan-out and
+    # SQS async dispatch. Leave unset (false) for local dev — falls back to
+    # in-process execution so no AWS credentials are needed locally.
+    IS_LAMBDA: bool = os.getenv("IS_LAMBDA", "false").lower() == "true"
+    LAMBDA_FUNCTION_PREFIX: str = os.getenv("LAMBDA_FUNCTION_PREFIX", "entropy-ai-engine-dev")
+    MASTERY_QUEUE_URL: Optional[str] = os.getenv("MASTERY_QUEUE_URL")
+    GAMIFICATION_QUEUE_URL: Optional[str] = os.getenv("GAMIFICATION_QUEUE_URL")
+    RAG_WORKER_FUNCTION: Optional[str] = os.getenv("RAG_WORKER_FUNCTION")
+    TAVILY_WORKER_FUNCTION: Optional[str] = os.getenv("TAVILY_WORKER_FUNCTION")
+
+    # Tavily
+    TAVILY_API_KEY: Optional[str] = os.getenv("TAVILY_API_KEY")
+
     # ── CORS Configuration ────────────────────────────────────────────────────
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",

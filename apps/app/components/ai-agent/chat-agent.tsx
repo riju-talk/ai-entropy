@@ -59,7 +59,8 @@ function toLangCode(lang: Language, inputIsHindi: boolean): string {
 /** Strip Unicode emoji characters from AI responses */
 function stripEmojis(text: string): string {
   return text
-    .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27FF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1FAFF}]+/gu, "")
+    // Extended_Pictographic covers all emoji; also strip ZWJ, variation selectors, and flag sequences
+    .replace(/\p{Extended_Pictographic}(\u{FE0F}|\u{20E3})?(\u{200D}\p{Extended_Pictographic}(\u{FE0F}|\u{20E3})?)*[\u{1F1E0}-\u{1F1FF}]*/gu, "")
     .trim()
 }
 
@@ -634,7 +635,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
         </div>
       )}
 
-      {/* ── Exam Mode Overlay ── */}}
+      {/* ── Exam Mode Overlay ── */}
       {showExam && (
         <ExamModeOverlay
           onExit={() => { setShowExam(false); setMode("chat") }}
@@ -679,7 +680,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
         </div>
       )}
 
-      {/* ── Context doc banner ── */}}
+      {/* ── Context doc banner ── */}
       {contextDoc && (
         <div className="flex-shrink-0 flex items-center gap-2 px-5 py-1.5 bg-cyan-500/5 border-b border-cyan-500/10">
           <ScanLine className="h-3 w-3 text-cyan-400" />

@@ -6,11 +6,16 @@ Optional:  Internet research (Bing) when no Pinecone results are found and BING_
 
 Response includes a `cognitive_trace` block so the frontend CognitiveTraceCard
 can render real data instead of mock values.
+
+Mastery updates and gamification events are dispatched asynchronously:
+  - On Lambda: SQS SendMessage (fire-and-forget, never blocks the response)
+  - Local dev: BackgroundTasks (in-process, same behaviour, no AWS needed)
 """
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, model_validator
+import json
 import logging
 import time
 import math
@@ -21,6 +26,26 @@ from app.services.mastery_service import track_qa_interaction, compute_user_metr
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# ── SQS client — initialised once, reused across warm invocations ─────────────
+_sqs = None
+
+
+def _get_sqs():
+    global _sqs
+    if _sqs is None:
+        import boto3
+        from app.config import settings
+        _sqs = boto3.client("sqs", region_name=settings.AWS_REGION)
+    return _sqs
+
+
+def _sqs_send(queue_url: str, body: dict) -> None:
+    """Fire-and-forget SQS publish. Swallows all exceptions."""
+    try:
+        _get_sqs().send_message(QueueUrl=queue_url, MessageBody=json.dumps(body))
+    except Exception as exc:
+        logger.warning("SQS send failed (non-fatal): %s", exc)
 
 
 class QAInput(BaseModel):
@@ -94,11 +119,35 @@ async def post_qa(payload: QAInput, background_tasks: BackgroundTasks):
         except Exception:
             detected_concept = _raw_concept
 
-        # Fire-and-forget: persist mastery for this QA interaction
+        # Async mastery update — SQS on Lambda, BackgroundTask locally
         if payload.userId and detected_concept:
-            background_tasks.add_task(
-                track_qa_interaction, payload.userId, detected_concept, confidence, "chat"
-            )
+            from app.config import settings
+            if settings.IS_LAMBDA and settings.MASTERY_QUEUE_URL:
+                _sqs_send(settings.MASTERY_QUEUE_URL, {
+                    "user_id": payload.userId,
+                    "concept": detected_concept,
+                    "correct": True,
+                    "confidence": confidence,
+                    "event_type": "chat",
+                })
+            else:
+                background_tasks.add_task(
+                    track_qa_interaction, payload.userId, detected_concept, confidence, "chat"
+                )
+
+        # Async gamification event — SQS on Lambda, fire-and-forget
+        if payload.userId:
+            from app.config import settings
+            if settings.IS_LAMBDA and settings.GAMIFICATION_QUEUE_URL:
+                _sqs_send(settings.GAMIFICATION_QUEUE_URL, {
+                    "user_id": payload.userId,
+                    "event_type": "qa_answered",
+                    "metadata": {
+                        "concept": detected_concept,
+                        "confidence": confidence,
+                        "difficulty": int(result_dict.get("difficulty_level") or 5),
+                    },
+                })
 
         # Compute metrics algorithmically (never LLM-guessed)
         metrics: dict = {}

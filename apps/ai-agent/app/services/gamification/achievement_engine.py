@@ -193,18 +193,22 @@ async def check_and_unlock_achievements(user_id: str, triggering_event: Event) -
     """
     db = get_db()
     
-    # Get user's already-unlocked achievement IDs
+    # Get user's already-unlocked achievement names
+    # NOTE: achievement["id"] is a string key like "first_correct_answer" — NOT the DB cuid
+    # Comparing against r.achievementId (a cuid) would never match, causing duplicate unlock
+    # attempts and unique constraint errors. Compare by name instead.
     unlock_records = await db.achievementunlock.find_many(
-        where={"userId": user_id}
+        where={"userId": user_id},
+        include={"achievement": True}
     )
     
-    unlocked_ids = {r.achievementId for r in unlock_records}
+    unlocked_names = {r.achievement.name for r in unlock_records if r.achievement}
     
     newly_unlocked = []
     
     for achievement in ACHIEVEMENTS:
         # Skip if already unlocked
-        if achievement["id"] in unlocked_ids:
+        if achievement["name"] in unlocked_names:
             continue
         
         # Check criteria
@@ -444,6 +448,19 @@ async def unlock_achievement(user_id: str, achievement: Dict) -> Dict[str, Any]:
         }
     )
     
+    # Check if already unlocked (race-condition guard — primary dedup is in check_and_unlock_achievements)
+    existing = await db.achievementunlock.find_first(
+        where={"userId": user_id, "achievementId": achievement_record.id}
+    )
+    if existing:
+        logger.info(f"Achievement {achievement['name']} already unlocked for {user_id} — skipping")
+        return {
+            "id": achievement["id"],
+            "name": achievement["name"],
+            "xp_reward": 0,
+            "unlocked_at": existing.unlockedAt
+        }
+
     # Create unlock record
     unlock = await db.achievementunlock.create(
         data={

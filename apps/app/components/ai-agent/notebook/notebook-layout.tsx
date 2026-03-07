@@ -460,7 +460,7 @@ export function NotebookLayout({
     )
 }
 
-function ConceptRow({ concept }: { concept: typeof activeConcepts[0] }) {
+function ConceptRow({ concept }: { concept: { name: string; mastery: number; trend: string; volatility: string } }) {
     const volDot = concept.volatility === "high" ? "bg-red-400" : concept.volatility === "medium" ? "bg-amber-400" : "bg-emerald-400"
     return (
         <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.03] transition-colors cursor-pointer group">

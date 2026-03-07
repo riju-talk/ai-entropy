@@ -192,18 +192,23 @@ async def process_gamification_event(request: GamificationEventRequest):
             milestone_reached = streak_result.milestone_reached
 
         # 4. Build a minimal Event object and check achievements
+        # Wrapped in its own try/except so a bad achievement check never kills the XP award
+        achievement_names = []
         try:
-            ai_event_type = EventType(event_type)
-        except ValueError:
-            ai_event_type = EventType.XP_AWARDED  # Fallback for unknown types
+            try:
+                ai_event_type = EventType(event_type)
+            except ValueError:
+                ai_event_type = EventType.XP_AWARDED  # Fallback for unknown types
 
-        triggering_event = Event(
-            event_type=ai_event_type,
-            user_id=user_id,
-            metadata=metadata
-        )
-        newly_unlocked = await check_and_unlock_achievements(user_id, triggering_event)
-        achievement_names = [a["name"] for a in newly_unlocked] if newly_unlocked else []
+            triggering_event = Event(
+                event_type=ai_event_type,
+                user_id=user_id,
+                metadata=metadata
+            )
+            newly_unlocked = await check_and_unlock_achievements(user_id, triggering_event)
+            achievement_names = [a["name"] for a in newly_unlocked] if newly_unlocked else []
+        except Exception as ach_err:
+            logger.warning(f"Achievement check failed (non-fatal) for user {user_id}, event {event_type}: {ach_err}")
 
         return GamificationEventResponse(
             xp_awarded=xp_awarded,
@@ -288,7 +293,7 @@ async def get_xp_leaderboard(
     try:
         db = get_db()
         users = await db.user.find_many(
-            order_by={"totalXP": "desc"},
+            order={"totalXP": "desc"},
             skip=offset,
             take=limit,
         )
@@ -322,7 +327,7 @@ async def get_reputation_leaderboard(
     try:
         db = get_db()
         users = await db.user.find_many(
-            order_by={"reputation": "desc"},
+            order={"reputation": "desc"},
             skip=offset,
             take=limit,
         )

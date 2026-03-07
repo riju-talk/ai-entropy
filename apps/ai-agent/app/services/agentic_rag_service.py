@@ -10,12 +10,50 @@ Master pipeline:
 
 Sources are numbered [1][2]… in the prompt so the LLM can inline-cite them
 in final_solution (like NotebookLM / GPT).
+
+When running on Lambda (IS_LAMBDA=true) steps 1+2 are parallelised:
+  - rag_worker Lambda     → Pinecone semantic search
+  - tavily_worker Lambda  → Tavily live web search
+Both are invoked concurrently via boto3 InvokeFunction so total latency
+equals max(rag_latency, tavily_latency) instead of their sum.
+In local dev IS_LAMBDA is false and the original in-process methods run.
 """
+import asyncio
+import json
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
+
+# boto3 Lambda client — lazily initialised on first use so local dev never
+# needs AWS credentials for basic operation.
+_lambda_client = None
+
+
+def _get_lambda_client():
+    global _lambda_client
+    if _lambda_client is None:
+        import boto3
+        from app.config import settings
+        _lambda_client = boto3.client("lambda", region_name=settings.AWS_REGION)
+    return _lambda_client
+
+
+def _invoke_lambda_sync(function_name: str, payload: dict) -> dict:
+    """Synchronous boto3 Lambda invoke — run inside a thread pool."""
+    client = _get_lambda_client()
+    resp = client.invoke(
+        FunctionName=function_name,
+        InvocationType="RequestResponse",
+        Payload=json.dumps(payload),
+    )
+    body = json.loads(resp["Payload"].read())
+    if resp.get("FunctionError"):
+        logger.warning("Lambda %s returned error: %s", function_name, body)
+        return {}
+    return body
 
 
 class AgenticRAGService:
@@ -124,17 +162,43 @@ class AgenticRAGService:
             intent_detected, difficulty_level
         """
         from app.services.ai_brain.reasoning_engine import reason_with_context
+        from app.config import settings
 
-        # ── Step 1: Pinecone RAG (uploaded documents) ──────────────────────
-        rag_context, doc_sources = await self._retrieve_rag_context(
-            question, collection_name
-        )
+        # ── Steps 1+2: Pinecone RAG + Tavily (parallel when on Lambda) ────────
+        if settings.IS_LAMBDA and settings.RAG_WORKER_FUNCTION and settings.TAVILY_WORKER_FUNCTION:
+            # Fan-out: both workers run concurrently in separate threads
+            loop = asyncio.get_event_loop()
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                rag_future = loop.run_in_executor(
+                    pool,
+                    _invoke_lambda_sync,
+                    settings.RAG_WORKER_FUNCTION,
+                    {"question": question, "collection": collection_name},
+                )
+                web_future = loop.run_in_executor(
+                    pool,
+                    _invoke_lambda_sync,
+                    settings.TAVILY_WORKER_FUNCTION,
+                    {"question": question, "index_offset": 0},
+                )
+                rag_resp, web_resp = await asyncio.gather(rag_future, web_future)
 
-        # ── Step 2: Tavily internet search (always active) ─────────────────
-        # Web sources are numbered after any document sources
-        web_context, web_sources = await self._search_internet(
-            question, index_offset=len(doc_sources)
-        )
+            rag_context: str = rag_resp.get("rag_context", "")
+            doc_sources: list = rag_resp.get("sources", [])
+            web_context: str = web_resp.get("web_context", "")
+            web_sources: list = web_resp.get("web_sources", [])
+
+            # Re-index web sources to continue after document indices
+            for ws in web_sources:
+                ws["index"] = ws.get("index", 0) + len(doc_sources)
+        else:
+            # Local dev — run in-process (no AWS needed)
+            rag_context, doc_sources = await self._retrieve_rag_context(
+                question, collection_name
+            )
+            web_context, web_sources = await self._search_internet(
+                question, index_offset=len(doc_sources)
+            )
 
         # ── Step 3: Combine all sources ────────────────────────────────────
         all_sources = doc_sources + web_sources

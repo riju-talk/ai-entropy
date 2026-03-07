@@ -433,7 +433,7 @@ class BedrockService:
             safe_meta = {k: v for k, v in meta.items() if isinstance(v, ALLOWED)}
             safe_meta["text"] = text[:2000]  # stored for retrieval
             vectors.append({
-                "id":       f"{id_prefix}{_uuid.uuid4()}",
+                "id":       f"{id_prefix}{uuid.uuid4()}",
                 "values":   emb.tolist(),
                 "metadata": safe_meta,
             })

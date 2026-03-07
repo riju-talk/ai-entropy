@@ -351,7 +351,7 @@ export default function ProfilePage() {
             <CardContent className="pt-6">
               <div className="flex flex-col items-center text-center">
                 <Award className="h-8 w-8 mb-2 text-primary" />
-                <div className="text-3xl font-bold">{achievements.length + badges.length}</div>
+                <div className="text-3xl font-bold">{achievements.filter(a => a.unlocked).length + badges.length}</div>
                 <div className="text-xs text-muted-foreground mt-1">Achievements & Badges</div>
               </div>
             </CardContent>
@@ -380,7 +380,7 @@ export default function ProfilePage() {
                   ))}
                 </div>
               </div>
-            ) : achievements.length === 0 && badges.length === 0 ? (
+            ) : achievements.filter(a => a.unlocked).length === 0 && badges.length === 0 ? (
               <div className="text-center py-12">
                 <Trophy className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
                 <h3 className="text-lg font-semibold mb-2">No Achievements Yet</h3>
@@ -390,12 +390,12 @@ export default function ProfilePage() {
               </div>
             ) : (
               <div className="space-y-6">
-                {/* Achievements */}
-                {achievements.length > 0 && (
+                {/* Achievements — only show unlocked ones */}
+                {achievements.filter(a => a.unlocked).length > 0 && (
                   <div>
-                    <h4 className="text-sm font-semibold mb-3 uppercase tracking-wider text-muted-foreground">Achievements ({achievements.length})</h4>
+                    <h4 className="text-sm font-semibold mb-3 uppercase tracking-wider text-muted-foreground">Achievements ({achievements.filter(a => a.unlocked).length})</h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {achievements.slice(0, 8).map((achievement) => (
+                      {achievements.filter(a => a.unlocked).slice(0, 8).map((achievement) => (
                         <div
                           key={achievement.id}
                           className="flex flex-col items-center p-4 rounded-xl bg-secondary/30 border border-white/5 hover:border-white/10 transition-all group cursor-pointer"

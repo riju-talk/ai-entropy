@@ -5,31 +5,39 @@ frameworkVersion: "3"
 provider:
   name: aws
   runtime: python3.11
-  stage: dev
+  stage: ${opt:stage, 'dev'}
   region: ap-northeast-1
   memorySize: 1024
   timeout: 30
   architecture: x86_64
 
   environment:
-    APP_ENV: dev
+    APP_ENV: ${self:provider.stage}
     AI_PROVIDER: bedrock
     BEDROCK_CLAUDE_MODEL: anthropic.claude-3-sonnet-20240229-v1:0
     BEDROCK_TITAN_EMBED: amazon.titan-embed-text-v2:0
     AWS_REGION: ap-northeast-1
-    DATABASE_URL: ${ssm:/entropy/dev/DATABASE_URL}
-    S3_BUCKET_NAME: entropy-documents-dev
-    AI_BACKEND_TOKEN: ${ssm:/entropy/dev/AI_BACKEND_TOKEN}
-    NEO4J_URI: ${ssm:/entropy/dev/NEO4J_URI}
-    NEO4J_USER: ${ssm:/entropy/dev/NEO4J_USER}
-    NEO4J_PASSWORD: ${ssm:/entropy/dev/NEO4J_PASSWORD}
-    REDIS_HOST: ${ssm:/entropy/dev/REDIS_HOST}
-    REDIS_PORT: ${ssm:/entropy/dev/REDIS_PORT}
-    JWT_SECRET_KEY: ${ssm:/entropy/dev/JWT_SECRET_KEY}
+    DATABASE_URL: ${ssm:/entropy/${self:provider.stage}/DATABASE_URL}
+    S3_BUCKET_NAME: entropy-documents-${self:provider.stage}
+    AI_BACKEND_TOKEN: ${ssm:/entropy/${self:provider.stage}/AI_BACKEND_TOKEN}
+    NEO4J_URI: ${ssm:/entropy/${self:provider.stage}/NEO4J_URI}
+    NEO4J_USER: ${ssm:/entropy/${self:provider.stage}/NEO4J_USER}
+    NEO4J_PASSWORD: ${ssm:/entropy/${self:provider.stage}/NEO4J_PASSWORD}
+    REDIS_HOST: ${ssm:/entropy/${self:provider.stage}/REDIS_HOST}
+    REDIS_PORT: ${ssm:/entropy/${self:provider.stage}/REDIS_PORT}
+    JWT_SECRET_KEY: ${ssm:/entropy/${self:provider.stage}/JWT_SECRET_KEY}
+    TAVILY_API_KEY: ${ssm:/entropy/${self:provider.stage}/TAVILY_API_KEY}
+    # SQS queue URLs — used by api Lambda to dispatch async work
+    MASTERY_QUEUE_URL: !Ref MasteryQueue
+    GAMIFICATION_QUEUE_URL: !Ref GamificationQueue
+    # Self-invocation: api Lambda calls rag_worker + tavily_worker in parallel
+    RAG_WORKER_FUNCTION: ${self:service}-${self:provider.stage}-rag_worker
+    TAVILY_WORKER_FUNCTION: ${self:service}-${self:provider.stage}-tavily_worker
 
   iam:
     role:
       statements:
+        # ── Bedrock ─────────────────────────────────────────────────────────
         - Effect: Allow
           Action:
             - bedrock:InvokeModel
@@ -37,23 +45,136 @@ provider:
           Resource:
             - arn:aws:bedrock:ap-northeast-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0
             - arn:aws:bedrock:ap-northeast-1::foundation-model/amazon.titan-embed-text-v2:0
+        # ── S3 ──────────────────────────────────────────────────────────────
         - Effect: Allow
           Action:
             - s3:GetObject
             - s3:PutObject
             - s3:DeleteObject
             - s3:HeadObject
+            - s3:ListBucket
           Resource:
-            - arn:aws:s3:::entropy-documents-dev/*
+            - arn:aws:s3:::entropy-documents-${self:provider.stage}/*
+            - arn:aws:s3:::entropy-documents-${self:provider.stage}
+        # ── Lambda self-invocation (parallel RAG fan-out) ────────────────
+        - Effect: Allow
+          Action:
+            - lambda:InvokeFunction
+          Resource:
+            - arn:aws:lambda:ap-northeast-1:*:function:${self:service}-${self:provider.stage}-rag_worker
+            - arn:aws:lambda:ap-northeast-1:*:function:${self:service}-${self:provider.stage}-tavily_worker
+        # ── SQS (async mastery + gamification) ──────────────────────────
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+          Resource:
+            - !GetAtt MasteryQueue.Arn
+            - !GetAtt GamificationQueue.Arn
+        # ── SSM Parameter Store ─────────────────────────────────────────
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+          Resource:
+            - arn:aws:ssm:ap-northeast-1:*:parameter/entropy/${self:provider.stage}/*
 
 functions:
+  # ── Main HTTP handler (all FastAPI routes via Mangum) ─────────────────
   api:
     handler: lambda_handler.handler
+    memorySize: 1024
+    timeout: 30
     events:
+      - http:
+          path: /
+          method: any
+          cors: true
       - http:
           path: /{proxy+}
           method: any
           cors: true
+
+  # ── Pinecone RAG worker (parallel fan-out, invoked by api Lambda) ─────
+  rag_worker:
+    handler: app.workers.rag_worker.handler
+    memorySize: 1024
+    timeout: 15
+    description: "Pinecone semantic vector search — invoked in parallel with tavily_worker"
+
+  # ── Tavily internet search worker (parallel fan-out) ─────────────────
+  tavily_worker:
+    handler: app.workers.tavily_worker.handler
+    memorySize: 512
+    timeout: 10
+    description: "Tavily live web search — runs in parallel with rag_worker"
+
+  # ── Mastery update worker (SQS-triggered, async off critical path) ────
+  mastery_worker:
+    handler: app.workers.mastery_worker.handler
+    memorySize: 256
+    timeout: 30
+    description: "Bayesian mastery + XP update — consumer of entropy-mastery-queue"
+    events:
+      - sqs:
+          arn: !GetAtt MasteryQueue.Arn
+          batchSize: 10
+          functionResponseType: ReportBatchItemFailures
+
+  # ── Gamification worker (SQS-triggered, isolated) ─────────────────────
+  gamification_worker:
+    handler: app.workers.gamification_worker.handler
+    memorySize: 256
+    timeout: 30
+    description: "XP + achievements + streak — consumer of entropy-gamification-queue"
+    events:
+      - sqs:
+          arn: !GetAtt GamificationQueue.Arn
+          batchSize: 10
+          functionResponseType: ReportBatchItemFailures
+
+resources:
+  Resources:
+    # ── SQS: async mastery updates ───────────────────────────────────────
+    MasteryQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: entropy-mastery-queue-${self:provider.stage}
+        VisibilityTimeout: 60
+        MessageRetentionPeriod: 86400   # 1 day
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt MasteryDLQ.Arn
+          maxReceiveCount: 3
+
+    MasteryDLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: entropy-mastery-dlq-${self:provider.stage}
+        MessageRetentionPeriod: 1209600  # 14 days — inspect failures
+
+    # ── SQS: async gamification events ──────────────────────────────────
+    GamificationQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: entropy-gamification-queue-${self:provider.stage}
+        VisibilityTimeout: 60
+        MessageRetentionPeriod: 86400
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt GamificationDLQ.Arn
+          maxReceiveCount: 3
+
+    GamificationDLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: entropy-gamification-dlq-${self:provider.stage}
+        MessageRetentionPeriod: 1209600
+
+  Outputs:
+    MasteryQueueUrl:
+      Value: !Ref MasteryQueue
+    GamificationQueueUrl:
+      Value: !Ref GamificationQueue
+    ApiGatewayUrl:
+      Value: !Sub "https://${ApiGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${self:provider.stage}"
 
 plugins:
   - serverless-python-requirements
@@ -62,3 +183,8 @@ custom:
   pythonRequirements:
     dockerizePip: true
     strip: false
+    slim: true
+    # Exclude heavy packages not needed in Lambda
+    noDeploy:
+      - boto3
+      - botocore

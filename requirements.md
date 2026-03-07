@@ -465,6 +465,42 @@ Core capability pillars:
 
 ---
 
+## Hackathon Deliverables & Action Plan
+
+Goals for the hackathon submission:
+- Working prototype URL (frontend + API deployed on AWS).
+- Automated deployment scripts / IaC (Serverless or CDK) for core services.
+- Short demo video (3-5 minutes) covering problem, demo, and technical architecture.
+- Concise PPT deck summarising value, architecture, and demo steps.
+
+Minimum viable deliverables (MVP):
+- Frontend hosted on AWS Amplify (Next.js App Router) with env pointing to deployed API.
+- Backend FastAPI deployed on AWS Lambda + API Gateway (Mangum adapter).
+- AI integration with Amazon Bedrock (Claude 3 Sonnet) for reasoning + Titan embeddings.
+- Pinecone (or equivalent) for vector retrieval; S3 for document storage.
+- Async processing with SQS for mastery and gamification events.
+- A working leaderboard + achievements demo flow with seeded data.
+
+Action Plan (step-by-step to finish before submission):
+1. Confirm AWS account access and Bedrock quotas for the demo region.
+2. Finalize Serverless `serverless.yml` and/or CDK `entropy-stack.ts` to provision:
+   - API Lambda (FastAPI)
+   - RAG + Tavily worker Lambdas
+   - Mastery & Gamification SQS queues + DLQs
+   - S3 bucket for documents
+3. Add SSM parameters for secrets; fill placeholders for `DATABASE_URL`, `NEO4J_URI`, `REDIS_HOST`, and `TAVILY_API_KEY`.
+4. Run local integration smoke-tests (FastAPI + sample DB mocks) and verify QA endpoints.
+5. Deploy with `serverless deploy --stage dev` (or `cdk deploy`) and validate endpoints.
+6. Connect Next.js app to deployed API via Amplify environment variables and deploy frontend.
+7. Record demo video covering: problem statement, app walkthrough, architecture slide, deployment outputs.
+8. Prepare PPT deck and README with clear reproduction steps.
+
+Success criteria for the hackathon:
+- The deployed demo responds to at least the core QA flow (ask a question, receive sourced answer).
+- Mastery and gamification events land in SQS and are processed (verify via logs or console outputs).
+- Leaderboard API returns seeded rankings.
+
+
 ## AWS Deployment Architecture
 
 ### Frontend Layer
