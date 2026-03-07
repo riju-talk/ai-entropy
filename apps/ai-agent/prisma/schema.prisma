@@ -48,15 +48,12 @@ model User {
   trustScoreCache      Float                 @default(0.5)
   isShadowBanned       Boolean               @default(false)
   isSuspended          Boolean               @default(false)
-  suspendedUntil       DateTime?
   leaderboardOptOut    Boolean               @default(false)
-  lastActiveAt         DateTime              @default(now())
+  lastActiveAt         DateTime?
   totalXP              Int                   @default(0)
   totalReputation      Int                   @default(0)
   tier                 String                @default("INITIATE")
   accounts             Account[]
-  flagsReviewed        AbuseFlag[]           @relation("ReviewedFlags")
-  abuseFlags           AbuseFlag[]           @relation("AbuseFlags")
   achievementProgress  AchievementProgress[]
   achievementUnlocks   AchievementUnlock[]
   aiRecommendations    AIRecommendation[]
@@ -66,32 +63,17 @@ model User {
   communities          Community[]
   addedDoubts          CommunityDoubt[]
   communityMemberships CommunityMember[]
-  conceptAttempts      ConceptAttempt[]
-  contentEmbeddings    ContentEmbedding[]
   conversations        Conversation[]
   documents            Document[]
   doubtVotes           DoubtVote[]           @relation("DoubtVotes")
   doubts               Doubt[]
-  eventLogs            EventLog[]
-  factCheckLogs        FactCheckLog[]
   leaderboardSnapshots LeaderboardSnapshot[] @relation("UserLeaderboardSnapshots")
-  masteryRecords       MasteryRecord[]
-  moderationsGiven     ModerationLog[]       @relation("ModerationsGiven")
-  moderationsReceived  ModerationLog[]       @relation("ModerationsReceived")
   pointsLedger         PointsLedger[]
-  reputationLedger     ReputationLedger[]
-  rubricEvaluations    RubricEvaluation[]
   streaks              Streak?
-  trustScore           TrustScore?
   discounts            UserDiscount[]
   userStats            UserStat?
-  votesReceived        VoteGraph[]           @relation("VotesReceived")
-  votesGiven           VoteGraph[]           @relation("VotesGiven")
-  xpLedger             XPLedger[]            @relation("XPLedger")
 
   @@index([createdAt])
-  @@index([trustScoreCache])
-  @@index([totalXP])
   @@map("users")
 }
 
@@ -385,19 +367,14 @@ model UserDiscount {
 }
 
 model AchievementProgress {
-  id             String      @id @default(cuid())
-  userId         String
-  achievementId  String
-  current        Int         @default(0)
-  target         Int
-  lastUpdated    DateTime    @default(now())
-  uniqueUsers    String[]
-  firstDate      DateTime?
-  lastDate       DateTime?
-  daySpan        Int         @default(0)
-  validatedCount Int         @default(0)
-  achievement    Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
-  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String      @id @default(cuid())
+  userId        String
+  achievementId String
+  current       Int         @default(0)
+  target        Int
+  lastUpdated   DateTime    @default(now())
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, achievementId])
   @@index([userId])
@@ -451,55 +428,23 @@ model CommunityDoubt {
 }
 
 model Concept {
-  id             String                @id @default(cuid())
-  name           String                @unique
+  id             String          @id @default(cuid())
+  name           String          @unique
   description    String?
   domain         String?
-  difficulty     Int                   @default(1)
+  difficulty     Int             @default(1)
   embedding      Json?
   synonyms       String[]
   keywords       String[]
-  isActive       Boolean               @default(true)
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
-  attempts       ConceptAttempt[]
-  prerequisites  ConceptPrerequisite[] @relation("ConceptPrerequisites")
-  dependents     ConceptPrerequisite[] @relation("DependentConcepts")
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   masteryRecords MasteryRecord[]
-  xpEntries      XPLedger[]
 
   @@index([domain])
   @@index([difficulty])
   @@index([isActive])
   @@map("concepts")
-}
-
-model ConceptPrerequisite {
-  id             String  @id @default(cuid())
-  conceptId      String
-  prerequisiteId String
-  concept        Concept @relation("ConceptPrerequisites", fields: [conceptId], references: [id], onDelete: Cascade)
-  prerequisite   Concept @relation("DependentConcepts", fields: [prerequisiteId], references: [id], onDelete: Cascade)
-
-  @@unique([conceptId, prerequisiteId])
-  @@map("concept_prerequisites")
-}
-
-model ConceptAttempt {
-  id                 String   @id @default(cuid())
-  userId             String
-  conceptId          String
-  isCorrect          Boolean
-  timeTakenSeconds   Int?
-  hintsUsed          Int      @default(0)
-  masteryScoreBefore Float    @default(0)
-  masteryScoreAfter  Float    @default(0)
-  createdAt          DateTime @default(now())
-  concept            Concept  @relation(fields: [conceptId], references: [id], onDelete: Cascade)
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, conceptId])
-  @@map("concept_attempts")
 }
 
 model MasteryRecord {
@@ -514,29 +459,10 @@ model MasteryRecord {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   concept          Concept   @relation(fields: [conceptId], references: [id], onDelete: Cascade)
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, conceptId])
   @@index([userId])
   @@map("mastery_records")
-}
-
-model RubricEvaluation {
-  id              String   @id @default(cuid())
-  userId          String
-  concept         String?
-  submission      String
-  rubricJson      Json
-  criterionScores Json
-  weightedTotal   Float
-  gradeLevel      String
-  overallFeedback String
-  improvementPlan Json
-  createdAt       DateTime @default(now())
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@map("rubric_evaluations")
 }
 
 model XPLedger {
@@ -554,94 +480,12 @@ model XPLedger {
   metadata      Json?
   flagged       Boolean  @default(false)
   createdAt     DateTime @default(now())
-  concept       Concept? @relation(fields: [conceptId], references: [id])
-  user          User     @relation("XPLedger", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([eventType])
   @@index([conceptId])
   @@index([flagged])
   @@map("xp_ledger")
-}
-
-model TrustScore {
-  id                  String   @id @default(cuid())
-  userId              String   @unique
-  score               Float    @default(0.5)
-  masteryReliability  Float    @default(0.5)
-  nliTrackRecord      Float    @default(0.7)
-  communityValidation Float    @default(0.5)
-  accountAgeTrust     Float    @default(0.5)
-  interactionEntropy  Float    @default(1.0)
-  votePatternScore    Float    @default(1.0)
-  similarityFlags     Int      @default(0)
-  abuseFlags          Int      @default(0)
-  ipClusteringRisk    Float    @default(0.0)
-  lastUpdated         DateTime @default(now())
-  historicalLow       Float    @default(0.5)
-  historicalHigh      Float    @default(0.5)
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([score])
-  @@map("trust_scores")
-}
-
-model AbuseFlag {
-  id           String        @id @default(cuid())
-  userId       String
-  flagType     AbuseFlagType
-  severity     Int
-  details      Json
-  autoDetected Boolean       @default(true)
-  reviewedBy   String?
-  reviewedAt   DateTime?
-  status       String        @default("PENDING")
-  createdAt    DateTime      @default(now())
-  reviewer     User?         @relation("ReviewedFlags", fields: [reviewedBy], references: [id])
-  user         User          @relation("AbuseFlags", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, status])
-  @@index([flagType, createdAt])
-  @@index([status, severity])
-  @@map("abuse_flags")
-}
-
-model ModerationLog {
-  id           String   @id @default(cuid())
-  adminId      String
-  targetUserId String
-  action       String
-  reason       String
-  details      Json?
-  createdAt    DateTime @default(now())
-  admin        User     @relation("ModerationsGiven", fields: [adminId], references: [id])
-  targetUser   User     @relation("ModerationsReceived", fields: [targetUserId], references: [id])
-
-  @@index([targetUserId, createdAt])
-  @@index([adminId])
-  @@map("moderation_logs")
-}
-
-model FactCheckLog {
-  id                 String   @id @default(cuid())
-  userId             String?
-  generatedText      String
-  contextUsed        String
-  claimsChecked      Int
-  entailmentCount    Int
-  contradictionCount Int
-  neutralCount       Int
-  overallConfidence  Float
-  safeToDisplay      Boolean
-  checks             Json
-  actionTaken        String?
-  createdAt          DateTime @default(now())
-  user               User?    @relation(fields: [userId], references: [id])
-
-  @@index([userId, createdAt])
-  @@index([safeToDisplay])
-  @@index([contradictionCount])
-  @@map("fact_check_logs")
 }
 
 model EventLog {
@@ -652,60 +496,11 @@ model EventLog {
   metadata    Json
   emittedAt   DateTime  @default(now())
   processedAt DateTime?
-  user        User?     @relation(fields: [userId], references: [id])
 
   @@index([eventType, emittedAt])
   @@index([userId, emittedAt])
   @@index([processedAt])
   @@map("event_logs")
-}
-
-model ReputationLedger {
-  id         String   @id @default(cuid())
-  userId     String
-  eventType  String
-  change     Int
-  reason     String
-  sourceId   String?
-  voterTrust Float?
-  createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt])
-  @@index([eventType])
-  @@map("reputation_ledger")
-}
-
-model ContentEmbedding {
-  id          String   @id @default(cuid())
-  contentType String
-  contentId   String
-  userId      String
-  embedding   Json
-  text        String
-  createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([contentType, contentId])
-  @@index([userId])
-  @@map("content_embeddings")
-}
-
-model VoteGraph {
-  id            String   @id @default(cuid())
-  voterId       String
-  targetUserId  String
-  voteCount     Int      @default(0)
-  upvoteCount   Int      @default(0)
-  downvoteCount Int      @default(0)
-  reciprocity   Float    @default(0.0)
-  lastVoteAt    DateTime @default(now())
-  targetUser    User     @relation("VotesReceived", fields: [targetUserId], references: [id], onDelete: Cascade)
-  voter         User     @relation("VotesGiven", fields: [voterId], references: [id], onDelete: Cascade)
-
-  @@unique([voterId, targetUserId])
-  @@index([reciprocity])
-  @@map("vote_graph")
 }
 
 enum Role {
@@ -801,15 +596,4 @@ enum CommunityRole {
   ADMIN
   MODERATOR
   MEMBER
-}
-
-enum AbuseFlagType {
-  SIMILARITY_HIGH
-  VOTE_TRADING
-  LOW_ENTROPY
-  IP_CLUSTERING
-  STREAK_FRAUD
-  XP_FARMING
-  SPAM_POSTING
-  SOCKPUPPET
 }

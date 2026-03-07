@@ -41,6 +41,13 @@ model User {
   credits              Int                   @default(100)
   subscriptionTier     String                @default("FREE")
   documentCount        Int                   @default(0)
+  totalXP              Int                   @default(0)
+  totalReputation      Int                   @default(0)
+  trustScoreCache      Float                 @default(0.5)
+  lastActiveAt         DateTime?
+  isShadowBanned       Boolean               @default(false)
+  isSuspended          Boolean               @default(false)
+  leaderboardOptOut    Boolean               @default(false)
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   accounts             Account[]
@@ -416,6 +423,85 @@ model CommunityDoubt {
   @@index([communityId])
   @@index([doubtId])
   @@map("community_doubts")
+}
+
+// AI-agent-owned tables — preserved to prevent data loss, not managed by TS code
+model Concept {
+  id          String   @id
+  name        String   @unique
+  description String?
+  domain      String?
+  difficulty  Int      @default(1)
+  embedding   Json?
+  synonyms    String[]
+  keywords    String[]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+
+  @@index([difficulty])
+  @@index([domain])
+  @@index([isActive])
+  @@map("concepts")
+  @@ignore
+}
+
+model EventLog {
+  id          String    @id
+  eventType   String
+  userId      String?
+  targetId    String?
+  metadata    Json
+  emittedAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([eventType, emittedAt])
+  @@index([processedAt])
+  @@index([userId, emittedAt])
+  @@map("event_logs")
+  @@ignore
+}
+
+model MasteryRecord {
+  id               String    @id
+  userId           String
+  conceptId        String
+  totalAttempts    Int       @default(0)
+  correctAttempts  Int       @default(0)
+  masteryScore     Float     @default(0)
+  confidenceWeight Float     @default(1)
+  lastSeen         DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime
+
+  @@unique([userId, conceptId])
+  @@index([userId])
+  @@map("mastery_records")
+  @@ignore
+}
+
+model XpLedger {
+  id            String   @id
+  userId        String
+  eventType     String
+  conceptId     String?
+  baseXP        Int
+  masteryMult   Float    @default(1.0)
+  trustMult     Float    @default(1.0)
+  factCheckMult Float    @default(1.0)
+  timeDecay     Float    @default(1.0)
+  finalXP       Int
+  reason        String
+  metadata      Json?
+  flagged       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([conceptId])
+  @@index([eventType])
+  @@index([flagged])
+  @@index([userId, createdAt])
+  @@map("xp_ledger")
+  @@ignore
 }
 
 enum Role {
