@@ -1,6 +1,6 @@
 ﻿"use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
@@ -10,15 +10,19 @@ import {
   Send, Loader2, User, BrainCircuit, Globe, Zap, Network,
   FlaskConical, ChevronDown, CheckCircle2, Layers, MessageSquare, Trophy,
   Atom, ScanLine, Mic, MicOff, PlusCircle, BookOpen, CalendarDays, Bell,
-  X, Link2, Tag, AlignLeft,
+  X, Link2, Tag, AlignLeft, ExternalLink,
 } from "lucide-react"
 import dynamic from "next/dynamic"
+import type ReactMarkdownPreview from "@uiw/react-markdown-preview"
 import { ModeSelector, type LearningMode } from "./mode-selector"
 import { CognitiveTraceCard, type CognitiveTrace } from "./cognitive-trace-card"
 import { ExamModeOverlay } from "./exam-mode-overlay"
 
 // Markdown renderer — loaded client-side only (SSR disabled)
-const MDPreview = dynamic(() => import("@uiw/react-markdown-preview"), { ssr: false })
+const MDPreview = dynamic<React.ComponentProps<typeof ReactMarkdownPreview>>(
+  () => import("@uiw/react-markdown-preview"),
+  { ssr: false }
+)
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -49,10 +53,11 @@ function detectLanguage(text: string): "hindi" | "english" {
 }
 
 /** Map UI language selection to ISO-639 codes for the Python backend */
-function toLangCode(lang: Language, inputIsHindi: boolean): string {
+function toLangCode(lang: Language): string {
   if (lang === "hindi") return "hi"
   if (lang === "bilingual") return "bilingual"
-  if (lang === "auto" && inputIsHindi) return "hi"
+  // AUTO and ENGLISH both request an English response.
+  // The backend will still understand Hindi questions by auto-detecting and translating the input.
   return "en"
 }
 
@@ -138,7 +143,7 @@ function StepBadge({ index, validated }: { index: number; validated?: boolean })
   )
 }
 
-function MessageBubble({ msg, showTrace }: { msg: Message; showTrace: boolean }) {
+function MessageBubble({ msg, showTrace, selectedLanguage }: { msg: Message; showTrace: boolean; selectedLanguage: Language }) {
   const isUser = msg.role === "user"
   const detectedLang = detectLanguage(msg.content)
 
@@ -186,6 +191,11 @@ function MessageBubble({ msg, showTrace }: { msg: Message; showTrace: boolean })
                 source={stripEmojis(msg.content)}
                 wrapperElement={{ "data-color-mode": "dark" } as any}
                 style={{ backgroundColor: "transparent" }}
+                components={{
+                  a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+                    <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
+                  ),
+                }}
               />
             </div>
           )}
@@ -195,7 +205,7 @@ function MessageBubble({ msg, showTrace }: { msg: Message; showTrace: boolean })
           <p className="text-[8px] text-white/20 font-mono">
             {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </p>
-          {detectedLang === "hindi" && <LanguageBadge lang="hindi" />}
+          {selectedLanguage === "hindi" && <LanguageBadge lang="hindi" />}
           {msg.masteryDelta && msg.masteryDelta > 0 && <MasteryPill delta={msg.masteryDelta} />}
         </div>
 
@@ -429,9 +439,11 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
     }
 
     const detectedLang = detectLanguage(text)
-    if (detectedLang === "hindi" && language === "auto") {
-      setLanguage("hindi")
-    }
+    // Compute the language to use for THIS request without permanently changing the selector.
+    // "auto" resolves to the detected language; explicit selections are honoured as-is.
+    const effectiveLang: Language = language === "auto"
+      ? (detectedLang === "hindi" ? "hindi" : "english")
+      : language
 
     const userMsg: Message = {
       id: crypto.randomUUID(),
@@ -457,8 +469,9 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
     // Build the payload
     const systemHints = [
       "Do not use any emojis in your response. Write with clear, professional academic text only.",
-      language === "hindi" ? "Respond in Hindi (Devanagari script)." : "",
-      language === "bilingual" ? "Respond bilingually — explain concepts in Hindi, write code/formulas in English." : "",
+      effectiveLang === "hindi" ? "Respond in Hindi (Devanagari script)." : "",
+      effectiveLang === "english" ? "Respond in English only, regardless of any previous messages." : "",
+      effectiveLang === "bilingual" ? "Respond bilingually — explain concepts in Hindi, write code/formulas in English." : "",
       mode === "structured" ? `This is structured learning step ${structuredStep + 1}/4. Validate reasoning before giving full answer.` : "",
       contextDoc ? `Context document: ${contextDoc.name || contextDoc.id}` : "",
     ].filter(Boolean).join(" ")
@@ -471,7 +484,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
           question: text,
           systemPrompt: systemHints || undefined,
           mode,
-          language: toLangCode(language, detectedLang === "hindi"),
+          language: toLangCode(effectiveLang),
           userId: userId || undefined,
           conversationId: conversationId || undefined,
         }),
@@ -642,9 +655,11 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
           onComplete={(result) => {
             setShowExam(false)
             setMode("chat")
+            // Dispatch event so sidebar cognitive panel refreshes immediately
+            window.dispatchEvent(new CustomEvent("mastery-updated"))
             toast({
               title: `Exam Complete · ${result.finalScore}%`,
-              description: `Avg Confidence: ${result.avgConfidence}% · Time: ${Math.floor(result.totalTime / 60)}m ${result.totalTime % 60}s`,
+              description: `${result.questions.filter((q: any) => q.userAnswer === q.correctAnswer).length}/${result.questions.length} correct · Time: ${Math.floor(result.totalTime / 60)}m ${result.totalTime % 60}s`,
             })
           }}
           subject={contextDoc?.name || "General"}
@@ -714,7 +729,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
           <EmptyState />
         ) : (
           messages.map((msg) => (
-            <MessageBubble key={msg.id} msg={msg} showTrace={showTrace} />
+            <MessageBubble key={msg.id} msg={msg} showTrace={showTrace} selectedLanguage={language} />
           ))
         )}
       </div>
@@ -910,7 +925,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
 // ─── TracePanel — all references & reasoning traces from current chat ─────────
 
 function TracePanel({ messages, contextDoc, onClose }: { messages: Message[]; contextDoc?: any; onClose: () => void }) {
-  const assistantMsgs = messages.filter(m => m.role === "assistant" && m.trace)
+  const assistantMsgs = messages.filter(m => m.role === "assistant" && !m.isStreaming && m.content)
 
   // Aggregate unique concepts with frequency
   const conceptMap = new Map<string, { count: number; totalImpact: number; intents: string[] }>()
@@ -928,9 +943,33 @@ function TracePanel({ messages, contextDoc, onClose }: { messages: Message[]; co
     .sort((a, b) => b.count - a.count)
 
   const intents = Array.from(new Set(assistantMsgs.map(m => m.trace?.intent).filter(Boolean)))
-  const avgMs = assistantMsgs.length
-    ? Math.round(assistantMsgs.reduce((s, m) => s + (m.trace?.inferenceMs ?? 0), 0) / assistantMsgs.length)
+  const avgMs = assistantMsgs.filter(m => m.trace).length
+    ? Math.round(assistantMsgs.filter(m => m.trace).reduce((s, m) => s + (m.trace?.inferenceMs ?? 0), 0) / assistantMsgs.filter(m => m.trace).length)
     : 0
+
+  // Collect sources: first from trace metadata, then parse ## Sources from markdown content
+  const sourceMap = new Map<string, { index: number; title: string; url: string; snippet: string; type: "web" | "document" }>()
+  assistantMsgs.forEach(m => {
+    // 1. Structured trace sources
+    m.trace?.sources?.forEach(s => {
+      const key = s.url || s.title
+      if (key && !sourceMap.has(key)) sourceMap.set(key, s)
+    })
+    // 2. Parse ## Sources section out of markdown text as fallback
+    const sourcesMatch = m.content.match(/##\s+Sources\s*\n([\s\S]*?)(?:\n##|$)/i)
+    if (sourcesMatch) {
+      const lines = sourcesMatch[1].split("\n").filter(l => l.trim())
+      lines.forEach((line, i) => {
+        const urlMatch = line.match(/https?:\/\/[^\s\)>]+/)
+        if (!urlMatch) return
+        const url = urlMatch[0]
+        if (sourceMap.has(url)) return
+        const title = line.replace(/^\d+\.\s*|\[.*?\]\s*|https?:\/\/[^\s\)>]+/g, "").trim() || url
+        sourceMap.set(url, { index: sourceMap.size + 1, title: title || url, url, snippet: "", type: "web" })
+      })
+    }
+  })
+  const allSources = Array.from(sourceMap.values())
 
   return (
     <div className="absolute inset-0 z-40 bg-[#0a0a0f]/95 backdrop-blur-sm flex flex-col">
@@ -958,6 +997,43 @@ function TracePanel({ messages, contextDoc, onClose }: { messages: Message[]; co
               <AlignLeft className="h-3.5 w-3.5 text-cyan-400/50 shrink-0" />
               <span className="text-[11px] text-white/60 truncate">{contextDoc.name || contextDoc.title || "Uploaded document"}</span>
               <span className="text-[8px] text-cyan-400/40 font-mono ml-auto shrink-0">Grounded</span>
+            </div>
+          </section>
+        )}
+
+      {/* Sources from all traces */}
+        {allSources.length > 0 && (
+          <section className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <BookOpen className="h-3 w-3 text-teal-400/60" />
+              <span className="text-[9px] font-bold uppercase tracking-widest text-teal-400/60">Sources</span>
+              <span className="ml-auto text-[8px] text-white/20">{allSources.length} references</span>
+            </div>
+            <div className="space-y-1.5">
+              {allSources.map((src, i) => (
+                <div key={i} className="rounded-xl bg-white/[0.02] border border-white/[0.05] px-3 py-2.5">
+                  <div className="flex items-start gap-2">
+                    <span className="mt-0.5 flex-shrink-0 text-[7px] font-bold text-teal-400 bg-teal-400/10 rounded px-1 py-0.5">[{i + 1}]</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-[10px] font-semibold text-white/70 truncate">{src.title}</p>
+                        <span className={cn(
+                          "flex-shrink-0 text-[6px] px-1 rounded font-bold uppercase",
+                          src.type === "web" ? "text-sky-400 bg-sky-400/10" : "text-violet-400 bg-violet-400/10"
+                        )}>{src.type === "web" ? "web" : "doc"}</span>
+                      </div>
+                      {src.snippet && <p className="text-[8px] text-white/35 mt-0.5 line-clamp-2">{src.snippet}</p>}
+                      {src.url && (
+                        <a href={src.url} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-0.5 mt-1 text-[8px] text-teal-400/70 hover:text-teal-400 transition-colors truncate">
+                          <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
+                          <span className="truncate">{src.url}</span>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
         )}
@@ -1011,7 +1087,7 @@ function TracePanel({ messages, contextDoc, onClose }: { messages: Message[]; co
             {avgMs > 0 && <span className="ml-auto text-[8px] text-white/20 font-mono">avg {avgMs}ms</span>}
           </div>
           {assistantMsgs.length === 0
-            ? <p className="text-[9px] text-white/20 py-2">No reasoning traces yet</p>
+            ? <p className="text-[9px] text-white/20 py-2">No responses yet — ask a question to see the reasoning timeline</p>
             : (
               <div className="space-y-1.5">
                 {assistantMsgs.map((m, i) => (

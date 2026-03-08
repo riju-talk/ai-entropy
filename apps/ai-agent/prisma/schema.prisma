@@ -318,16 +318,19 @@ model LeaderboardSnapshot {
 }
 
 model Conversation {
-  id        String    @id @default(cuid())
-  userId    String
-  title     String?
-  context   Json?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages  Message[]
+  id           String    @id @default(cuid())
+  userId       String
+  title        String?
+  context      Json?
+  sessionType  String    @default("QA")
+  systemPrompt String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages     Message[]
 
   @@index([userId, createdAt])
+  @@index([sessionType])
   @@map("conversations")
 }
 
@@ -506,6 +509,51 @@ model EventLog {
   @@index([userId, emittedAt])
   @@index([processedAt])
   @@map("event_logs")
+}
+
+model TrustScore {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  score     Float    @default(0.5)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("trust_scores")
+}
+
+model FactCheckLog {
+  id                 String   @id @default(cuid())
+  userId             String
+  generatedText      String
+  contextUsed        String   @default("")
+  claimsChecked      Int      @default(0)
+  entailmentCount    Int      @default(0)
+  contradictionCount Int      @default(0)
+  neutralCount       Int      @default(0)
+  overallConfidence  Float    @default(0.5)
+  safeToDisplay      Boolean  @default(true)
+  checks             Json?
+  createdAt          DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([safeToDisplay])
+  @@map("fact_check_logs")
+}
+
+model ConceptAttempt {
+  id                 String   @id @default(cuid())
+  userId             String
+  conceptId          String?
+  masteryScoreBefore Float    @default(0)
+  masteryScoreAfter  Float    @default(0)
+  correct            Boolean  @default(false)
+  difficulty         Int      @default(1)
+  createdAt          DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([conceptId])
+  @@map("concept_attempts")
 }
 
 enum Role {

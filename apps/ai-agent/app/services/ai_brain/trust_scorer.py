@@ -162,7 +162,7 @@ async def calculate_nli_track_record(user_id: str) -> float:
     fact_checks = await db.factchecklog.find_many(
         where={"userId": user_id},
         order={"createdAt": "desc"},
-        take=100  # Last 100 checks
+        take=100
     )
     
     if not fact_checks:

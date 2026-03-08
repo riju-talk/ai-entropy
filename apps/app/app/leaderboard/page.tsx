@@ -297,24 +297,37 @@ export default function LeaderboardPage() {
 									</CardHeader>
 									<CardContent>
 										<p className="text-sm text-muted-foreground">{achievement.description}</p>
-										
-										{/* Show progress only if authenticated */}
-										{status === "authenticated" && (
-											<div className="mt-4">
-												<div className="flex justify-between text-xs mb-2">
-													<span>Target: {achievement.criteria?.target || 0}</span>
-													<span className={`font-bold ${getRarityTextColor(achievement.rarity)}`}>
-														+{achievement.points} pts
-													</span>
-												</div>
-												<div className="text-xs text-muted-foreground">
-													Requirement: {achievement.criteria?.requirementType?.replace(/_/g, " ") || "Unknown"}
-												</div>
+
+										<div className="mt-4">
+											<div className="flex justify-between text-xs mb-2">
+												<span>
+													{(() => {
+														const c = achievement.criteria as any
+														if (!c) return "Target: —"
+														if (c.threshold != null && c.count == null) return `Target: ${Math.round(c.threshold * 100)}%`
+														const n = c.count ?? c.days ?? c.target
+														return `Target: ${n ?? "—"}`
+													})()
+													}
+												</span>
+												<span className={`font-bold ${getRarityTextColor(achievement.rarity)}`}>
+													+{achievement.points} pts
+												</span>
 											</div>
-										)}
+											<div className="text-xs text-muted-foreground">
+												{(() => {
+													const c = achievement.criteria as any
+													const raw = c?.type ?? c?.requirementType
+													if (!raw) return "Requirement: —"
+													const label = raw.replace(/_/g, " ").replace(/\b\w/g, (ch: string) => ch.toUpperCase())
+													return `Requirement: ${label}`
+												})()
+												}
+											</div>
+										</div>
 
 										{status !== "authenticated" && (
-											<div className="mt-4 text-xs text-muted-foreground italic">
+											<div className="mt-2 text-xs text-muted-foreground italic">
 												Log in to see your progress
 											</div>
 										)}

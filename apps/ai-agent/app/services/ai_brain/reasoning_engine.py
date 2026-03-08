@@ -49,8 +49,12 @@ STRICT RULES:
 - The fields "primary_concept", "prerequisites", "related_concepts", and all
   concept-related string values MUST be written in English, regardless of the
   question language. These values are stored in a database; they must be English.
-- If the question is in Hindi or another language, answer in that language ONLY in
-  "final_solution". All other fields (primary_concept, prerequisites, etc.) stay in English.
+- The language of "final_solution" is controlled EXCLUSIVELY by the explicit
+  language instruction you receive. Never infer the response language from
+  conversation history or prior tutor turns.
+- NEVER invent, hallucinate, or fabricate source URLs or citations. Only cite
+  URLs that are explicitly listed in the provided internet sources block above.
+  If no internet sources are provided, do NOT add a ## Sources section.
 
 FORMATTING FOR "final_solution" — THIS IS MANDATORY, NOT OPTIONAL:
 You MUST write final_solution using Markdown structure. Plain prose without headings
@@ -145,11 +149,18 @@ async def reason_with_context(
     """
     logger.info(f"Enhanced reasoning for: {question[:60]}...")
     
-    # Translate to English if needed
+    # Translate question to English — always needed when the question contains non-Latin
+    # (Devanagari etc.) regardless of the requested response language, so the LLM and
+    # embedding/RAG pipeline can understand it.
     working_question = question
     if language != "en":
         working_question = await ml.to_english(question, source_lang=language)
-        logger.info(f"Translated question: {question[:40]} â†’ {working_question[:40]}")
+        logger.info(f"Translated question: {question[:40]} \u2192 {working_question[:40]}")
+    elif ml._is_non_latin(question):
+        # AUTO / English mode but question contains non-Latin characters — still translate
+        # so the LLM receives a clean English question to reason about.
+        working_question = await ml.to_english(question, source_lang="auto")
+        logger.info(f"Auto-translated question to English: {question[:40]} \u2192 {working_question[:40]}")
     
     # Assemble context from Layers 1-5
     context = await assemble_context(working_question, user_id, language)
@@ -176,13 +187,16 @@ async def reason_with_context(
             f'Do not substitute a concept from the retrieved documents.'
         )
 
-    # Citation instruction — only shown when web/doc sources are present
+    # Citation instruction — only when actual internet/document sources with URLs are present.
+    # This guard prevents the LLM from hallucinating URLs when only conversation history
+    # or plain text context (no sources) is injected.
     citation_instruction = ""
-    if rag_context:
+    has_internet_sources = rag_context and ("Internet Sources" in rag_context or "URL:" in rag_context)
+    if has_internet_sources:
         citation_instruction = (
-            "**Citation rule:** Whenever you state a fact sourced from the materials above, "
-            "add an inline citation like [1] or [Doc 1]. "
-            "End final_solution with a ## Sources section listing every URL you cited."
+            "**Citation rule:** Cite the internet sources above inline as [1], [2] etc. "
+            "End final_solution with a ## Sources section listing ONLY URLs that appear "
+            "in the provided internet sources block. Do NOT invent or guess any URLs."
         )
 
     # Build enhanced prompt
@@ -197,11 +211,31 @@ async def reason_with_context(
     
     # Call LLM
     logger.info("Calling LLM with enhanced context...")
-    # Append session-level instructions to the base system prompt rather
-    # than replacing it, so JSON-schema requirements are always preserved.
-    effective_system = ENHANCED_REASONING_SYSTEM
+    # Build the language enforcement override — this takes absolute priority over
+    # any previous history the LLM might have seen in conversation context.
+    if language == "en":
+        lang_override = (
+            "LANGUAGE OVERRIDE (highest priority): Respond in English ONLY. "
+            "Do NOT use Hindi, Devanagari, or any other language in final_solution, "
+            "regardless of prior conversation history or previous tutor messages."
+        )
+    elif language == "hi":
+        lang_override = (
+            "LANGUAGE OVERRIDE (highest priority): Write final_solution in Hindi "
+            "using Devanagari script. All other JSON fields stay in English."
+        )
+    elif language == "bilingual":
+        lang_override = (
+            "LANGUAGE OVERRIDE: Write final_solution bilingually — explain concepts "
+            "in Hindi (Devanagari), write all code and formulas in English."
+        )
+    else:
+        lang_override = f"LANGUAGE OVERRIDE: Respond in the language with code '{language}'."
+
+    # Append language override first, then any session-level UI instructions.
+    effective_system = ENHANCED_REASONING_SYSTEM + "\n\n" + lang_override
     if system_prompt:
-        effective_system = ENHANCED_REASONING_SYSTEM + "\n\nAdditional session instructions: " + system_prompt
+        effective_system += "\n\nAdditional session instructions: " + system_prompt
     raw = await generate_json(prompt, system_prompt=effective_system)
 
     # Extract cognitive trace fields before they get discarded by schema mapping

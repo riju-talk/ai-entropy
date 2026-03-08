@@ -135,6 +135,10 @@ def _is_non_english(text: str) -> bool:
     return (non_latin / len(text)) > 0.25
 
 
+# Public alias used by reasoning_engine and reasoning_service
+_is_non_latin = _is_non_english
+
+
 async def normalize_concept_to_english(concept: str) -> str:
     """
     Guarantee that a concept name is stored in English.

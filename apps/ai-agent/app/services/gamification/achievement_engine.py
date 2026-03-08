@@ -279,14 +279,12 @@ async def check_achievement_criteria(user_id: str, achievement: Dict, event: Eve
             return total_upvotes >= criteria["count"]
         
         elif criteria_type == "trust_score":
-            # Check trust score
             trust = await db.trustscore.find_unique(
                 where={"userId": user_id}
             )
             return trust.score >= criteria["threshold"] if trust else False
         
         elif criteria_type == "nli_passes":
-            # Count passed fact-checks
             count = await db.factchecklog.count(
                 where={
                     "userId": user_id,

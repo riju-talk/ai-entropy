@@ -69,8 +69,10 @@ async def reason(
     working_question = question
     if language != "en":
         working_question = await ml.to_english(question, source_lang=language)
-        logger.info("Translated question: %s â†’ %s", question[:60], working_question[:60])
-
+        logger.info("Translated question: %s → %s", question[:60], working_question[:60])
+    elif ml._is_non_latin(question):
+        working_question = await ml.to_english(question, source_lang="auto")
+        logger.info("Auto-translated question to English: %s \u2192 %s", question[:60], working_question[:60])
     # --- 2. Fetch graph context ---
     graph_context = "No graph context available."
     if user_id:
@@ -103,8 +105,8 @@ async def reason(
 
     response = ReasoningResponse(**raw)
 
-    # --- 6. Translate answer back ---
-    if language != "en":
+    # --- 6. Translate answer back only when Hindi is explicitly requested ---
+    if language == "hi":
         response.final_solution = await ml.from_english(
             response.final_solution, target_lang=language
         )
