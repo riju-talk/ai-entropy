@@ -24,6 +24,8 @@ import {
     Radio,
     ShieldCheck,
     RefreshCw,
+    Trash2,
+    Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getUserDocuments } from "@/app/actions/documents"
@@ -55,10 +57,10 @@ function conceptsToRadarData(concepts: ConceptRecord[]) {
     }))
 }
 
-function conceptsToActiveList(concepts: ConceptRecord[], weakSet: Set<string>) {
+function conceptsToActiveList(concepts: ConceptRecord[], weakSet: Set<string>, limit = 5) {
     return [...concepts]
         .sort((a, b) => b.mastery_score - a.mastery_score)
-        .slice(0, 5)
+        .slice(0, limit)
         .map(c => {
             const pct = Math.round(c.mastery_score * 100)
             const vol = weakSet.has(c.concept) ? "high"
@@ -116,6 +118,7 @@ export function NotebookLayout({
     // ── Live cognitive data ──────────────────────────────
     const [profile, setProfile] = useState<CognitiveProfile | null>(null)
     const [profileLoading, setProfileLoading] = useState(false)
+    const [deletingConcept, setDeletingConcept] = useState<string | null>(null)
 
     const fetchProfile = useCallback(async () => {
         if (!session?.user?.id) return
@@ -139,6 +142,21 @@ export function NotebookLayout({
         if (profile) setDocCount(profile.doc_count)
     }, [profile])
 
+    const handleDeleteConcept = useCallback(async (conceptName: string) => {
+        if (!session?.user?.id) return
+        setDeletingConcept(conceptName)
+        try {
+            await fetch(
+                `/api/ai-agent/mastery?user_id=${encodeURIComponent(session.user.id)}&concept=${encodeURIComponent(conceptName)}`,
+                { method: "DELETE" }
+            )
+            await fetchProfile()
+            window.dispatchEvent(new CustomEvent("mastery-updated"))
+        } finally {
+            setDeletingConcept(null)
+        }
+    }, [session?.user?.id, fetchProfile])
+
     // ── Real-time Cognitive Studio refresh ──────────────────────────────
     // Polls every 10 s; also fires on 'mastery-updated' browser events
     // that ChatAgent dispatches after each successful AI response.
@@ -157,6 +175,7 @@ export function NotebookLayout({
     const masteryData = profile ? conceptsToRadarData(profile.concepts) : []
     const weakSet = new Set(profile?.weak_concepts ?? [])
     const activeConcepts = profile ? conceptsToActiveList(profile.concepts, weakSet) : []
+    const allConcepts = profile ? conceptsToActiveList(profile.concepts, weakSet, 100) : []
     const examReadiness = profile?.exam_readiness ?? 0
     const volatility = profile?.volatility ?? 0
     const cognitiveLoad = profile?.cognitive_load ?? 0
@@ -299,7 +318,7 @@ export function NotebookLayout({
             </div>
 
             {/* ── RIGHT PANEL: COGNITIVE STUDIO ── */}
-            <div className="w-80 flex flex-col bg-cognitive-studio">
+            <div className="w-80 flex flex-col bg-[#0c0c14] overflow-hidden border-l border-white/[0.04]">
                 <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Microscope className="h-3.5 w-3.5 text-purple-400" />
@@ -420,11 +439,19 @@ export function NotebookLayout({
                                     <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 flex-1 text-left">← Back to Chat</span>
                                     <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)] animate-pulse" />
                                 </button>
-                                <StudioSection icon={Layers} label="Active Concepts" color="purple">
+                                <StudioSection icon={Layers} label={`Active Concepts (${allConcepts.length})`} color="purple">
                                     <div className="space-y-1">
-                                        {activeConcepts.map((c) => (
-                                            <ConceptRow key={c.name} concept={c} />
-                                        ))}
+                                        {allConcepts.length > 0
+                                            ? allConcepts.map((c) => (
+                                                <ConceptRow
+                                                    key={c.name}
+                                                    concept={c}
+                                                    onDelete={session?.user?.id ? handleDeleteConcept : undefined}
+                                                    deleting={deletingConcept === c.name}
+                                                />
+                                            ))
+                                            : <p className="text-[9px] text-white/20 text-center py-2">No concepts tracked yet</p>
+                                        }
                                     </div>
                                 </StudioSection>
                                 <StudioSection icon={Radio} label="Domain Coverage" color="cyan">
@@ -460,18 +487,41 @@ export function NotebookLayout({
     )
 }
 
-function ConceptRow({ concept }: { concept: { name: string; mastery: number; trend: string; volatility: string } }) {
+function ConceptRow({
+    concept,
+    onDelete,
+    deleting,
+}: {
+    concept: { name: string; mastery: number; trend: string; volatility: string }
+    onDelete?: (name: string) => void
+    deleting?: boolean
+}) {
     const volDot = concept.volatility === "high" ? "bg-red-400" : concept.volatility === "medium" ? "bg-amber-400" : "bg-emerald-400"
     return (
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.03] transition-colors cursor-pointer group">
+        <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.03] transition-colors group">
             <div className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", volDot)} />
-            <span className="text-[10px] text-white/60 flex-1 truncate group-hover:text-white/80 transition-colors">{concept.name}</span>
+            <span
+                className="text-[10px] text-white/60 flex-1 min-w-0 truncate group-hover:text-white/80 transition-colors"
+                title={concept.name}
+            >{concept.name}</span>
             <div className="flex items-center gap-1.5 flex-shrink-0">
-                <div className="w-12 h-1 bg-white/5 rounded-full overflow-hidden">
+                <div className="w-10 h-1 bg-white/5 rounded-full overflow-hidden">
                     <div className={cn("h-full rounded-full", masteryColor(concept.mastery))} style={{ width: `${concept.mastery}%` }} />
                 </div>
                 <span className="text-[9px] font-bold text-white/40 w-7 text-right">{concept.mastery}%</span>
             </div>
+            {onDelete && (
+                <button
+                    onClick={() => onDelete(concept.name)}
+                    disabled={deleting}
+                    className="opacity-0 group-hover:opacity-100 text-white/20 hover:text-red-400 transition-all flex-shrink-0 ml-0.5 disabled:cursor-not-allowed"
+                    title={`Remove "${concept.name}"`}
+                >
+                    {deleting
+                        ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                        : <Trash2 className="h-2.5 w-2.5" />}
+                </button>
+            )}
         </div>
     )
 }

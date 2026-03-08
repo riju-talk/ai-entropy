@@ -59,6 +59,15 @@ function buildFallback(topic: string, n: number, diff: Difficulty): QuizQuestion
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
+function normalizeConcept(raw: string): string {
+  const s = raw.trim()
+    .replace(/^(small\s+)?pop\s+quiz\s+(on|about|for)\s+/i, "")
+    .replace(/^(quick\s+)?(quiz|test|exam|assessment)\s+(on|about|for)\s+/i, "")
+    .replace(/^(quiz|test|exam|assessment):\s*/i, "")
+    .trim()
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 export function ExamModeOverlay({ onExit, onComplete, subject = "" }: ExamModeOverlayProps) {
   const { data: session } = useSession()
   const [phase, setPhase] = useState<"configure" | "exam" | "results">("configure")
@@ -139,7 +148,7 @@ export function ExamModeOverlay({ onExit, onComplete, subject = "" }: ExamModeOv
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             user_id: userId,
-            concept: topic.trim(),
+            concept: normalizeConcept(topic),
             is_correct: isCorrect,
             evidence_weight: 1.0,
           }),

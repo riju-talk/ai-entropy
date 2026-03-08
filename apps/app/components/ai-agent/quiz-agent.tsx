@@ -284,6 +284,17 @@ function wordCount(text: string) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
+// ── Normalize concept name (strip quiz/test prefixes) ────────────────────────
+
+function normalizeConcept(raw: string): string {
+  const s = raw.trim()
+    .replace(/^(small\s+)?pop\s+quiz\s+(on|about|for)\s+/i, "")
+    .replace(/^(quick\s+)?(quiz|test|exam|assessment|full\s+assessment)\s+(on|about|for)\s+/i, "")
+    .replace(/^(quiz|test|exam|assessment):\s*/i, "")
+    .trim()
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 // ── Map raw API question to typed AnyQ ───────────────────────────────────────
 
 function mapApiQuestion(q: any, idx: number): AnyQ | null {
@@ -391,7 +402,7 @@ export function QuizAgent() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             user_id: userId,
-            concept: topic.trim(),
+            concept: normalizeConcept(topic),
             is_correct: correct,
             evidence_weight: 0.8,
           }),

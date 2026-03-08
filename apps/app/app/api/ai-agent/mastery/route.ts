@@ -167,3 +167,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
+
+/**
+ * DELETE /api/ai-agent/mastery?user_id=X&concept=Y
+ *   Removes a user's mastery record for a specific concept
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const url = new URL(req.url)
+    const userId = url.searchParams.get("user_id") || ""
+    const concept = url.searchParams.get("concept") || ""
+    if (!userId || !concept) {
+      return NextResponse.json({ error: "user_id and concept are required" }, { status: 400 })
+    }
+    const conceptRecord = await prisma.concept.findFirst({ where: { name: concept } })
+    if (!conceptRecord) {
+      return NextResponse.json({ deleted: false, message: "Concept not found" })
+    }
+    await prisma.masteryRecord.deleteMany({ where: { userId, conceptId: conceptRecord.id } })
+    return NextResponse.json({ deleted: true })
+  } catch (err) {
+    console.error("[API][MASTERY] DELETE Error:", err)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
