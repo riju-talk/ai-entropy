@@ -7,7 +7,8 @@ applications:
           commands:
             - corepack enable
             - npm install --legacy-peer-deps
-            - npx prisma generate
+            - npx prisma db pull --schema=prisma/schema.prisma
+            - npx prisma generate --schema=prisma/schema.prisma
         build:
           commands:
             - npm run build

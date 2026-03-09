@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "entropy-secret-change-in-prod"
 
     # ── CORS ─────────────────────────────────────────────────────────────────
-    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5000"
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5000,https://main.d1rs5mqd2d5gis.amplifyapp.com/"
 
     # ── S3 Document Storage ──────────────────────────────────────────────────
     S3_BUCKET_NAME: str = "entropy-doc-main"

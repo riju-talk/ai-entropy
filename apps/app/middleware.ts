@@ -6,6 +6,7 @@ const allowedOrigins = [
   "https://entropy-community.vercel.app",
   "http://localhost:5000",
   "http://localhost:3000",
+  "https://main.d1rs5mqd2d5gis.amplifyapp.com/"
 ]
 
 export async function middleware(request: NextRequest) {
