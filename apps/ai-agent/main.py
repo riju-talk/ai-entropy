@@ -1,22 +1,25 @@
 """
 AI Agent Backend - FastAPI Application
 """
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
 from datetime import datetime
 from dotenv import load_dotenv
+from mangum import Mangum
 
 load_dotenv()
 
-# CORRECT ROUTER IMPORTS
+# ROUTER IMPORTS
 from app.api.routes.documents import router as documents_router
 from app.api.routes.qa import router as qa_router
 from app.api.routes.mindmap import router as mindmap_router
 from app.api.routes.quiz import router as quiz_router
 from app.api.routes.mastery import router as mastery_router
 from app.api.routes.graph import router as graph_router
+
 
 app = FastAPI(
     title="Entropy AI Agent",
@@ -38,26 +41,24 @@ app.include_router(documents_router,  prefix="/api/documents", tags=["Documents"
 app.include_router(qa_router,         prefix="/api/qa",        tags=["Q&A"])
 app.include_router(mindmap_router,    prefix="/api/mindmap",   tags=["Mind Mapping"])
 app.include_router(quiz_router,       prefix="/api/quiz",      tags=["Quiz"])
+app.include_router(mastery_router,    prefix="/api/mastery",   tags=["Mastery"])
+app.include_router(graph_router,      prefix="/api/graph",     tags=["Graph"])
+
 
 @app.get("/")
 async def root():
     return {
         "message": "Entropy AI Agent Backend",
         "version": "1.0.0",
-        "status": "running",
-        "endpoints": {
-            "health": "/health",
-            "qa": "/api/qa",
-            "documents_upload": "/api/documents/upload",
-            "mindmap": "/api/mindmap",
-            "quiz": "/api/quiz",
-        },
+        "status": "running"
     }
+
 
 @app.get("/health")
 async def health_check():
     google_key = os.getenv("GOOGLE_API_KEY")
     pinecone_key = os.getenv("PINECONE_API_KEY")
+
     return {
         "status": "healthy" if google_key and pinecone_key else "degraded",
         "version": "1.0.0",
@@ -66,13 +67,18 @@ async def health_check():
             "llm": "gemini-1.5-flash",
             "embeddings": "gemini-embedding-001",
             "vector_store": "pinecone",
-            "keys_present": {
-                "google": bool(google_key),
-                "pinecone": bool(pinecone_key)
-            }
-        },
-        "message": "AI Agent is operational" if google_key else "GOOGLE_API_KEY not configured",
+        }
     }
 
+
+# LAMBDA HANDLER
+handler = Mangum(app)
+
+
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)), reload=True)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 8000)),
+        reload=True
+    )
