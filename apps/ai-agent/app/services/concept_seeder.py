@@ -97,6 +97,25 @@ CONCEPTS: List[Tuple[str, str, str, int, List[str]]] = [
     ("Statistics Basics", "Data collection and descriptive statistics", "Mathematics", 4, ["Basic Arithmetic"]),
     ("Probability", "Likelihood and random events", "Mathematics", 5, ["Fractions", "Statistics Basics"]),
     ("Trigonometry", "Relationships between angles and sides", "Mathematics", 5, ["Functions"]),
+
+    # ----- Advanced Mathematics -----
+("Set Theory", "Basic sets, subsets, unions and intersections", "Mathematics", 2, ["Basic Arithmetic"]),
+("Relations and Functions", "Mappings between sets and functional relationships", "Mathematics", 3, ["Set Theory"]),
+("Polynomials", "Expressions involving variables and coefficients", "Mathematics", 3, ["Algebra Basics"]),
+("Systems of Equations", "Solving multiple equations simultaneously", "Mathematics", 4, ["Linear Equations"]),
+("Inequalities", "Comparing algebraic expressions", "Mathematics", 3, ["Algebra Basics"]),
+("Logarithms", "Inverse exponential functions", "Mathematics", 4, ["Algebra Basics"]),
+("Sequences and Series", "Ordered numerical patterns", "Mathematics", 5, ["Algebra Basics"]),
+("Mathematical Induction", "Proof technique for infinite statements", "Mathematics", 6, ["Sequences and Series"]),
+("Continuity", "Smoothness of functions", "Mathematics", 6, ["Limits"]),
+("Differentiation Rules", "Chain rule, product rule, quotient rule", "Mathematics", 7, ["Derivatives"]),
+("Applications of Derivatives", "Optimization and related rates", "Mathematics", 7, ["Differentiation Rules"]),
+("Integration Techniques", "Substitution and integration by parts", "Mathematics", 7, ["Integrals"]),
+("Applications of Integration", "Area, volume, and physical applications", "Mathematics", 7, ["Integration Techniques"]),
+("Multivariable Calculus", "Functions with multiple variables", "Mathematics", 8, ["Integrals"]),
+("Differential Equations", "Equations involving derivatives", "Mathematics", 8, ["Applications of Derivatives"]),
+("Numerical Methods", "Approximation algorithms", "Mathematics", 7, ["Linear Algebra"]),
+("Discrete Mathematics", "Graphs, logic, combinatorics", "Mathematics", 6, ["Probability"]),
     
     # ----- Physics -----
     ("Measurement Units", "SI units and conversions", "Physics", 1, []),
@@ -109,6 +128,21 @@ CONCEPTS: List[Tuple[str, str, str, int, List[str]]] = [
     ("Electromagnetism", "Electric and magnetic field interactions", "Physics", 7, ["Newton's Laws"]),
     ("Waves and Optics", "Wave propagation and light behavior", "Physics", 6, ["Trigonometry"]),
     ("Quantum Mechanics", "Subatomic particle behavior", "Physics", 9, ["Waves and Optics", "Probability"]),
+
+    # ----- Advanced Physics -----
+("Vectors", "Magnitude and direction quantities", "Physics", 2, ["Measurement Units"]),
+("Forces", "Pushes and pulls on objects", "Physics", 3, ["Vectors"]),
+("Projectile Motion", "Two dimensional motion under gravity", "Physics", 4, ["Kinematics"]),
+("Circular Motion", "Motion in curved paths", "Physics", 4, ["Kinematics"]),
+("Gravitation", "Universal law of gravity", "Physics", 5, ["Newton's Laws"]),
+("Rotational Dynamics", "Torque and angular motion", "Physics", 6, ["Momentum"]),
+("Oscillations", "Periodic motion systems", "Physics", 6, ["Waves and Optics"]),
+("Electrostatics", "Electric charges and fields", "Physics", 6, ["Electromagnetism"]),
+("Electric Circuits", "Current flow and circuit laws", "Physics", 6, ["Electrostatics"]),
+("Magnetism", "Magnetic fields and forces", "Physics", 6, ["Electrostatics"]),
+("Relativity", "Space-time and Einstein's theories", "Physics", 9, ["Velocity and Acceleration"]),
+("Particle Physics", "Fundamental particles", "Physics", 9, ["Quantum Mechanics"]),
+("Astrophysics", "Physics of stars and galaxies", "Physics", 8, ["Gravitation"]),
     
     # ----- Chemistry -----
     ("Atomic Structure", "Protons, neutrons, electrons and organization", "Chemistry", 3, []),
@@ -120,7 +154,17 @@ CONCEPTS: List[Tuple[str, str, str, int, List[str]]] = [
     ("Thermochemistry", "Energy changes in reactions", "Chemistry", 6, ["Stoichiometry", "Thermodynamics"]),
     ("Organic Chemistry", "Carbon-based compound chemistry", "Chemistry", 7, ["Chemical Bonding"]),
     ("Electrochemistry", "Redox reactions and batteries", "Chemistry", 6, ["Chemical Reactions"]),
-    
+    # ----- Advanced Chemistry -----
+("Atomic Orbitals", "Electron probability distributions", "Chemistry", 4, ["Atomic Structure"]),
+("Chemical Thermodynamics", "Energy and spontaneity of reactions", "Chemistry", 6, ["Thermochemistry"]),
+("Chemical Kinetics", "Reaction rates and mechanisms", "Chemistry", 6, ["Chemical Reactions"]),
+("Equilibrium Chemistry", "Reversible reactions and equilibrium constants", "Chemistry", 6, ["Chemical Reactions"]),
+("Coordination Chemistry", "Metal complex compounds", "Chemistry", 7, ["Chemical Bonding"]),
+("Spectroscopy", "Interaction of light with matter", "Chemistry", 7, ["Atomic Orbitals"]),
+("Biochemistry", "Chemistry of living organisms", "Chemistry", 7, ["Organic Chemistry"]),
+("Polymer Chemistry", "Large molecular structures", "Chemistry", 7, ["Organic Chemistry"]),
+("Environmental Chemistry", "Chemical processes in environment", "Chemistry", 6, ["Chemical Reactions"]),
+("Industrial Chemistry", "Large scale chemical production", "Chemistry", 6, ["Stoichiometry"]),
     # ----- Biology -----
     ("Cell Structure", "Prokaryotic and eukaryotic cell components", "Biology", 3, []),
     ("Cell Membrane", "Transport and cell membrane function", "Biology", 4, ["Cell Structure"]),
@@ -144,7 +188,36 @@ CONCEPTS: List[Tuple[str, str, str, int, List[str]]] = [
     ("Monetary Policy", "Central bank and money supply control", "Economics", 6, ["Inflation"]),
     ("Fiscal Policy", "Government spending and taxation", "Economics", 6, ["GDP and Economic Growth"]),
     ("International Trade", "Comparative advantage and trade", "Economics", 6, ["Supply and Demand"]),
+
+    # ----- Expanded World History -----
+("Mesopotamian Civilization", "Early urban societies in Mesopotamia", "History", 3, ["Ancient Civilizations"]),
+("Ancient Egypt", "Pharaohs and Nile civilization", "History", 3, ["Ancient Civilizations"]),
+("Persian Empire", "Large ancient empire spanning Asia", "History", 4, ["Ancient Civilizations"]),
+("Roman Empire", "Expansion and administration of Rome", "History", 4, ["Classical Greece and Rome"]),
+("Byzantine Empire", "Eastern continuation of Roman Empire", "History", 4, ["Roman Empire"]),
+("Islamic Golden Age", "Advances in science and culture", "History", 5, ["Medieval Europe"]),
+("Colonialism", "European global empire building", "History", 5, ["Age of Exploration"]),
+("American Revolution", "Birth of the United States", "History", 5, ["Colonialism"]),
+("French Revolution", "Political transformation in France", "History", 5, ["Colonialism"]),
+("Cold War Conflicts", "Proxy wars and ideological conflict", "History", 6, ["Cold War"]),
+("Digital Age", "Modern technological transformation", "History", 7, ["Modern Global History"]),
+
+("Perspective Drawing", "Depth representation techniques", "Art", 4, ["Drawing Techniques"]),
+("Figure Drawing", "Human anatomy in art", "Art", 5, ["Drawing Techniques"]),
+("Modern Art", "20th century art movements", "Art", 6, ["Art History"]),
+("Photography", "Art and science of photography", "Art", 4, ["Art Fundamentals"]),
+("Graphic Design", "Visual communication and branding", "Art", 5, ["Digital Art"]),
+("Animation", "Moving visual storytelling", "Art", 6, ["Digital Art"]),
     
+    # ----- Expanded Literature -----
+("Narrative Structure", "Story arcs and plot construction", "Literature", 3, ["Literary Elements"]),
+("Character Development", "Building believable characters", "Literature", 4, ["Narrative Structure"]),
+("Literary Symbolism", "Symbols and deeper meaning", "Literature", 4, ["Literary Elements"]),
+("Shakespearean Drama", "Works of Shakespeare", "Literature", 5, ["Drama and Theater"]),
+("Modernist Literature", "20th century experimental writing", "Literature", 6, ["Literary Movements"]),
+("Postmodern Literature", "Fragmented narrative styles", "Literature", 7, ["Modernist Literature"]),
+("Literary Criticism", "Analyzing literature academically", "Literature", 7, ["Critical Theory"]),
+("World Literature", "Literature across cultures", "Literature", 6, ["Comparative Literature"]),
     # ----- Psychology -----
     ("Introduction to Psychology", "Scientific study of mind and behavior", "Psychology", 2, []),
     ("Research Methods", "Experiments and data collection in psychology", "Psychology", 3, ["Introduction to Psychology", "Statistics Basics"]),

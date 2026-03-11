@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     PINECONE_INDEX_NAME: str = "entropy-ai"
 
     # ── AWS Configuration ─────────────────────────────────────────────────────
-    AWS_REGION: str = "ap-northeast-1"
+    AWS_REGION: str = "us-east-1"
     AWS_ACCESS_KEY_ID: Optional[str] = None
     AWS_SECRET_ACCESS_KEY: Optional[str] = None
 
