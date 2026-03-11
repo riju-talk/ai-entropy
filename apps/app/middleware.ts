@@ -13,7 +13,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Protected routes that require authentication
-  const protectedRoutes = ['/create-community', '/profile']
+  const protectedRoutes = ['/create-community', '/profile', '/ai-agent', '/ask', '/doubt']
   
   if (protectedRoutes.some(route => pathname.startsWith(route))) {
     try {

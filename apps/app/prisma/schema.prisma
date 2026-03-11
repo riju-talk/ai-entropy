@@ -41,17 +41,18 @@ model User {
   credits              Int                   @default(100)
   subscriptionTier     String                @default("FREE")
   documentCount        Int                   @default(0)
-  totalXP              Int                   @default(0)
-  totalReputation      Int                   @default(0)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
   trustScoreCache      Float                 @default(0.5)
-  lastActiveAt         DateTime?
   isShadowBanned       Boolean               @default(false)
   isSuspended          Boolean               @default(false)
   leaderboardOptOut    Boolean               @default(false)
+  lastActiveAt         DateTime?
+  totalXP              Int                   @default(0)
+  totalReputation      Int                   @default(0)
   tier                 String                @default("INITIATE")
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
   accounts             Account[]
+  achievementProgress  AchievementProgress[]
   achievementUnlocks   AchievementUnlock[]
   aiRecommendations    AIRecommendation[]
   answerVotes          AnswerVote[]          @relation("AnswerVotes")
@@ -61,15 +62,14 @@ model User {
   addedDoubts          CommunityDoubt[]
   communityMemberships CommunityMember[]
   conversations        Conversation[]
+  documents            Document[]
   doubtVotes           DoubtVote[]           @relation("DoubtVotes")
   doubts               Doubt[]
   leaderboardSnapshots LeaderboardSnapshot[] @relation("UserLeaderboardSnapshots")
   pointsLedger         PointsLedger[]
   streaks              Streak?
-  userStats            UserStat?
   discounts            UserDiscount[]
-  achievementProgress  AchievementProgress[]
-  documents            Document[]
+  userStats            UserStat?
 
   @@index([createdAt])
   @@map("users")
@@ -84,17 +84,17 @@ model VerificationToken {
 }
 
 model Document {
-  id        String   @id @default(cuid())
-  userId    String
-  title     String
-  type      String   @default("PDF") // PDF, TXT, DOCX
-  size      Int      @default(0)
-  pageCount Int      @default(0)
-  url       String?  // Optional URL if we store the file blob somewhere
-  pineconeId String? // Optional specific ID if we want to link
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  userId     String
+  title      String
+  type       String   @default("PDF")
+  size       Int      @default(0)
+  pageCount  Int      @default(0)
+  url        String?
+  pineconeId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("documents")
@@ -128,20 +128,20 @@ model Doubt {
 }
 
 model Answer {
-  id         String       @id @default(cuid())
-  content    String
-  doubtId    String
-  authorId   String
-  createdAt  DateTime     @default(now())
+  id           String       @id @default(cuid())
+  content      String
+  doubtId      String
+  authorId     String
+  createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   isAnswered   String?      @unique @db.Uuid
   isAiAssisted Boolean      @default(false)
+  downvotes    Int          @default(0)
   isAccepted   Boolean      @default(false)
   upvotes      Int          @default(0)
-  downvotes    Int          @default(0)
   votes        AnswerVote[]
-  author     User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  doubt      Doubt        @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+  author       User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  doubt        Doubt        @relation(fields: [doubtId], references: [id], onDelete: Cascade)
 
   @@index([doubtId])
   @@index([authorId])
@@ -205,8 +205,8 @@ model PointsLedger {
   eventType   PointEventType
   points      Int
   description String?
-  doubtId     String?
   createdAt   DateTime       @default(now())
+  doubtId     String?
   user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
@@ -229,17 +229,17 @@ model Level {
 }
 
 model Achievement {
-  id          String              @id @default(cuid())
+  id          String                @id @default(cuid())
   type        AchievementType
-  name        String              @unique
+  name        String                @unique
   description String
   criteria    Json
   points      Int
   rarity      AchievementRarity
   icon        String?
-  createdAt   DateTime            @default(now())
-  unlocks     AchievementUnlock[]
+  createdAt   DateTime              @default(now())
   progress    AchievementProgress[]
+  unlocks     AchievementUnlock[]
 
   @@map("achievements")
 }
@@ -320,10 +320,10 @@ model Conversation {
   userId       String
   title        String?
   context      Json?
-  sessionType  String    @default("QA")
-  systemPrompt String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  sessionType  String    @default("QA")
+  systemPrompt String?
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages     Message[]
 
@@ -359,14 +359,14 @@ model Message {
 }
 
 model UserDiscount {
-  id               String       @id @default(cuid())
-  userId           String
-  discountPercent  Int
-  isActive         Boolean      @default(true)
-  unlockedAt       DateTime     @default(now())
-  expiresAt        DateTime?
-  source           String?      // e.g. "Scholar's Oath Achievement"
-  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String    @id @default(cuid())
+  userId          String
+  discountPercent Int
+  isActive        Boolean   @default(true)
+  unlockedAt      DateTime  @default(now())
+  expiresAt       DateTime?
+  source          String?
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("user_discounts")
@@ -378,13 +378,13 @@ model AchievementProgress {
   achievementId  String
   current        Int         @default(0)
   target         Int
-  uniqueUsers    String[]
-  validatedCount Int         @default(0)
+  daySpan        Int         @default(0)
   firstDate      DateTime?
   lastDate       DateTime    @default(now()) @map("last_updated")
-  daySpan        Int         @default(0)
-  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  uniqueUsers    String[]
+  validatedCount Int         @default(0)
   achievement    Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, achievementId])
   @@index([userId])
