@@ -14,10 +14,11 @@ logger = logging.getLogger(__name__)
 class CacheClient:
     """Redis cache client wrapper"""
     
-    def __init__(self, host: str = "localhost", port: int = 6379, db: int = 0):
+    def __init__(self, host: str = "localhost", port: int = 6379, db: int = 0, password: str = None):
         self.host = host
         self.port = port
         self.db = db
+        self.password = password
         self._client = None
         self._connected = False
     
@@ -30,6 +31,7 @@ class CacheClient:
                 host=self.host,
                 port=self.port,
                 db=self.db,
+                password=self.password if self.password else None,
                 decode_responses=True
             )
             # Test connection
@@ -106,7 +108,14 @@ class CacheClient:
 
 
 # Global cache instance
-cache = CacheClient()
+# Initialize with settings from environment
+from app.core.config import settings
+cache = CacheClient(
+    host=settings.REDIS_HOST,
+    port=settings.REDIS_PORT,
+    db=settings.REDIS_DB,
+    password=settings.REDIS_PASSWORD if settings.REDIS_PASSWORD else None
+)
 
 
 def cached(prefix: str, ttl: int = 3600):
