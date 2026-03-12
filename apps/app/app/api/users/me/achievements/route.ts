@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 
-const AI_AGENT_URL = process.env.AI_AGENT_URL || "http://localhost:8000"
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000"
 
 export const dynamic = "force-dynamic"
 
@@ -20,7 +20,7 @@ export async function GET() {
 		}
 
 		const resp = await fetch(
-			`${AI_AGENT_URL}/api/gamification/achievements/${encodeURIComponent(userId)}`,
+			`${BACKEND_URL}/api/gamification/achievements/${encodeURIComponent(userId)}`,
 			{ cache: "no-store" }
 		)
 

@@ -55,7 +55,7 @@ npm run deploy:dev
 ```
 
 The output prints:
-- `ApiEndpoint` → set as `NEXT_PUBLIC_AI_AGENT_URL` in Amplify
+- `ApiEndpoint` → set as `NEXT_PUBLIC_BACKEND_URL` in Amplify
 - `DocumentsBucketName` → set as `S3_BUCKET_NAME` in Lambda env
 
 ---
@@ -135,7 +135,7 @@ s3.store_processed_text(user_id, doc_id, extracted_text)
 - [ ] Store processed text via `s3_service.store_processed_text`
 - [ ] Run `infrastructure/lambda/build.ps1`
 - [ ] Deploy: `serverless deploy --stage dev`
-- [ ] Update `NEXT_PUBLIC_AI_AGENT_URL` in apps/app with Lambda URL
+- [ ] Update `NEXT_PUBLIC_BACKEND_URL` in apps/app with Lambda URL
 - [ ] Test proxy pattern: Next.js → API Gateway → Lambda → Bedrock
 
 ### Phase 3 — CDK + Docs (Hours 16–24)

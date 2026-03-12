@@ -6,7 +6,7 @@ const globalForPrisma = global as unknown as { prisma: PrismaClient }
 const prisma = globalForPrisma.prisma || new PrismaClient()
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma
 
-const AI_BACKEND = process.env.AI_BACKEND_URL || "http://localhost:8000"
+const AI_BACKEND = process.env.BACKEND_URL || "http://localhost:8000"
 const AI_TOKEN = process.env.AI_BACKEND_TOKEN || ""
 
 export interface ConceptRecord {

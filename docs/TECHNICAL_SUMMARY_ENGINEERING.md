@@ -653,7 +653,7 @@ GOOGLE_CLIENT_ID="..."
 GOOGLE_CLIENT_SECRET="..."
 
 # AI Agent
-AI_AGENT_URL="https://ai-agent.entropy.app"
+BACKEND_URL="https://ai-agent.entropy.app"
 OPENAI_API_KEY="sk-..."
 
 # Monitoring

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
-const AI_AGENT_URL = process.env.AI_AGENT_URL || "http://localhost:8000";
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
 let __prisma__: PrismaClient | undefined;
 function getPrisma() {
@@ -10,7 +10,7 @@ function getPrisma() {
 }
 
 async function proxyRequest(upstreamPath: string, options: RequestInit) {
-  const upstreamUrl = `${AI_AGENT_URL}${upstreamPath}`;
+  const upstreamUrl = `${BACKEND_URL}${upstreamPath}`;
   const resp = await fetch(upstreamUrl, options);
   const text = await resp.text();
   try {
@@ -30,8 +30,8 @@ export async function GET(req: NextRequest) {
     let upstreamPath = "/api/qa/greeting";
     if (action === "health") upstreamPath = "/api/qa/health";
 
-    if (!AI_AGENT_URL) {
-      return NextResponse.json({ error: "AI_AGENT_URL not configured" }, { status: 500 });
+    if (!BACKEND_URL) {
+      return NextResponse.json({ error: "BACKEND_URL not configured" }, { status: 500 });
     }
 
     const res = await proxyRequest(upstreamPath, { method: "GET", headers: {} });
@@ -53,8 +53,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
 
-    if (!AI_AGENT_URL) {
-      return NextResponse.json({ error: "AI_AGENT_URL not configured" }, { status: 500 });
+    if (!BACKEND_URL) {
+      return NextResponse.json({ error: "BACKEND_URL not configured" }, { status: 500 });
     }
 
     const userId: string | undefined = body.userId || body.user_id || undefined;

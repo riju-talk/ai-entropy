@@ -2,7 +2,7 @@ import { PrismaClient, PointEventType } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const AI_AGENT_URL = process.env.AI_AGENT_URL || "http://localhost:8000";
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
 // Level constants (kept for UI calculations)
 const XP_FOR_LEVEL_1 = 0;
@@ -82,7 +82,7 @@ async function postGamificationEvent(
     metadata?: Record<string, unknown>
 ) {
     try {
-        const resp = await fetch(`${AI_AGENT_URL}/api/gamification/event`, {
+        const resp = await fetch(`${BACKEND_URL}/api/gamification/event`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ user_id: userId, event_type: eventType, metadata: metadata || {} }),
@@ -196,7 +196,7 @@ export async function deductCredits(userId: string, amount: number, description:
 export async function getLeaderboard(_period: "all" | "weekly" | "monthly") {
     try {
         const resp = await fetch(
-            `${AI_AGENT_URL}/api/gamification/leaderboard/xp?limit=100`,
+            `${BACKEND_URL}/api/gamification/leaderboard/xp?limit=100`,
             { cache: "no-store" }
         );
         if (!resp.ok) {

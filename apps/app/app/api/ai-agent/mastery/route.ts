@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
 
-const AI_AGENT_URL = process.env.AI_AGENT_URL || "http://localhost:8000"
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000"
 const prisma = new PrismaClient()
 
 async function tryUpstream(path: string, init?: RequestInit) {
-  const res = await fetch(`${AI_AGENT_URL}${path}`, {
+  const res = await fetch(`${BACKEND_URL}${path}`, {
     cache: "no-store",
     signal: AbortSignal.timeout(4000),
     ...init,

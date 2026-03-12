@@ -110,7 +110,7 @@ export async function deleteDocument(
             const params = new URLSearchParams({ user_id: userId })
             if (source) params.set("source", source)
             if (s3Key)  params.set("s3_key", s3Key)
-            const backendUrl = process.env.AI_AGENT_URL || "http://localhost:8000"
+            const backendUrl = process.env.BACKEND_URL || "http://localhost:8000"
             await fetch(`${backendUrl}/api/documents/by-source?${params.toString()}`, { method: "DELETE" })
         } catch {
             // non-fatal
@@ -139,7 +139,7 @@ export async function deleteDocuments(
     })
 
     // 3. Best-effort: clean Pinecone + S3 + graph for each doc
-    const backendUrl = process.env.AI_AGENT_URL || "http://localhost:8000"
+    const backendUrl = process.env.BACKEND_URL || "http://localhost:8000"
     await Promise.allSettled(
         docs.map(d => {
             const params = new URLSearchParams({ user_id: userId })

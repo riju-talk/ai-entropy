@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 
-const AI_AGENT_URL = process.env.AI_AGENT_URL || "http://localhost:8000"
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000"
 
 export async function GET(
   request: NextRequest,
@@ -21,7 +21,7 @@ export async function GET(
 
     // Forward the request to FastAPI backend
     const response = await fetch(
-      `${AI_AGENT_URL}/api/mastery/profile/${params.userId}`,
+      `${BACKEND_URL}/api/mastery/profile/${params.userId}`,
       {
         method: "GET",
         headers: {

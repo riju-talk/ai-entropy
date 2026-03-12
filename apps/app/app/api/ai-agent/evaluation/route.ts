@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const AI_AGENT_URL = process.env.AI_AGENT_URL || "http://localhost:8000"
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000"
 
 // POST /api/ai-agent/evaluation  →  /api/evaluation/evaluate
 export async function POST(req: NextRequest) {
@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
     }
 
-    const resp = await fetch(`${AI_AGENT_URL}/api/evaluation/evaluate`, {
+    const resp = await fetch(`${BACKEND_URL}/api/evaluation/evaluate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

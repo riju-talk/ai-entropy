@@ -2,19 +2,19 @@ import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
-const AI_AGENT_URL = process.env.AI_AGENT_URL || "";
+const BACKEND_URL = process.env.BACKEND_URL || "";
 
 export async function GET() {
     try {
-        // If AI_AGENT_URL is configured, proxy its /health for accurate backend status
-        if (AI_AGENT_URL) {
+        // If BACKEND_URL is configured, proxy its /health for accurate backend status
+        if (BACKEND_URL) {
             try {
-                const resp = await fetch(`${AI_AGENT_URL}/health`, { method: "GET" });
+                const resp = await fetch(`${BACKEND_URL}/health`, { method: "GET" });
                 const data = await resp.json().catch(() => null);
                 // attach local timestamp and DB check
                 const diagnostics: any = {
                     upstream: {
-                        url: `${AI_AGENT_URL}/health`,
+                        url: `${BACKEND_URL}/health`,
                         status: resp.status,
                         body: data ?? null,
                     },
@@ -37,11 +37,11 @@ export async function GET() {
             }
         }
 
-        // Fallback local diagnostic (no AI_AGENT_URL available)
+        // Fallback local diagnostic (no BACKEND_URL available)
         const diagnostics: any = {
             ok: true,
             env: {
-                AI_AGENT_URL: AI_AGENT_URL ? "configured" : "missing",
+                BACKEND_URL: BACKEND_URL ? "configured" : "missing",
             },
             db: { ok: false, message: null },
             timestamp: new Date().toISOString(),

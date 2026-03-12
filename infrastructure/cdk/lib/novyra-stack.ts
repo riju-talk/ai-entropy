@@ -170,7 +170,7 @@ export class NovyraStack extends cdk.Stack {
     // ── CloudFormation Outputs ────────────────────────────────────────────────
     new cdk.CfnOutput(this, "ApiEndpoint", {
       value: api.apiEndpoint,
-      description: "AI Engine HTTP API endpoint — set as NEXT_PUBLIC_AI_AGENT_URL in Amplify",
+      description: "AI Engine HTTP API endpoint — set as NEXT_PUBLIC_BACKEND_URL in Amplify",
     });
     new cdk.CfnOutput(this, "DocumentsBucketName", {
       value: documentsBucket.bucketName,

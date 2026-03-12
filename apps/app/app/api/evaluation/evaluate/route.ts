@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 
-const AI_AGENT_URL = process.env.AI_AGENT_URL || "http://localhost:8000"
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000"
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     // Forward the request to FastAPI backend
-    const response = await fetch(`${AI_AGENT_URL}/api/evaluation/evaluate`, {
+    const response = await fetch(`${BACKEND_URL}/api/evaluation/evaluate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

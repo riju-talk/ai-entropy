@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const AI_AGENT_URL = process.env.AI_AGENT_URL || "http://localhost:8000"
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000"
 
 async function upstream(path: string, init?: RequestInit) {
-  const res = await fetch(`${AI_AGENT_URL}${path}`, { cache: "no-store", ...init })
+  const res = await fetch(`${BACKEND_URL}${path}`, { cache: "no-store", ...init })
   const text = await res.text()
   try { return { status: res.status, body: JSON.parse(text) } }
   catch { return { status: res.status, body: text, raw: true } }
@@ -61,11 +61,11 @@ export async function POST(req: NextRequest) {
     }
 
     // default: multipart upload
-    if (!AI_AGENT_URL) {
-      return NextResponse.json({ error: "AI_AGENT_URL not configured" }, { status: 500 })
+    if (!BACKEND_URL) {
+      return NextResponse.json({ error: "BACKEND_URL not configured" }, { status: 500 })
     }
     const formData = await req.formData()
-    const uploadResp = await fetch(`${AI_AGENT_URL}/api/documents/upload`, {
+    const uploadResp = await fetch(`${BACKEND_URL}/api/documents/upload`, {
       method: "POST",
       body: formData,
     })

@@ -297,7 +297,7 @@ uvicorn app.main:app --reload --port 8000
 | `REDIS_HOST` | Yes | Redis host |
 | `NEXTAUTH_SECRET` | Yes | NextAuth signing secret |
 | `AI_BACKEND_TOKEN` | Yes | Shared secret: Next.js → AI Engine |
-| `NEXT_PUBLIC_AI_BACKEND_URL` | Yes | AI Engine URL visible from the browser |
+| `NEXT_PUBLIC_BACKEND_URL` | Yes | AI Engine URL visible from the browser |
 | `TAVILY_API_KEY` | Yes | Tavily web search key |
 | `PINECONE_API_KEY` | Prod | Pinecone vector DB key |
 | `IS_LAMBDA` | Lambda | Set `true` in Lambda env to enable SQS fan-out |

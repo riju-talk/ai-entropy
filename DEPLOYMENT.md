@@ -290,8 +290,8 @@ Go to **App settings → Environment variables** and add:
 | `GITHUB_SECRET` | GitHub OAuth App client secret |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
-| `AI_BACKEND_URL` | API Gateway URL from Step 3 output |
-| `AI_AGENT_URL` | same as `AI_BACKEND_URL` |
+| `BACKEND_URL` | API Gateway URL from Step 3 output |
+| `BACKEND_URL` | same as `BACKEND_URL` |
 | `AI_BACKEND_TOKEN` | 32-char random shared secret (must match Lambda `JWT_SECRET_KEY`) |
 
 #### 8c. Trigger build
@@ -365,8 +365,8 @@ curl https://<amplify-domain>/api/leaderboard
 | `GITHUB_SECRET` | ✅ | GitHub OAuth App Secret |
 | `GOOGLE_CLIENT_ID` | ✅ | Google OAuth Client ID |
 | `GOOGLE_CLIENT_SECRET` | ✅ | Google OAuth Client Secret |
-| `AI_BACKEND_URL` | ✅ | API Gateway URL |
-| `AI_AGENT_URL` | ✅ | Same as `AI_BACKEND_URL` |
+| `BACKEND_URL` | ✅ | API Gateway URL |
+| `BACKEND_URL` | ✅ | Same as `BACKEND_URL` |
 | `AI_BACKEND_TOKEN` | ✅ | Shared secret (matches Lambda `JWT_SECRET_KEY`) |
 
 ---

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const AI_AGENT_URL = process.env.AI_AGENT_URL || "http://localhost:8000"
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000"
 
 // POST /api/ai-agent/gamification  →  POST /api/gamification/event
 export async function POST(req: NextRequest) {
@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
     }
 
-    const resp = await fetch(`${AI_AGENT_URL}/api/gamification/event`, {
+    const resp = await fetch(`${BACKEND_URL}/api/gamification/event`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     }
 
     const resp = await fetch(
-      `${AI_AGENT_URL}/api/gamification/stats/${encodeURIComponent(userId)}`,
+      `${BACKEND_URL}/api/gamification/stats/${encodeURIComponent(userId)}`,
       {
         headers: { "Content-Type": "application/json" },
         cache: "no-store",

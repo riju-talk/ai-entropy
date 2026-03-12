@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const AI_AGENT_URL = process.env.AI_AGENT_URL || "http://localhost:8000"
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000"
 
 /**
  * GET /api/ai-agent/graph
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
         upstreamPath = `/api/graph/nodes${userId ? `?user_id=${encodeURIComponent(userId)}` : ""}`
     }
 
-    const res = await fetch(`${AI_AGENT_URL}${upstreamPath}`, {
+    const res = await fetch(`${BACKEND_URL}${upstreamPath}`, {
       headers: { "Content-Type": "application/json" },
       cache: "no-store",
     })
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     // Strip the action field before forwarding
     const { action: _action, ...payload } = body
 
-    const res = await fetch(`${AI_AGENT_URL}${upstreamPath}`, {
+    const res = await fetch(`${BACKEND_URL}${upstreamPath}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

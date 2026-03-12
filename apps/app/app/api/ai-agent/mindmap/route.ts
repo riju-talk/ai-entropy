@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const AI_AGENT_URL =
-  process.env.AI_AGENT_URL ||
+const BACKEND_URL =
+  process.env.BACKEND_URL ||
   process.env.NEXT_PUBLIC_SPARK_API_URL ||
-  process.env.NEXT_PUBLIC_AI_AGENT_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
   "http://localhost:8000";
 
 // Helper function for proxying requests
 async function proxyRequest(endpoint: string, options: RequestInit) {
-  const url = `${AI_AGENT_URL}${endpoint}`;
+  const url = `${BACKEND_URL}${endpoint}`;
   console.log("[PROXY]", options.method || "GET", url);
   
   const resp = await fetch(url, options);
@@ -38,8 +38,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
 
-    if (!AI_AGENT_URL) {
-      return NextResponse.json({ error: "AI_AGENT_URL not configured" }, { status: 500 });
+    if (!BACKEND_URL) {
+      return NextResponse.json({ error: "BACKEND_URL not configured" }, { status: 500 });
     }
 
     // Always send the correct payload shape

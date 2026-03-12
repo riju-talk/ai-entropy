@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 
 // Resolve AI agent URL from multiple possible env names
-const AI_AGENT_URL =
-  process.env.AI_AGENT_URL ||
+const BACKEND_URL =
+  process.env.BACKEND_URL ||
   process.env.NEXT_PUBLIC_SPARK_API_URL ||
-  process.env.NEXT_PUBLIC_AI_AGENT_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
   "http://localhost:8000"
 
 export async function POST(req: NextRequest) {
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
     console.log("[API][QUIZ] Forwarding payload to backend:", JSON.stringify(body))
 
-    const resp = await fetch(`${AI_AGENT_URL}/api/quiz/`, {
+    const resp = await fetch(`${BACKEND_URL}/api/quiz/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
