@@ -17,6 +17,9 @@ from app.api.routes.mindmap import router as mindmap_router
 from app.api.routes.quiz import router as quiz_router
 from app.api.routes.mastery import router as mastery_router
 from app.api.routes.graph import router as graph_router
+from app.api.routes.evaluation import router as evaluation_router
+from app.api.routes.gamification import router as gamification_router
+from app.api.routes.reasoning import router as reasoning_router
 
 app = FastAPI(
     title="Entropy AI Agent",
@@ -38,6 +41,12 @@ app.include_router(documents_router,  prefix="/api/documents", tags=["Documents"
 app.include_router(qa_router,         prefix="/api/qa",        tags=["Q&A"])
 app.include_router(mindmap_router,    prefix="/api/mindmap",   tags=["Mind Mapping"])
 app.include_router(quiz_router,       prefix="/api/quiz",      tags=["Quiz"])
+app.include_router(mastery_router,    prefix="/api/mastery",   tags=["Mastery"])
+app.include_router(graph_router,      prefix="/api/graph",     tags=["Graph"])
+app.include_router(evaluation_router, prefix="/api/evaluation", tags=["Evaluation"])
+app.include_router(gamification_router, prefix="/api/gamification", tags=["Gamification"])
+app.include_router(reasoning_router, prefix="/api/reasoning", tags=["Reasoning"])
+
 
 @app.get("/")
 async def root():
@@ -51,6 +60,11 @@ async def root():
             "documents_upload": "/api/documents/upload",
             "mindmap": "/api/mindmap",
             "quiz": "/api/quiz",
+            "mastery": "/api/mastery",
+            "graph": "/api/graph",
+            "evaluation": "/api/evaluation",
+            "gamification": "/api/gamification",
+            "reasoning": "/api/reasoning"
         },
     }
 
