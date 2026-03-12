@@ -17,7 +17,9 @@ applications:
             - echo "GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET" >> .env.production
             - echo "GITHUB_ID=$GITHUB_ID" >> .env.production
             - echo "GITHUB_SECRET=$GITHUB_SECRET" >> .env.production
-
+            - echo "BACKEND_URL=$BACKEND_URL" >> .env.production
+            - echo "JWT_SECRET=$JWT_SECRET" >> .env.production
+            - echo "JWT_ALGORITHM=$JWT_ALGORITHM" >> .env.production
             # prisma setup
             - npx prisma db pull --schema=prisma/schema.prisma
             - npx prisma generate --schema=prisma/schema.prisma
