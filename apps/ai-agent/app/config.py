@@ -31,7 +31,7 @@ class Settings(BaseSettings):
 
     # API Configuration
     AI_BACKEND_TOKEN: Optional[str] = None
-    AI_BACKEND_URL: str = "http://localhost:3000"
+    BACKEND_URL: str = "http://localhost:3000"
 
     # Google Gemini API (Legacy — kept for fallback compatibility)
     GOOGLE_API_KEY: Optional[str] = None
