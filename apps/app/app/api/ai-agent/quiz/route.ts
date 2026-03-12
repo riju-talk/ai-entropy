@@ -18,7 +18,13 @@ export async function POST(req: NextRequest) {
 
     console.log("[API][QUIZ] Forwarding payload to backend:", JSON.stringify(body))
 
-    const resp = await fetch(`${BACKEND_URL}/api/quiz/`, {
+    function joinUrl(base: string, path: string) {
+      if (!base.endsWith("/")) base += "/";
+      if (path.startsWith("/")) path = path.slice(1);
+      return base + path;
+    }
+    const url = joinUrl(BACKEND_URL, "/api/quiz/");
+    const resp = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -12,8 +12,14 @@ function getPrisma() {
   return __prisma__;
 }
 
+function joinUrl(base: string, path: string) {
+  if (!base.endsWith("/")) base += "/";
+  if (path.startsWith("/")) path = path.slice(1);
+  return base + path;
+}
+
 async function proxyRequest(upstreamPath: string, options: RequestInit) {
-  const upstreamUrl = `${BACKEND_URL}${upstreamPath}`;
+  const upstreamUrl = joinUrl(BACKEND_URL, upstreamPath);
   const resp = await fetch(upstreamUrl, options);
   const text = await resp.text();
   try {

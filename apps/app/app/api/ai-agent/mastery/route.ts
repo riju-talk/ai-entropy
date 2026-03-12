@@ -7,8 +7,15 @@ const BACKEND_URL =
   "http://localhost:8000";
 const prisma = new PrismaClient()
 
+function joinUrl(base: string, path: string) {
+  if (!base.endsWith("/")) base += "/";
+  if (path.startsWith("/")) path = path.slice(1);
+  return base + path;
+}
+
 async function tryUpstream(path: string, init?: RequestInit) {
-  const res = await fetch(`${BACKEND_URL}${path}`, {
+  const url = joinUrl(BACKEND_URL, path);
+  const res = await fetch(url, {
     cache: "no-store",
     signal: AbortSignal.timeout(4000),
     ...init,

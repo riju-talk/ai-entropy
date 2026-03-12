@@ -5,8 +5,15 @@ const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ||
   "http://localhost:8000";
 
+function joinUrl(base: string, path: string) {
+  if (!base.endsWith("/")) base += "/";
+  if (path.startsWith("/")) path = path.slice(1);
+  return base + path;
+}
+
 async function upstream(path: string, init?: RequestInit) {
-  const res = await fetch(`${BACKEND_URL}${path}`, { cache: "no-store", ...init })
+  const url = joinUrl(BACKEND_URL, path);
+  const res = await fetch(url, { cache: "no-store", ...init })
   const text = await res.text()
   try { return { status: res.status, body: JSON.parse(text) } }
   catch { return { status: res.status, body: text, raw: true } }
@@ -68,7 +75,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "BACKEND_URL not configured" }, { status: 500 })
     }
     const formData = await req.formData()
-    const uploadResp = await fetch(`${BACKEND_URL}/api/documents/upload`, {
+    const uploadUrl = joinUrl(BACKEND_URL, "/api/documents/upload");
+    const uploadResp = await fetch(uploadUrl, {
       method: "POST",
       body: formData,
     })

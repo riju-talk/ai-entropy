@@ -84,8 +84,14 @@ async function postGamificationEvent(
     eventType: string,
     metadata?: Record<string, unknown>
 ) {
+    function joinUrl(base: string, path: string) {
+        if (!base.endsWith("/")) base += "/";
+        if (path.startsWith("/")) path = path.slice(1);
+        return base + path;
+    }
     try {
-        const resp = await fetch(`${BACKEND_URL}/api/gamification/event`, {
+        const url = joinUrl(BACKEND_URL, "/api/gamification/event");
+        const resp = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ user_id: userId, event_type: eventType, metadata: metadata || {} }),
@@ -198,8 +204,9 @@ export async function deductCredits(userId: string, amount: number, description:
  */
 export async function getLeaderboard(_period: "all" | "weekly" | "monthly") {
     try {
+        const url = joinUrl(BACKEND_URL, "/api/gamification/leaderboard/xp?limit=100");
         const resp = await fetch(
-            `${BACKEND_URL}/api/gamification/leaderboard/xp?limit=100`,
+            url,
             { cache: "no-store" }
         );
         if (!resp.ok) {

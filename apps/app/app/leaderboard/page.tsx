@@ -19,20 +19,25 @@ export default function LeaderboardPage() {
 	const [loading, setLoading] = useState(false)
 	const [leaderboardLoading, setLeaderboardLoading] = useState(false)
 	const [achievementsLoading, setAchievementsLoading] = useState(true)
+	const [leaderboardError, setLeaderboardError] = useState<string | null>(null)
+	const [achievementsError, setAchievementsError] = useState<string | null>(null)
 
 	// Lazy load leaderboard only when Rankings tab is selected
 	useEffect(() => {
 		if (selectedTab !== "leaderboard") return
-
 		setLeaderboardLoading(true)
+		setLeaderboardError(null)
 		fetch(`/api/leaderboard?period=${selectedPeriod}`)
-			.then((res) => res.json())
+			.then((res) => {
+				if (!res.ok) throw new Error(`Failed to fetch leaderboard: ${res.status}`)
+				return res.json()
+			})
 			.then((data) => {
 				setLeaderboard(data || [])
 				setLeaderboardLoading(false)
 			})
 			.catch((err) => {
-				console.error(err)
+				setLeaderboardError(err?.message || "Unknown error fetching leaderboard")
 				setLeaderboardLoading(false)
 			})
 	}, [selectedTab, selectedPeriod])
@@ -40,14 +45,18 @@ export default function LeaderboardPage() {
 	// Fetch achievements on mount
 	useEffect(() => {
 		setAchievementsLoading(true)
+		setAchievementsError(null)
 		fetch("/api/achievements")
-			.then((res) => res.json())
+			.then((res) => {
+				if (!res.ok) throw new Error(`Failed to fetch achievements: ${res.status}`)
+				return res.json()
+			})
 			.then((data) => {
 				setAchievements(data || [])
 				setAchievementsLoading(false)
 			})
 			.catch((err) => {
-				console.error("Failed to fetch achievements:", err)
+				setAchievementsError(err?.message || "Unknown error fetching achievements")
 				setAchievementsLoading(false)
 			})
 	}, [])
@@ -113,6 +122,16 @@ export default function LeaderboardPage() {
 					))}
 				</div>
 			</div>
+		)
+	}
+	if (leaderboardError) {
+		return (
+			<div className="text-center text-red-500 font-semibold py-8">{leaderboardError}</div>
+		)
+	}
+	if (achievementsError) {
+		return (
+			<div className="text-center text-red-500 font-semibold py-8">{achievementsError}</div>
 		)
 	}
 

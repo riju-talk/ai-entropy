@@ -13,7 +13,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
     }
 
-    const resp = await fetch(`${BACKEND_URL}/api/gamification/event`, {
+    function joinUrl(base: string, path: string) {
+      if (!base.endsWith("/")) base += "/";
+      if (path.startsWith("/")) path = path.slice(1);
+      return base + path;
+    }
+    const url = joinUrl(BACKEND_URL, "/api/gamification/event");
+    const resp = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -50,8 +56,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "user_id is required" }, { status: 400 })
     }
 
+    const statsUrl = joinUrl(BACKEND_URL, `/api/gamification/stats/${encodeURIComponent(userId)}`);
     const resp = await fetch(
-      `${BACKEND_URL}/api/gamification/stats/${encodeURIComponent(userId)}`,
+      statsUrl,
       {
         headers: { "Content-Type": "application/json" },
         cache: "no-store",

@@ -25,7 +25,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "question is required" }, { status: 400 })
     }
 
-    const resp = await fetch(`${BACKEND_URL}/api/reasoning/ask`, {
+    function joinUrl(base: string, path: string) {
+      if (!base.endsWith("/")) base += "/";
+      if (path.startsWith("/")) path = path.slice(1);
+      return base + path;
+    }
+    const url = joinUrl(BACKEND_URL, "/api/reasoning/ask");
+    const resp = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

@@ -74,6 +74,7 @@ export default function ProfilePage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [user, setUser] = useState<UserProfile | null>(null)
+  const [profileError, setProfileError] = useState<string | null>(null)
   const [recentDoubts, setRecentDoubts] = useState<UserProfile["doubts"] | null>(null)
   const [recentAnswers, setRecentAnswers] = useState<UserProfile["answers"] | null>(null)
   // lazy-loading state for doubts
@@ -107,13 +108,13 @@ export default function ProfilePage() {
   const checkProfileAndFetch = async (email: string) => {
     try {
       setLoading(true)
-
+      setProfileError(null)
       const response = await fetch("/api/users/me/profile")
-      
       if (!response.ok) {
-        throw new Error(`Failed to fetch profile: ${response.status}`)
+        setProfileError(`Failed to fetch profile: ${response.status}`)
+        setUser(null)
+        return
       }
-
       const data = await response.json()
       setUser(data)
       // initialize lazy-loaded lists (page 1, show 3 items)
@@ -135,7 +136,6 @@ export default function ProfilePage() {
           console.error(err)
         }
       }
-
       try {
         setAnswersPage(1)
         setAnswersItems([])
@@ -153,8 +153,9 @@ export default function ProfilePage() {
           console.error(err)
         }
       }
-    } catch (error) {
-      console.error("[Profile] Error fetching profile:", error)
+    } catch (error: any) {
+      setProfileError(error?.message || "Unknown error fetching profile")
+      setUser(null)
     } finally {
       setLoading(false)
     }
@@ -263,11 +264,20 @@ export default function ProfilePage() {
     )
   }
 
+  if (profileError) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <p className="text-red-500 font-semibold">{profileError}</p>
+        </div>
+      </div>
+    )
+  }
   if (!user) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">
-          <p className="text-muted-foreground">Failed to load profile</p>
+          <p className="text-muted-foreground">No profile data available.</p>
         </div>
       </div>
     )

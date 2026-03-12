@@ -6,9 +6,15 @@ const BACKEND_URL =
   process.env.NEXT_PUBLIC_SPARK_API_URL ||
   "http://localhost:8000";
 
+function joinUrl(base: string, path: string) {
+  if (!base.endsWith("/")) base += "/";
+  if (path.startsWith("/")) path = path.slice(1);
+  return base + path;
+}
+
 // Helper function for proxying requests
 async function proxyRequest(endpoint: string, options: RequestInit) {
-  const url = `${BACKEND_URL}${endpoint}`;
+  const url = joinUrl(BACKEND_URL, endpoint);
   console.log("[PROXY]", options.method || "GET", url);
   
   const resp = await fetch(url, options);
