@@ -62,22 +62,7 @@ def get_db():
     Raises:
         RuntimeError: If database is not connected
     """
-    import asyncio
     global _prisma_client
-    if _prisma_client is None:
-        # Try to reconnect automatically
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If already in an event loop, schedule connect_db
-                import nest_asyncio
-                nest_asyncio.apply()
-                loop.run_until_complete(connect_db())
-            else:
-                loop.run_until_complete(connect_db())
-        except Exception as e:
-            logger.error(f"Automatic DB reconnect failed: {e}")
-            raise RuntimeError("Database not connected. Call connect_db() first.")
     if _prisma_client is None:
         raise RuntimeError("Database not connected. Call connect_db() first.")
     return _prisma_client
