@@ -20,6 +20,8 @@ applications:
             - echo "BACKEND_URL=$BACKEND_URL" >> .env.production
             - echo "JWT_SECRET=$JWT_SECRET" >> .env.production
             - echo "JWT_ALGORITHM=$JWT_ALGORITHM" >> .env.production
+            - echo "AI_BACKEND_URL=$AI_BACKEND_URL" >> .env.production
+            - echo "AI_AGENT_URL=$AI_AGENT_URL" >> .env.production
             # prisma setup
             - npx prisma db pull --schema=prisma/schema.prisma
             - npx prisma generate --schema=prisma/schema.prisma

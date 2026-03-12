@@ -9,7 +9,7 @@ const stage = (process.env.STAGE ?? "dev") as "dev" | "staging" | "prod";
 
 new NovyraStack(app, `NovyraStack-${stage}`, {
   stage,
-  aiBackendToken: process.env.AI_BACKEND_TOKEN ?? "change-me-in-production",
+  aiBackendToken: process.env.BACKEND_TOKEN ?? "change-me-in-production",
   neo4jUri:       process.env.NEO4J_URI ?? "",
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
