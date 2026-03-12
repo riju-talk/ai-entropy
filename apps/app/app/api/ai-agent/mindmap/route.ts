@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL =
   process.env.BACKEND_URL ||
-  process.env.NEXT_PUBLIC_SPARK_API_URL ||
   process.env.NEXT_PUBLIC_BACKEND_URL ||
+  process.env.NEXT_PUBLIC_SPARK_API_URL ||
   "http://localhost:8000";
 
 // Helper function for proxying requests
