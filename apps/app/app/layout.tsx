@@ -1,7 +1,6 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import { JetBrains_Mono } from "next/font/google"
-import { Inter } from "next/font/google"
+import { Fraunces, Instrument_Sans, JetBrains_Mono } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/components/auth-provider"
@@ -10,8 +9,9 @@ import { AuthModalProvider } from "@/components/auth-modal-provider"
 import { ClientLayout } from "@/components/client-layout"
 import { ErrorBoundary } from "@/components/error-boundary"
 
-const inter = Inter({ subsets: ["latin"], display: "swap", variable: "--font-inter" })
-const jetbrains = JetBrains_Mono({ subsets: ["latin"], display: "swap", variable: "--font-jetbrains" })
+const sans = Instrument_Sans({ subsets: ["latin"], display: "swap", variable: "--font-sans" })
+const serif = Fraunces({ subsets: ["latin"], display: "swap", variable: "--font-serif", axes: ["opsz"] })
+const mono = JetBrains_Mono({ subsets: ["latin"], display: "swap", variable: "--font-mono" })
 
 export const metadata: Metadata = {
   title: {
@@ -88,7 +88,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
-  themeColor: [{ color: "black" }],
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f4ee" },
+    { media: "(prefers-color-scheme: dark)", color: "#151311" },
+  ],
 }
 
 export default async function RootLayout({
@@ -97,21 +100,18 @@ export default async function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrains.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`} suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icon-192x192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Entropy" />
-        <meta name="msapplication-TileColor" content="#000000" />
         <meta name="msapplication-tap-highlight" content="no" />
-        <meta name="theme-color" content="#000000" />
-        <meta name="color-scheme" content="dark" />
         <link rel="icon" href="/favicon.ico" />
       </head>
-      <body className={`${inter.variable} antialiased bg-background dark`}>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
+      <body className="min-h-screen bg-background text-foreground antialiased">
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <AuthProvider>
             <ErrorBoundary>
               <ClientLayout>{children}</ClientLayout>

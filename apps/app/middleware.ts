@@ -2,26 +2,22 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 
-const allowedOrigins = [
-  "https://entropy-community.vercel.app",
-  "http://localhost:5000",
-  "http://localhost:3000",
-  "https://main.d1rs5mqd2d5gis.amplifyapp.com/"
-]
-
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Protected routes that require authentication
-  const protectedRoutes = ['/create-community', '/profile', '/ai-agent', '/ask', '/doubt']
-  
-  if (protectedRoutes.some(route => pathname.startsWith(route))) {
+  // Prefix matches. Profiles at /profile/<id> and question pages at /doubt/<id> are public;
+  // only the exact paths below need a session.
+  const protectedPrefixes = ['/create-community', '/ai-agent', '/ask', '/study', '/mentorship/register', '/mentorship/requests', '/profile/achievements']
+  const protectedExact = ['/profile']
+
+  if (protectedExact.includes(pathname) || protectedPrefixes.some(route => pathname.startsWith(route))) {
     try {
       // Check for NextAuth JWT token with proper secret
       const token = await getToken({ 
         req: request as any,
         secret: process.env.NEXTAUTH_SECRET,
-        secureCookie: process.env.NODE_ENV === "production",
+        secureCookie: (process.env.NEXTAUTH_URL || "").startsWith("https://"),
       })
       
       if (!token) {
@@ -47,11 +43,6 @@ export async function middleware(request: NextRequest) {
     response.headers.set("X-Frame-Options", "DENY")
     response.headers.set("X-Content-Type-Options", "nosniff")
     response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin")
-
-    // Rate limiting headers
-    response.headers.set("X-RateLimit-Limit", "100")
-    response.headers.set("X-RateLimit-Remaining", "99")
-    response.headers.set("X-RateLimit-Reset", new Date(Date.now() + 60000).toISOString())
 
     return response
   }

@@ -73,23 +73,23 @@ function conceptsToActiveList(concepts: ConceptRecord[], weakSet: Set<string>, l
 
 
 function masteryColor(val: number) {
-    if (val >= 80) return "bg-emerald-500"
-    if (val >= 60) return "bg-cyan-500"
-    if (val >= 40) return "bg-amber-500"
-    return "bg-red-500"
+    if (val >= 80) return "bg-success"
+    if (val >= 60) return "bg-primary"
+    if (val >= 40) return "bg-warning"
+    return "bg-destructive"
 }
 
 function StatusDot({ color }: { color: "cyan" | "purple" | "green" }) {
     const dots: any = {
-        cyan: "bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)]",
-        purple: "bg-purple-400 shadow-[0_0_6px_rgba(192,132,252,0.8)]",
-        green: "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]",
+        cyan: "bg-primary",
+        purple: "bg-primary",
+        green: "bg-success",
     }
     return <div className={cn("w-1 h-1 rounded-full animate-pulse", dots[color])} />
 }
 
 function PanelSeparator() {
-    return <div className="w-px h-3 bg-white/10" />
+    return <div className="w-px h-3 bg-accent" />
 }
 
 interface NotebookLayoutProps {
@@ -188,16 +188,16 @@ export function NotebookLayout({
     const hasData = conceptLen > 0
 
     return (
-        <div className="flex h-[calc(100vh-4rem)] bg-[#0a0a0f] overflow-hidden font-mono">
+        <div className="flex h-full bg-background overflow-hidden font-mono">
 
             {/* ── LEFT PANEL: KNOWLEDGE MEMORY ── */}
-            <div className="w-72 border-r border-white/[0.06] flex flex-col bg-[#0c0c14] overflow-hidden">
-                <div className="px-4 py-3 border-b border-white/[0.06]">
+            <div className="w-60 shrink-0 border-r border-border flex flex-col bg-background overflow-hidden">
+                <div className="px-4 py-3 border-b border-border">
                     <div className="flex items-center gap-2 mb-0.5">
-                        <BrainCircuit className="h-3.5 w-3.5 text-cyan-400" />
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-400">Knowledge Memory</span>
+                        <BrainCircuit className="h-3.5 w-3.5 text-primary" />
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Knowledge Memory</span>
                     </div>
-                    <p className="text-[9px] text-white/20 tracking-wide">Cognitive loading layer active</p>
+                    <p className="text-[9px] text-muted-foreground tracking-wide">Cognitive loading layer active</p>
                 </div>
 
                 <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
@@ -206,9 +206,9 @@ export function NotebookLayout({
                         {/* Active Concepts */}
                         <div>
                             <button onClick={() => setActiveConceptsExpanded(v => !v)} className="w-full flex items-center gap-1.5 mb-2 group">
-                                <ChevronRight className={cn("h-3 w-3 text-white/30 transition-transform", activeConceptsExpanded && "rotate-90")} />
-                                <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/40 group-hover:text-white/60">Active Concepts</span>
-                                <span className="ml-auto text-[8px] text-cyan-400 font-bold">
+                                <ChevronRight className={cn("h-3 w-3 text-muted-foreground transition-transform", activeConceptsExpanded && "rotate-90")} />
+                                <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground group-hover:text-foreground">Active Concepts</span>
+                                <span className="ml-auto text-[8px] text-primary font-bold">
                                     {profileLoading ? "…" : activeConcepts.length}
                                 </span>
                             </button>
@@ -216,7 +216,7 @@ export function NotebookLayout({
                                 <div className="space-y-1">
                                     {activeConcepts.length > 0
                                         ? activeConcepts.map((c) => <ConceptRow key={c.name} concept={c} />)
-                                        : <p className="text-[9px] text-white/20 text-center py-2">No concepts tracked yet</p>
+                                        : <p className="text-[9px] text-muted-foreground text-center py-2">No concepts tracked yet</p>
                                     }
                                 </div>
                             )}
@@ -226,10 +226,10 @@ export function NotebookLayout({
                         <button
                             onClick={() => setShowHeatmap(v => !v)}
                             className={cn(
-                                "w-full flex items-center gap-2 px-3 py-2 rounded-lg border text-[10px] font-bold uppercase tracking-widest transition-all",
+                                "w-full flex items-center gap-2 px-3 py-2 rounded border text-[10px] font-bold uppercase tracking-widest transition-all",
                                 showHeatmap
-                                    ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
-                                    : "bg-white/[0.02] border-white/[0.06] text-white/30 hover:text-white/50 hover:border-white/10"
+                                    ? "bg-primary/10 border-primary/30 text-primary"
+                                    : "bg-card border-border text-muted-foreground hover:text-muted-foreground hover:border-border"
                             )}
                         >
                             <Map className="h-3 w-3" />
@@ -238,21 +238,21 @@ export function NotebookLayout({
                         </button>
 
                         {showHeatmap && (
-                            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
-                                <p className="text-[9px] text-white/30 mb-2 uppercase tracking-widest">Domain Coverage</p>
+                            <div className="rounded border border-border bg-card p-3">
+                                <p className="text-[9px] text-muted-foreground mb-2 uppercase tracking-widest">Domain Coverage</p>
                                 {masteryData.length > 0
                                     ? masteryData.map((d) => (
                                         <div key={d.subject} className="mb-1.5">
                                             <div className="flex justify-between mb-0.5">
-                                                <span className="text-[9px] text-white/50">{d.subject}</span>
-                                                <span className="text-[9px] text-cyan-400 font-bold">{d.value}%</span>
+                                                <span className="text-[9px] text-muted-foreground">{d.subject}</span>
+                                                <span className="text-[9px] text-primary font-bold">{d.value}%</span>
                                             </div>
-                                            <div className="h-1 bg-white/5 rounded-full">
+                                            <div className="h-1 bg-accent rounded-full">
                                                 <div className={cn("h-full rounded-full", masteryColor(d.value))} style={{ width: `${d.value}%` }} />
                                             </div>
                                         </div>
                                     ))
-                                    : <p className="text-[9px] text-white/20 text-center py-1">Ask questions to build your heatmap</p>
+                                    : <p className="text-[9px] text-muted-foreground text-center py-1">Ask questions to build your heatmap</p>
                                 }
                             </div>
                         )}
@@ -260,8 +260,8 @@ export function NotebookLayout({
                         {/* Learning Assets */}
                         <div>
                             <button onClick={() => setAssetsExpanded(v => !v)} className="w-full flex items-center gap-1.5 mb-2 group">
-                                <ChevronRight className={cn("h-3 w-3 text-white/30 transition-transform", assetsExpanded && "rotate-90")} />
-                                <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/40 group-hover:text-white/60">Learning Assets</span>
+                                <ChevronRight className={cn("h-3 w-3 text-muted-foreground transition-transform", assetsExpanded && "rotate-90")} />
+                                <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground group-hover:text-foreground">Learning Assets</span>
                             </button>
                             {assetsExpanded && (
                                 <div className="min-w-0 overflow-hidden">
@@ -272,44 +272,44 @@ export function NotebookLayout({
                     </div>
                 </div>
 
-                <div className="px-4 py-3 border-t border-white/[0.06]">
+                <div className="px-4 py-3 border-t border-border">
                     <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[9px] text-white/30 uppercase tracking-widest">Asset Storage</span>
-                        <span className="text-[9px] font-bold text-cyan-400">{docCount}/10</span>
+                        <span className="text-[9px] text-muted-foreground uppercase tracking-widest">Asset Storage</span>
+                        <span className="text-[9px] font-bold text-primary">{docCount}/10</span>
                     </div>
-                    <div className="h-px w-full bg-white/5 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-1000" style={{ width: `${Math.min((docCount / 10) * 100, 100)}%` }} />
+                    <div className="h-px w-full bg-accent rounded-full overflow-hidden">
+                        <div className="h-full transition-all duration-1000" style={{ width: `${Math.min((docCount / 10) * 100, 100)}%` }} />
                     </div>
                 </div>
             </div>
 
             {/* ── CENTER PANEL: COGNITIVE ENGINE ── */}
-            <div className="flex-1 flex flex-col bg-[#0a0a0f] bg-neural-grid relative border-r border-white/[0.06] min-w-0">
-                <div className="flex items-center gap-3 px-5 py-2.5 border-b border-white/[0.06] bg-white/[0.01] flex-shrink-0 overflow-x-auto">
+            <div className="flex-1 flex flex-col bg-background bg-neural-grid relative border-r border-border min-w-0">
+                <div className="flex items-center gap-3 px-5 py-2.5 border-b border-border bg-card flex-shrink-0 overflow-x-auto">
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <Layers className="h-3 w-3 text-cyan-400" />
-                        <span className="text-[9px] font-bold text-cyan-400 uppercase tracking-widest">7-Layer Reasoning</span>
+                        <Layers className="h-3 w-3 text-primary" />
+                        <span className="text-[9px] font-bold text-primary uppercase tracking-widest">7-Layer Reasoning</span>
                         <StatusDot color="cyan" />
                     </div>
                     <PanelSeparator />
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <Cpu className="h-3 w-3 text-purple-400" />
-                        <span className="text-[9px] text-purple-400 uppercase tracking-widest">Hybrid Edge-Cloud</span>
+                        <Cpu className="h-3 w-3 text-primary" />
+                        <span className="text-[9px] text-primary uppercase tracking-widest">Hybrid Edge-Cloud</span>
                         <StatusDot color="purple" />
                     </div>
                     <PanelSeparator />
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <Globe className="h-3 w-3 text-white/30" />
-                        <span className="text-[9px] text-white/30 uppercase tracking-widest">Auto-Lang</span>
+                        <Globe className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-[9px] text-muted-foreground uppercase tracking-widest">Auto-Lang</span>
                     </div>
                     <PanelSeparator />
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <ShieldCheck className="h-3 w-3 text-green-400" />
-                        <span className="text-[9px] text-green-400 uppercase tracking-widest">Explainability ON</span>
+                        <ShieldCheck className="h-3 w-3 text-success" />
+                        <span className="text-[9px] text-success uppercase tracking-widest">Explainability ON</span>
                     </div>
-                    <div className="ml-auto flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-0.5 flex-shrink-0">
-                        <Zap className="h-2.5 w-2.5 text-amber-400" />
-                        <span className="text-[8px] font-bold text-amber-400">⚡ 17ms · INT8</span>
+                    <div className="ml-auto flex items-center gap-1.5 bg-warning/10 border border-warning/20 rounded px-2 py-0.5 flex-shrink-0">
+                        <Zap className="h-2.5 w-2.5 text-warning" />
+                        <span className="text-[8px] font-bold text-warning">⚡ 17ms · INT8</span>
                     </div>
                 </div>
                 <div className="flex-1 overflow-hidden">
@@ -318,16 +318,16 @@ export function NotebookLayout({
             </div>
 
             {/* ── RIGHT PANEL: COGNITIVE STUDIO ── */}
-            <div className="w-80 flex flex-col bg-[#0c0c14] overflow-hidden border-l border-white/[0.04]">
-                <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
+            <div className="w-72 shrink-0 flex flex-col bg-background overflow-hidden border-l border-border">
+                <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Microscope className="h-3.5 w-3.5 text-purple-400" />
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-400">Cognitive Studio</span>
+                        <Microscope className="h-3.5 w-3.5 text-primary" />
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Cognitive Studio</span>
                     </div>
                     <button
                         onClick={fetchProfile}
                         disabled={profileLoading}
-                        className="h-6 w-6 flex items-center justify-center text-white/20 hover:text-white/50 transition-colors rounded"
+                        className="h-6 w-6 flex items-center justify-center text-muted-foreground hover:text-muted-foreground transition-colors rounded"
                         title="Refresh cognitive data"
                     >
                         <RefreshCw className={cn("h-3 w-3", profileLoading && "animate-spin")} />
@@ -335,7 +335,7 @@ export function NotebookLayout({
                 </div>
 
                 {/* ── Mode Tabs ── */}
-                <div className="flex border-b border-white/[0.06] flex-shrink-0">
+                <div className="flex border-b border-border flex-shrink-0">
                     <ModeTab icon={BrainCircuit} label="Learning" active={studioMode === "learning"} onClick={() => setStudioMode("learning")} activeColor="cyan" />
                     <ModeTab icon={FlaskConical} label="Assess" active={studioMode === "assessment"} onClick={() => setStudioMode("assessment")} activeColor="amber" />
                     <ModeTab icon={Network} label="Graphing" active={studioMode === "graphing"} onClick={() => setStudioMode("graphing")} activeColor="purple" />
@@ -361,7 +361,7 @@ export function NotebookLayout({
                                         </div>
                                     ) : (
                                         <div className="h-44 flex items-center justify-center">
-                                            <p className="text-[9px] text-white/20 text-center">Start asking questions<br/>to build your radar</p>
+                                            <p className="text-[9px] text-muted-foreground text-center">Start asking questions<br/>to build your radar</p>
                                         </div>
                                     )}
                                 </StudioSection>
@@ -385,11 +385,11 @@ export function NotebookLayout({
                             <>
                                 <button
                                     onClick={() => { setStudioMode("learning"); onTabChange("qa") }}
-                                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-cyan-500/[0.07] border border-cyan-500/25 hover:bg-cyan-500/[0.12] hover:border-cyan-500/50 transition-all group"
+                                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded bg-primary/[0.07] border border-primary/25 hover:bg-primary/[0.12] hover:border-primary/50 transition-all group"
                                 >
-                                    <BrainCircuit className="h-3.5 w-3.5 text-cyan-400" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 flex-1 text-left">← Back to Chat</span>
-                                    <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)] animate-pulse" />
+                                    <BrainCircuit className="h-3.5 w-3.5 text-primary" />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary flex-1 text-left">← Back to Chat</span>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                                 </button>
                                 <StudioSection icon={Target} label="Exam Readiness Index" color="cyan">
                                     <div className="flex items-center gap-4">
@@ -399,7 +399,7 @@ export function NotebookLayout({
                                                 <circle cx="32" cy="32" r="26" fill="none" stroke={examReadiness >= 70 ? "#22d3ee" : examReadiness >= 50 ? "#f59e0b" : "#ef4444"} strokeWidth="4" strokeDasharray={`${(examReadiness / 100) * 163.4} 163.4`} strokeLinecap="round" />
                                             </svg>
                                             <div className="absolute inset-0 flex items-center justify-center">
-                                                <span className="text-sm font-bold text-white">{examReadiness}%</span>
+                                                <span className="text-sm font-bold text-foreground">{examReadiness}%</span>
                                             </div>
                                         </div>
                                         <div className="space-y-1 flex-1 min-w-0">
@@ -416,14 +416,14 @@ export function NotebookLayout({
                                 </div>
                                 <button
                                     onClick={() => onTabChange("assessments")}
-                                    className="w-full flex items-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 hover:border-cyan-500/40 transition-all group"
+                                    className="w-full flex items-center gap-2 px-3 py-3 rounded border border-primary/20 hover:border-primary/40 transition-all group"
                                 >
-                                    <FlaskConical className="h-4 w-4 text-cyan-400" />
+                                    <FlaskConical className="h-4 w-4 text-primary" />
                                     <div className="flex-1 text-left">
-                                        <div className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Simulate Exam</div>
-                                        <div className="text-[8px] text-white/30">Full adaptive assessment</div>
+                                        <div className="text-[10px] font-bold text-primary uppercase tracking-widest">Simulate Exam</div>
+                                        <div className="text-[8px] text-muted-foreground">Full adaptive assessment</div>
                                     </div>
-                                    <Zap className="h-3 w-3 text-cyan-400 group-hover:scale-110 transition-transform" />
+                                    <Zap className="h-3 w-3 text-primary group-hover:scale-110 transition-transform" />
                                 </button>
                             </>
                         )}
@@ -433,11 +433,11 @@ export function NotebookLayout({
                             <>
                                 <button
                                     onClick={() => { setStudioMode("learning"); onTabChange("qa") }}
-                                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl bg-cyan-500/[0.07] border border-cyan-500/25 hover:bg-cyan-500/[0.12] hover:border-cyan-500/50 transition-all group"
+                                    className="w-full flex items-center gap-2 px-3 py-2.5 rounded bg-primary/[0.07] border border-primary/25 hover:bg-primary/[0.12] hover:border-primary/50 transition-all group"
                                 >
-                                    <BrainCircuit className="h-3.5 w-3.5 text-cyan-400" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400 flex-1 text-left">← Back to Chat</span>
-                                    <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)] animate-pulse" />
+                                    <BrainCircuit className="h-3.5 w-3.5 text-primary" />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary flex-1 text-left">← Back to Chat</span>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                                 </button>
                                 <StudioSection icon={Layers} label={`Active Concepts (${allConcepts.length})`} color="purple">
                                     <div className="space-y-1">
@@ -450,7 +450,7 @@ export function NotebookLayout({
                                                     deleting={deletingConcept === c.name}
                                                 />
                                             ))
-                                            : <p className="text-[9px] text-white/20 text-center py-2">No concepts tracked yet</p>
+                                            : <p className="text-[9px] text-muted-foreground text-center py-2">No concepts tracked yet</p>
                                         }
                                     </div>
                                 </StudioSection>
@@ -468,14 +468,14 @@ export function NotebookLayout({
                                 </StudioSection>
                                 <button
                                     onClick={() => onTabChange("mindmap")}
-                                    className="w-full flex items-center gap-2 px-3 py-3 rounded-xl bg-white/[0.02] border border-purple-500/20 hover:border-purple-500/40 transition-all group"
+                                    className="w-full flex items-center gap-2 px-3 py-3 rounded bg-card border border-primary/20 hover:border-primary/40 transition-all group"
                                 >
-                                    <Network className="h-4 w-4 text-purple-400" />
+                                    <Network className="h-4 w-4 text-primary" />
                                     <div className="flex-1 text-left">
-                                        <div className="text-[10px] font-bold text-purple-400 uppercase tracking-widest">Open Concept Graph</div>
-                                        <div className="text-[8px] text-white/30">Visual knowledge map</div>
+                                        <div className="text-[10px] font-bold text-primary uppercase tracking-widest">Open Concept Graph</div>
+                                        <div className="text-[8px] text-muted-foreground">Visual knowledge map</div>
                                     </div>
-                                    <ChevronRight className="h-3 w-3 text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    <ChevronRight className="h-3 w-3 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </button>
                             </>
                         )}
@@ -496,25 +496,25 @@ function ConceptRow({
     onDelete?: (name: string) => void
     deleting?: boolean
 }) {
-    const volDot = concept.volatility === "high" ? "bg-red-400" : concept.volatility === "medium" ? "bg-amber-400" : "bg-emerald-400"
+    const volDot = concept.volatility === "high" ? "bg-destructive" : concept.volatility === "medium" ? "bg-warning" : "bg-success"
     return (
-        <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.03] transition-colors group">
+        <div className="flex items-center gap-1.5 px-2 py-1.5 rounded hover:bg-card transition-colors group">
             <div className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", volDot)} />
             <span
-                className="text-[10px] text-white/60 flex-1 min-w-0 truncate group-hover:text-white/80 transition-colors"
+                className="text-[10px] text-foreground flex-1 min-w-0 truncate group-hover:text-foreground transition-colors"
                 title={concept.name}
             >{concept.name}</span>
             <div className="flex items-center gap-1.5 flex-shrink-0">
-                <div className="w-10 h-1 bg-white/5 rounded-full overflow-hidden">
+                <div className="w-10 h-1 bg-accent rounded-full overflow-hidden">
                     <div className={cn("h-full rounded-full", masteryColor(concept.mastery))} style={{ width: `${concept.mastery}%` }} />
                 </div>
-                <span className="text-[9px] font-bold text-white/40 w-7 text-right">{concept.mastery}%</span>
+                <span className="text-[9px] font-bold text-muted-foreground w-7 text-right">{concept.mastery}%</span>
             </div>
             {onDelete && (
                 <button
                     onClick={() => onDelete(concept.name)}
                     disabled={deleting}
-                    className="opacity-0 group-hover:opacity-100 text-white/20 hover:text-red-400 transition-all flex-shrink-0 ml-0.5 disabled:cursor-not-allowed"
+                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all flex-shrink-0 ml-0.5 disabled:cursor-not-allowed"
                     title={`Remove "${concept.name}"`}
                 >
                     {deleting
@@ -528,8 +528,8 @@ function ConceptRow({
 
 function StudioSection({ icon: Icon, label, color, children }: any) {
     const colors: any = {
-        purple: "text-purple-400", cyan: "text-cyan-400", amber: "text-amber-400",
-        violet: "text-violet-400", slate: "text-white/30",
+        purple: "text-primary", cyan: "text-primary", amber: "text-warning",
+        violet: "text-primary", slate: "text-muted-foreground",
     }
     return (
         <div className="space-y-2">
@@ -537,7 +537,7 @@ function StudioSection({ icon: Icon, label, color, children }: any) {
                 <Icon className={cn("h-3 w-3", colors[color])} />
                 <span className={cn("text-[9px] font-bold uppercase tracking-[0.15em]", colors[color])}>{label}</span>
             </div>
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">{children}</div>
+            <div className="rounded border border-border bg-card p-3">{children}</div>
         </div>
     )
 }
@@ -545,30 +545,30 @@ function StudioSection({ icon: Icon, label, color, children }: any) {
 function ReadinessRow({ label, val }: { label: string; val: number }) {
     return (
         <div className="flex items-center gap-2">
-            <span className="text-[8px] text-white/30 w-14 uppercase tracking-wide flex-shrink-0">{label}</span>
-            <div className="flex-1 h-px bg-white/5 rounded-full overflow-hidden">
+            <span className="text-[8px] text-muted-foreground w-14 uppercase tracking-wide flex-shrink-0">{label}</span>
+            <div className="flex-1 h-px bg-accent rounded-full overflow-hidden">
                 <div className={cn("h-full", masteryColor(val))} style={{ width: `${val}%` }} />
             </div>
-            <span className="text-[8px] text-white/40 w-5 text-right">{val}</span>
+            <span className="text-[8px] text-muted-foreground w-5 text-right">{val}</span>
         </div>
     )
 }
 
 function MeterCard({ icon: Icon, label, value, unit, color, tooltip }: any) {
     const colors: any = {
-        green: { bg: "bg-emerald-500/5", border: "border-emerald-500/20", text: "text-emerald-400", bar: "bg-emerald-500" },
-        yellow: { bg: "bg-amber-500/5", border: "border-amber-500/20", text: "text-amber-400", bar: "bg-amber-500" },
-        red: { bg: "bg-red-500/5", border: "border-red-500/20", text: "text-red-400", bar: "bg-red-500" },
+        green: { bg: "bg-success/5", border: "border-success/20", text: "text-success", bar: "bg-success" },
+        yellow: { bg: "bg-warning/5", border: "border-warning/20", text: "text-warning", bar: "bg-warning" },
+        red: { bg: "bg-destructive/5", border: "border-destructive/20", text: "text-destructive", bar: "bg-destructive" },
     }
     const c = colors[color]
     return (
-        <div className={cn("rounded-xl border p-3 space-y-2", c.bg, c.border)} title={tooltip}>
+        <div className={cn("rounded border p-3 space-y-2", c.bg, c.border)} title={tooltip}>
             <div className="flex items-center gap-1.5">
                 <Icon className={cn("h-3 w-3", c.text)} />
                 <span className={cn("text-[8px] font-bold uppercase tracking-widest", c.text)}>{label}</span>
             </div>
-            <div className="text-lg font-bold text-white">{value}<span className="text-[10px] text-white/30 ml-0.5">{unit}</span></div>
-            <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+            <div className="text-lg font-bold text-foreground">{value}<span className="text-[10px] text-muted-foreground ml-0.5">{unit}</span></div>
+            <div className="h-1 bg-accent rounded-full overflow-hidden">
                 <div className={cn("h-full rounded-full", c.bar)} style={{ width: `${value}%` }} />
             </div>
         </div>
@@ -578,26 +578,26 @@ function MeterCard({ icon: Icon, label, value, unit, color, tooltip }: any) {
 function EdgeRow({ label, device, ms, active }: { label: string; device: string; ms: number; active: boolean }) {
     return (
         <div className="flex items-center gap-2">
-            <div className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", active ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" : "bg-white/10")} />
-            <span className="text-[9px] text-white/40 flex-1 truncate">{label}</span>
-            <span className="text-[8px] text-amber-400 font-bold">{device}</span>
-            <span className="text-[8px] text-white/20 w-8 text-right">{ms}ms</span>
+            <div className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", active ? "bg-success" : "bg-accent")} />
+            <span className="text-[9px] text-muted-foreground flex-1 truncate">{label}</span>
+            <span className="text-[8px] text-warning font-bold">{device}</span>
+            <span className="text-[8px] text-muted-foreground w-8 text-right">{ms}ms</span>
         </div>
     )
 }
 
 function ModeTab({ icon: Icon, label, active, onClick, activeColor }: { icon: any; label: string; active: boolean; onClick: () => void; activeColor: string }) {
     const colors: any = {
-        cyan: "border-cyan-400 text-cyan-400",
-        amber: "border-amber-400 text-amber-400",
-        purple: "border-purple-400 text-purple-400",
+        cyan: "border-primary text-primary",
+        amber: "border-warning text-warning",
+        purple: "border-primary text-primary",
     }
     return (
         <button
             onClick={onClick}
             className={cn(
                 "flex-1 flex items-center justify-center gap-1 py-2 border-b-2 text-[8px] font-bold uppercase tracking-widest transition-all",
-                active ? colors[activeColor] : "border-transparent text-white/25 hover:text-white/50"
+                active ? colors[activeColor] : "border-transparent text-muted-foreground hover:text-muted-foreground"
             )}
         >
             <Icon className="h-2.5 w-2.5" />

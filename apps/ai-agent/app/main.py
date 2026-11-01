@@ -1,4 +1,4 @@
-﻿"""
+"""
 Entropy AI Engine — FastAPI Application
 
 Mounts both legacy routes (qa, documents, quiz, flashcards, mindmap)
@@ -40,15 +40,14 @@ from app.services.knowledge_graph_service import (
 async def lifespan(fastapi_app: FastAPI):
     logger.info("=" * 70)
     logger.info("Entropy AI Engine starting on port %s", settings.PORT)
-    logger.info("    LLM   : %s", settings.LLM_MODEL)
+    logger.info("    LLM   : %s (Groq)", settings.GROQ_MODEL)
     logger.info("    Neo4j : %s", settings.NEO4J_URI)
     logger.info("=" * 70)
 
     # Connect to PostgreSQL via Prisma (non-fatal — AI routes don't need Postgres to start)
     try:
         from app.core.database import connect_db
-        await connect_db()
-        logger.info("✅ PostgreSQL connected via Prisma")
+        await connect_db()  # logs its own success/failure
     except BaseException as exc:
         # Catch BaseException (incl. SystemExit/KeyboardInterrupt) because Prisma's
         # Rust query engine calls sys.exit() when Postgres is unreachable on Windows,
@@ -78,13 +77,30 @@ async def lifespan(fastapi_app: FastAPI):
     except Exception as exc:
         logger.error("❌ Failed to initialize event bus: %s", exc)
 
+    # Message bus (replaces SQS/Lambda workers): durable outbox when Postgres is up
+    try:
+        from app.bus import get_bus, register_handlers
+        from app.bus.outbox import PrismaOutbox
+        bus = get_bus()
+        bus.set_outbox(PrismaOutbox())
+        register_handlers(bus)
+        await bus.start()
+    except Exception as exc:
+        logger.error("❌ Failed to start message bus: %s", exc)
+
     neo4j_ok = await neo4j_ping()
     if neo4j_ok:
         logger.info("✅ Neo4j connection OK")
+        try:
+            from app.services.knowledge_graph_service import ensure_schema
+            await ensure_schema()
+        except Exception as exc:
+            logger.warning("Neo4j schema setup skipped: %s", exc)
         
         # Auto-seed knowledge graph on first startup
         concept_count = await count_concepts()
-        if concept_count < 10:
+        # Only the role that owns the graph seeds it, so parallel containers cannot race on a fresh database
+        if concept_count < 10 and settings.SERVICE_ROLE in ("all", "knowledge"):
             logger.warning(
                 "Knowledge graph has only %d concepts - auto-seeding with universal concepts...",
                 concept_count
@@ -94,8 +110,8 @@ async def lifespan(fastapi_app: FastAPI):
                 result = await seed_knowledge_graph()
                 logger.info(
                     "✅ Knowledge graph seeded: %d concepts, %d relationships",
-                    result["concepts_added"],
-                    result["relationships_created"]
+                    result["concepts_created"],
+                    result["prerequisites_linked"]
                 )
             except Exception as exc:
                 logger.error("Failed to auto-seed knowledge graph: %s", exc)
@@ -113,6 +129,12 @@ async def lifespan(fastapi_app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down Entropy AI Engine...")
+
+    try:
+        from app.bus import get_bus
+        await get_bus().stop()
+    except Exception as exc:
+        logger.warning("Error stopping message bus: %s", exc)
     
     await close_driver()
     logger.info("Neo4j driver closed")
@@ -171,7 +193,11 @@ except Exception as exc:
 # ---------------------------------------------------------------------------
 # Route registry helper
 # ---------------------------------------------------------------------------
-api_router = APIRouter()
+from fastapi import Depends  # noqa: E402
+from app.core.security import require_internal  # noqa: E402
+
+# Every /api route requires the shared service token (see app/core/security.py)
+api_router = APIRouter(dependencies=[Depends(require_internal)])
 
 
 def _mount(tag: str, module_path: str, prefix: str):
@@ -186,29 +212,55 @@ def _mount(tag: str, module_path: str, prefix: str):
         logger.error("%s route FAILED to load:\n%s", tag, traceback.format_exc())
 
 
-# ---------------------------------------------------------------------------
-# Entropy Core Engines  (new)
-# ---------------------------------------------------------------------------
-_mount("reasoning",      "app.api.routes.reasoning",      "/reasoning")
-_mount("evaluation",     "app.api.routes.evaluation",     "/evaluation")
-_mount("mastery",        "app.api.routes.mastery",        "/mastery")
-_mount("graph",          "app.api.routes.graph",          "/graph")
-_mount("gamification",   "app.api.routes.gamification",   "/gamification")
+from app.roles import routes_for  # noqa: E402
 
-# ---------------------------------------------------------------------------
-# Legacy / existing routes  (keep working for frontend)
-# ---------------------------------------------------------------------------
-_mount("qa",         "app.api.routes.qa",          "/qa")
-_mount("documents",  "app.api.routes.documents",   "/documents")
-_mount("quiz",       "app.api.routes.quiz",        "/quiz")
-_mount("mindmap",    "app.api.routes.mindmap",     "/mindmap")
+for _tag, _module, _prefix in routes_for(settings.SERVICE_ROLE):
+    _mount(_tag, _module, _prefix)
+logger.info("Service role: %s", settings.SERVICE_ROLE)
 
 app.include_router(api_router, prefix="/api")
 
 
 # ---------------------------------------------------------------------------
+# Error mapping: provider problems should be clear 503/429s, not opaque 500s
+# ---------------------------------------------------------------------------
+from fastapi import Request  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
+from app.services.ai_service import AINotConfigured  # noqa: E402
+
+
+@app.exception_handler(AINotConfigured)
+async def _not_configured_handler(_request: Request, exc: AINotConfigured):
+    logger.error("AI provider not configured: %s", exc)
+    return JSONResponse(status_code=503, content={"detail": "AI provider is not configured."})
+
+
+try:
+    from groq import RateLimitError as _GroqRateLimit
+
+    @app.exception_handler(_GroqRateLimit)
+    async def _groq_rate_limit_handler(_request: Request, exc: _GroqRateLimit):
+        logger.warning("Groq rate limit hit: %s", exc)
+        return JSONResponse(
+            status_code=429,
+            headers={"Retry-After": "30"},
+            content={"detail": "The AI provider is rate limited. Please retry in a few seconds."},
+        )
+except ImportError:  # groq ships with langchain-groq; only skipped in minimal test envs
+    pass
+
+
+# ---------------------------------------------------------------------------
 # Health & root
 # ---------------------------------------------------------------------------
+def _bus_stats() -> dict:
+    try:
+        from app.bus import get_bus
+        return get_bus().stats()
+    except Exception:
+        return {}
+
+
 @app.get("/health", tags=["ops"])
 async def health():
     neo4j_ok = await neo4j_ping()
@@ -233,13 +285,15 @@ async def health():
         pass
     
     return {
+        "role": settings.SERVICE_ROLE,
         "status": "healthy" if (neo4j_ok and postgres_ok) else "degraded",
         "version": "3.0.0",
-        "llm_model": settings.LLM_MODEL,
-        "bedrock_region": settings.AWS_REGION,
+        "llm_model": settings.GROQ_MODEL,
+        "embedding_model": settings.EMBEDDING_MODEL,
         "neo4j_connected": neo4j_ok,
         "postgres_connected": postgres_ok,
         "event_bus_active": event_bus_ok,
+        "message_bus": _bus_stats(),
         "event_handlers": handler_count,
         "loaded_routes": sorted([
             r.path for r in app.routes

@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web (type-check + build)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Prisma schemas in sync
+        run: npm run db:sync:check
+      - name: Migrations apply and match the schema
+        working-directory: apps/app
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
+        run: |
+          npx prisma migrate deploy
+          npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+      - name: Type-check
+        run: npm run type-check --workspace=@entropy/app
+      - name: Build
+        run: npm run build
+        env:
+          # Placeholders only: the build does not connect to anything.
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
+          NEXTAUTH_URL: http://localhost:5000
+          NEXTAUTH_SECRET: ci-secret
+
+  ai-service:
+    name: AI service (tests + image)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/ai-agent/requirements.txt
+      - name: Install
+        working-directory: apps/ai-agent
+        run: |
+          pip install -r requirements.txt pytest
+          DATABASE_URL=postgresql://x:x@localhost/x DIRECT_URL=postgresql://x:x@localhost/x prisma generate
+      - name: Tests
+        working-directory: apps/ai-agent
+        run: python -m pytest tests -q
+      - name: Docker image builds
+        run: docker build -t entropy-ai-agent apps/ai-agent

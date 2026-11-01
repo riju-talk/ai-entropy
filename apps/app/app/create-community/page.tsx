@@ -1,105 +1,140 @@
 "use client"
 
 import { useState } from "react"
-import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { useAuthModal } from "@/hooks/use-auth-modal"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
+import { useSession } from "next-auth/react"
+
 import { Button } from "@/components/ui/button"
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { useAuthModal } from "@/hooks/use-auth-modal"
 import { useToast } from "@/hooks/use-toast"
+import { ApiError, apiFetch } from "@/lib/client-api"
+import { cn } from "@/lib/utils"
+
+const SUBJECTS = [
+  ["COMPUTER_SCIENCE", "Computer Science"],
+  ["MATHEMATICS", "Mathematics"],
+  ["PHYSICS", "Physics"],
+  ["CHEMISTRY", "Chemistry"],
+  ["BIOLOGY", "Biology"],
+  ["ENGINEERING", "Engineering"],
+  ["PSYCHOLOGY", "Psychology"],
+  ["HISTORY", "History"],
+  ["LITERATURE", "Literature"],
+  ["BUSINESS", "Business"],
+]
+
+const slugOf = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 30)
 
 export default function CreateCommunityPage() {
-	const { data: session, status } = useSession()
-	const isAuthenticated = status === "authenticated"
-	const { open: openAuthModal } = useAuthModal()
-	const router = useRouter()
-	const { toast } = useToast()
+  const { status } = useSession()
+  const { open: openAuth } = useAuthModal()
+  const router = useRouter()
+  const { toast } = useToast()
 
-	const [name, setName] = useState("")
-	const [description, setDescription] = useState("")
-	const [subject, setSubject] = useState("OTHER")
-	const [isPublic, setIsPublic] = useState(true)
-	const [loading, setLoading] = useState(false)
+  const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
+  const [subject, setSubject] = useState("COMPUTER_SCIENCE")
+  const [rules, setRules] = useState("")
+  const [isPublic, setIsPublic] = useState(true)
+  const [busy, setBusy] = useState(false)
 
-	const handleSubmit = async (e: React.FormEvent) => {
-		e.preventDefault()
-		if (!isAuthenticated) {
-			openAuthModal()
-			return
-		}
-		if (!name.trim()) {
-			toast({ title: "Name required", variant: "destructive" })
-			return
-		}
-		setLoading(true)
-		try {
-			const res = await fetch("/api/communities", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ name: name.trim(), description: description.trim(), subject, isPublic }),
-			})
-			const data = await res.json()
-			if (!res.ok) throw new Error(data?.error || "Failed to create community")
-			toast({ title: "Community created", description: data.community?.name })
-			// redirect to community page if available, otherwise home
-			if (data.community?.id) {
-				router.push(`/communities/${data.community.id}`)
-			} else {
-				router.push("/")
-			}
-		} catch (err: any) {
-			toast({ title: "Error", description: err.message || "Failed to create", variant: "destructive" })
-		} finally {
-			setLoading(false)
-		}
-	}
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (status !== "authenticated") return openAuth()
+    setBusy(true)
+    try {
+      const { community } = await apiFetch<{ community: { slug: string; id: string } }>("/api/communities", {
+        method: "POST",
+        json: { name, description, subject, isPublic, rules: rules.split("\n") },
+      })
+      toast({ title: "Community created" })
+      router.push(`/communities/${community.slug ?? community.id}`)
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) openAuth()
+      else toast({ title: "Could not create community", description: (err as Error).message, variant: "destructive" })
+    } finally {
+      setBusy(false)
+    }
+  }
 
-	return (
-		<div className="max-w-3xl mx-auto bg-card p-6 rounded">
-			<h1 className="text-2xl font-semibold mb-4">Create a Community</h1>
+  return (
+    <div className="mx-auto max-w-2xl">
+      <p className="eyebrow mb-2">New community</p>
+      <h1 className="font-display text-4xl">Start a community</h1>
+      <p className="mt-2 text-muted-foreground">Pick a name people will remember. You will be its first admin.</p>
 
-			<form onSubmit={handleSubmit} className="space-y-4">
-				<div>
-					<label className="text-sm font-medium block mb-1">Name</label>
-					<Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Community name" />
-				</div>
+      <form onSubmit={submit} className="mt-8 space-y-6">
+        <div>
+          <label htmlFor="name" className="mb-1 block text-sm font-medium">
+            Name
+          </label>
+          <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Linear Algebra Study Group" maxLength={40} required />
+          {name.trim() && <p className="mt-1 font-mono text-xs text-muted-foreground">c/{slugOf(name) || "..."}</p>}
+        </div>
 
-				<div>
-					<label className="text-sm font-medium block mb-1">Description</label>
-					<Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder="Short description" />
-				</div>
+        <div>
+          <label htmlFor="desc" className="mb-1 block text-sm font-medium">
+            What is it about?
+          </label>
+          <Textarea id="desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={500} />
+        </div>
 
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-					<div>
-						<label className="text-sm font-medium block mb-1">Subject</label>
-						<Select onValueChange={(v) => setSubject(v)} defaultValue={subject}>
-							<SelectTrigger>
-								<SelectValue placeholder="Subject" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="COMPUTER_SCIENCE">Computer Science</SelectItem>
-								<SelectItem value="MATHEMATICS">Mathematics</SelectItem>
-								<SelectItem value="PHYSICS">Physics</SelectItem>
-								<SelectItem value="OTHER">Other</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div>
+            <span className="mb-1 block text-sm font-medium">Subject</span>
+            <Select value={subject} onValueChange={setSubject}>
+              <SelectTrigger aria-label="Subject">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SUBJECTS.map(([v, l]) => (
+                  <SelectItem key={v} value={v}>
+                    {l}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <span className="mb-1 block text-sm font-medium">Who can read it?</span>
+            <div className="flex gap-4 pt-2 text-sm">
+              {[
+                [true, "Anyone"],
+                [false, "Members only"],
+              ].map(([v, l]) => (
+                <button
+                  key={String(v)}
+                  type="button"
+                  onClick={() => setIsPublic(v as boolean)}
+                  aria-pressed={isPublic === v}
+                  className={cn("border-b-2 pb-0.5", isPublic === v ? "border-primary font-medium" : "border-transparent text-muted-foreground hover:text-foreground")}
+                >
+                  {l as string}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
 
-					<div>
-						<label className="text-sm font-medium block mb-1">Visibility</label>
-						<div className="flex gap-2">
-							<Button variant={isPublic ? "secondary" : "ghost"} onClick={() => setIsPublic(true)}>Public</Button>
-							<Button variant={!isPublic ? "secondary" : "ghost"} onClick={() => setIsPublic(false)}>Private</Button>
-						</div>
-					</div>
-				</div>
+        <div>
+          <label htmlFor="rules" className="mb-1 block text-sm font-medium">
+            Rules <span className="font-normal text-muted-foreground">(one per line, up to 8)</span>
+          </label>
+          <Textarea id="rules" value={rules} onChange={(e) => setRules(e.target.value)} rows={4} placeholder={"Be respectful\nShow your working"} />
+        </div>
 
-				<div className="flex justify-end">
-					<Button type="submit" disabled={loading}>{loading ? "Creating..." : "Create Community"}</Button>
-				</div>
-			</form>
-		</div>
-	)
+        <Button type="submit" size="lg" disabled={busy || name.trim().length < 3}>
+          {busy ? "Creating..." : "Create community"}
+        </Button>
+      </form>
+    </div>
+  )
 }

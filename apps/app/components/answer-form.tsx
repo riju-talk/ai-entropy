@@ -106,10 +106,10 @@ export function AnswerForm({ doubtId, onAnswerAdded }: AnswerFormProps) {
           className="resize-none text-sm sm:text-base min-h-[120px] sm:min-h-[150px]"
           disabled={!isAuthenticated}
         />
-        <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 p-3 sm:p-4 rounded-xl bg-secondary/20 border border-white/5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 p-3 sm:p-4 rounded bg-secondary/20 border border-border">
           <div className="flex-1 space-y-1 w-full">
             <Label htmlFor="ai-assist" className="text-xs sm:text-sm font-bold flex items-center gap-2">
-              <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-cyan-400" />
+              <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
               AI Assistance
             </Label>
             <p className="text-[10px] sm:text-xs text-muted-foreground">
@@ -124,7 +124,7 @@ export function AnswerForm({ doubtId, onAnswerAdded }: AnswerFormProps) {
               disabled={!isAuthenticated || isSubmitting}
             />
             {!isAiAssisted && isAuthenticated && (
-              <Badge variant="outline" className="text-[9px] sm:text-[10px] font-bold bg-green-500/10 text-green-500 border-green-500/20 animate-pulse">
+              <Badge variant="outline" className="text-[9px] sm:text-[10px] font-bold bg-success/10 text-success border-success/20 animate-pulse">
                 1.5x XP BONUS
               </Badge>
             )}

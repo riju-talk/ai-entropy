@@ -107,9 +107,12 @@ async def resolve_concepts_to_graph(concept_matches: List[ConceptMatch]) -> List
             # Query graph for matching concept (case-insensitive, check synonyms)
             query = """
             MATCH (c:Concept)
-            WHERE toLower(c.name) = toLower($concept_name)
-               OR $concept_name IN c.synonyms
+            WITH c, toLower($concept_name) AS q, toLower(c.name) AS n
+            WHERE n = q
+               OR $concept_name IN coalesce(c.synonyms, [])
+               OR (size(q) >= 4 AND size(n) >= 4 AND (n CONTAINS q OR q CONTAINS n))
             RETURN c.id AS concept_id, c.name AS name
+            ORDER BY CASE WHEN n = q THEN 0 ELSE 1 END, size(c.name)
             LIMIT 1
             """
             

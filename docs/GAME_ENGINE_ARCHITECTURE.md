@@ -1,3 +1,5 @@
+> **Note:** parts of this document describe the earlier AWS design (Bedrock, SQS/Lambda, S3). The current stack is Groq + local embeddings, in-process message queues and Supabase Storage; see the [README](../README.md) and [DEPLOYMENT.md](../DEPLOYMENT.md).
+
 # Game Engine Architecture - NOVYRA Gamification System
 
 ## Overview

@@ -59,7 +59,7 @@ export default function AskDoubtForm({ user }: AskDoubtFormProps) {
   }
 
   return (
-    <Card className="border-white/5 bg-card/60 backdrop-blur-sm">
+    <Card className="bg-card">
       <CardHeader className="px-4 sm:px-6 py-4 sm:py-6">
         <CardTitle className="text-xl sm:text-2xl">Share Your Doubt</CardTitle>
       </CardHeader>
@@ -176,7 +176,7 @@ export default function AskDoubtForm({ user }: AskDoubtFormProps) {
 
           {/* Anonymous option */}
           <div className="flex items-center space-x-2">
-            <Checkbox id="anonymous" checked={isAnonymous} onCheckedChange={setIsAnonymous} disabled={isPending} />
+            <Checkbox id="anonymous" checked={isAnonymous} onCheckedChange={(v) => setIsAnonymous(v === true)} disabled={isPending} />
             <Label htmlFor="anonymous" className="text-sm sm:text-base">Post anonymously</Label>
           </div>
 

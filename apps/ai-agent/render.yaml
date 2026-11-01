@@ -1,27 +1,82 @@
-# Render.com deployment configuration for AI Agent backend
+# Render blueprint: the AI backend as three independently deployable services from ONE image.
+# Roles are chosen with SERVICE_ROLE (see apps/ai-agent/app/roles.py). Secrets (sync: false) are entered
+# in the Render dashboard, never committed. Point the web app at each service with
+# AI_TUTOR_URL, AI_KNOWLEDGE_URL and AI_STUDIO_URL (or BACKEND_URL if you run a single combined service).
+envVarGroups:
+  - name: entropy-ai-shared
+    envVars:
+      - key: DEBUG
+        value: "false"
+      - key: ALLOWED_ORIGINS
+        sync: false            # e.g. https://your-app.vercel.app
+      - key: AI_BACKEND_TOKEN
+        sync: false            # shared secret; same value as the web app's AI_BACKEND_TOKEN
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-20b
+      - key: GROQ_FAST_MODEL
+        value: openai/gpt-oss-20b
+      - key: DATABASE_URL
+        sync: false            # Supabase pooled connection string
+      - key: DIRECT_URL
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false            # optional: without it, document search uses Postgres
+      - key: PINECONE_INDEX_NAME
+        value: entropy-ai
+      - key: NEO4J_URI
+        sync: false            # neo4j+s://<id>.databases.neo4j.io
+      - key: NEO4J_USER
+        value: neo4j
+      - key: NEO4J_PASSWORD
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+
 services:
   - type: web
-    name: entropy-ai-agent
-    env: python
-    runtime: python
+    name: entropy-ai-tutor
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    rootDir: apps/ai-agent
     region: oregon
     plan: free
-    buildCommand: pip install -r requirements.txt && python setup.py
-    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
-      - key: AI_BACKEND_TOKEN
-        sync: false
-      - key: DEBUG
-        value: false
-      - key: ALLOWED_ORIGINS
-        # include the Netlify frontend origin so Cross-Origin requests from the site are allowed
-        value: "https://your-app.netlify.app,https://entropy-communtiy.netlify.app"
-      - key: LLM_MODEL
-        value: llama3-8b-8192
-      - key: LLM_TEMPERATURE
-        value: 0.7
-      - key: LLM_MAX_TOKENS
-        value: 2000
-      - key: EMBEDDING_MODEL
-        value: gpt4all
+      - fromGroup: entropy-ai-shared
+      - key: SERVICE_ROLE
+        value: tutor
+
+  - type: web
+    name: entropy-ai-knowledge
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    rootDir: apps/ai-agent
+    region: oregon
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: entropy-ai-shared
+      - key: SERVICE_ROLE
+        value: knowledge
+
+  - type: web
+    name: entropy-ai-studio
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    rootDir: apps/ai-agent
+    region: oregon
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: entropy-ai-shared
+      - key: SERVICE_ROLE
+        value: studio

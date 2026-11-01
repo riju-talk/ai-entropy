@@ -30,10 +30,13 @@ interface DoubtDetailProps {
     subject: string
     tags: string[]
     isAnonymous: boolean
-    createdAt: string
+    createdAt: string | Date
+    upvotes: number
+    downvotes: number
     author: {
       name: string | null
       image: string | null
+      email?: string | null
     }
     _count: {
       answers: number
@@ -143,39 +146,39 @@ export function DoubtDetail({ doubt, answers = [] }: DoubtDetailProps) {
 
   const getSubjectColor = (subject: string) => {
     const colors: Record<string, string> = {
-      COMPUTER_SCIENCE: "bg-blue-500/10 text-blue-500 border-blue-500/20",
-      MATHEMATICS: "bg-purple-500/10 text-purple-500 border-purple-500/20",
-      PHYSICS: "bg-green-500/10 text-green-500 border-green-500/20",
-      CHEMISTRY: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
-      OTHER: "bg-gray-500/10 text-gray-500 border-gray-500/20",
+      COMPUTER_SCIENCE: "bg-primary/10 text-primary border-primary/20",
+      MATHEMATICS: "bg-primary/10 text-primary border-primary/20",
+      PHYSICS: "bg-success/10 text-success border-success/20",
+      CHEMISTRY: "bg-warning/10 text-warning border-warning/20",
+      OTHER: "bg-muted text-muted-foreground",
     }
     return colors[subject] || colors.OTHER
   }
 
   return (
     <>
-      <div className="bg-card rounded-lg border">
+      <div className="bg-card rounded border">
         <div className="flex flex-col sm:flex-row gap-6 p-4 sm:p-8">
           {/* Vote Column */}
           <div className="flex flex-row sm:flex-col items-center gap-2">
             <Button
               variant={userVote === "UP" ? "default" : "ghost"}
               size="sm"
-              className={`h-10 w-10 p-0 ${userVote === "UP" ? "bg-orange-500 hover:bg-orange-600" : ""}`}
+              className={`h-10 w-10 p-0 ${userVote === "UP" ? "bg-warning hover:bg-warning" : ""}`}
               onClick={() => handleVote("UP")}
               disabled={loadingVote}
             >
               <ArrowUp className={`h-5 w-5 ${userVote === "UP" ? "fill-current" : ""}`} />
             </Button>
             <span className={`text-2xl font-bold ${
-              netVotes > 0 ? "text-orange-500" : netVotes < 0 ? "text-blue-500" : ""
+              netVotes > 0 ? "text-warning" : netVotes < 0 ? "text-primary" : ""
             }`}>
               {netVotes}
             </span>
             <Button
               variant={userVote === "DOWN" ? "default" : "ghost"}
               size="sm"
-              className={`h-10 w-10 p-0 ${userVote === "DOWN" ? "bg-blue-500 hover:bg-blue-600" : ""}`}
+              className={`h-10 w-10 p-0 ${userVote === "DOWN" ? "bg-primary hover:bg-primary" : ""}`}
               onClick={() => handleVote("DOWN")}
               disabled={loadingVote}
             >

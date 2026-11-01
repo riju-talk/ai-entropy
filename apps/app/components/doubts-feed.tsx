@@ -1,186 +1,126 @@
 "use client"
 
-import React, { useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { DoubtCard } from "@/components/doubt-card"
-import { Button } from "@/components/ui/button"
+import { useCallback, useEffect, useRef, useState } from "react"
+import Link from "next/link"
 import { Loader2 } from "lucide-react"
 
-interface Doubt {
-  id: string
-  title: string
-  content: string
-  subject: string
-  tags: string[]
-  isAnonymous: boolean
-  createdAt: Date
-  author?: {
-    id: string
-    name: string | null
-    email: string
-    image: string | null
-  }
-  _count?: {
-    answers: number
-  }
-}
+import { DoubtCard, type DoubtSummary } from "@/components/doubt-card"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
-interface DoubtsFeedProps {
-  initialDoubts: Doubt[]
-  currentPage: number
-  totalPages: number
+type Sort = "newest" | "active" | "top" | "unanswered"
+
+const SORTS: { value: Sort; label: string }[] = [
+  { value: "newest", label: "Newest" },
+  { value: "active", label: "Most answered" },
+  { value: "top", label: "Top voted" },
+  { value: "unanswered", label: "Unanswered" },
+]
+
+interface Page {
+  doubts: DoubtSummary[]
+  total: number
+  page: number
   hasMore: boolean
 }
 
-export function DoubtsFeed({ initialDoubts, currentPage, totalPages, hasMore }: DoubtsFeedProps) {
-  const [doubts, setDoubts] = useState(initialDoubts)
-  const [page, setPage] = useState(currentPage)
+/** Question list with sorting and "load more". The first page is rendered on the server. */
+export function DoubtsFeed({ initial }: { initial: Page }) {
+  const [sort, setSort] = useState<Sort>("newest")
+  const [items, setItems] = useState(initial.doubts)
+  const [total, setTotal] = useState(initial.total)
+  const [page, setPage] = useState(initial.page)
+  const [hasMore, setHasMore] = useState(initial.hasMore)
   const [loading, setLoading] = useState(false)
-  const [filter, setFilter] = useState<"all" | "trending" | "unanswered">("all")
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const DOUBTS_PER_PAGE = 7
-  const [localHasMore, setLocalHasMore] = useState(hasMore)
-  const sentinelRef = React.useRef<HTMLDivElement | null>(null)
+  const [error, setError] = useState(false)
+  const first = useRef(true)
 
-  const loadMore = async () => {
-    if (!localHasMore || loading) return
-
+  const fetchPage = useCallback(async (nextPage: number, nextSort: Sort) => {
     setLoading(true)
+    setError(false)
     try {
-      const params = new URLSearchParams(searchParams.toString())
-      params.set("page", (page + 1).toString())
-
-      const response = await fetch(`/api/doubt?${params.toString()}`)
-      const data = await response.json()
-
-      setDoubts([...doubts, ...data.doubts])
-      setPage(page + 1)
-      // update local hasMore if backend returns it
-      if (typeof data.hasMore === "boolean") setLocalHasMore(data.hasMore)
-    } catch (error) {
-      console.error("Error loading more doubts:", error)
+      const res = await fetch(`/api/doubts?page=${nextPage}&limit=10&sort=${nextSort}`, { cache: "no-store" })
+      if (!res.ok) throw new Error(String(res.status))
+      const data: Page = await res.json()
+      setItems((prev) => (nextPage === 1 ? data.doubts : [...prev, ...data.doubts]))
+      setTotal(data.total)
+      setPage(data.page)
+      setHasMore(data.hasMore)
+    } catch {
+      setError(true)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  // Check if we need to show load more button
-  const shouldShowLoadMore = () => {
-    const displayedCount = doubts.length
-    return hasMore && displayedCount % DOUBTS_PER_PAGE === 0 && filter === "all"
-  }
-
-  const getFilteredDoubts = () => {
-    switch (filter) {
-      case "trending":
-        return [...doubts].sort((a, b) => (b._count?.answers || 0) - (a._count?.answers || 0))
-      case "unanswered":
-        return doubts.filter((d) => (d._count?.answers || 0) === 0)
-      default:
-        return doubts
+  useEffect(() => {
+    if (first.current) {
+      first.current = false
+      return
     }
-  }
-
-  const filteredDoubts = getFilteredDoubts()
-
-  // IntersectionObserver for infinite scroll
-  React.useEffect(() => {
-    const el = sentinelRef.current
-    if (!el) return
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && !loading && localHasMore) {
-            loadMore()
-          }
-        })
-      },
-      { root: null, rootMargin: "300px", threshold: 0.1 }
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [loading, localHasMore])
-
-  if (doubts.length === 0) {
-    return (
-      <div className="text-center py-16 border rounded-lg bg-card">
-        <div className="text-5xl mb-4">💭</div>
-        <h3 className="text-lg font-semibold mb-2">No questions yet</h3>
-        <p className="text-sm text-muted-foreground">Be the first to ask a question!</p>
-      </div>
-    )
-  }
+    void fetchPage(1, sort)
+  }, [sort, fetchPage])
 
   return (
-    <div className="space-y-0">
-      {/* Filter Tabs */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">
-          {filter === "all" && `${doubts.length.toLocaleString()} questions`}
-          {filter === "trending" && "Trending questions"}
-          {filter === "unanswered" && `${doubts.filter((d) => (d._count?.answers || 0) === 0).length} unanswered questions`}
-        </h2>
-
-        <div className="flex gap-1 border rounded-lg p-1">
-          <Button
-            variant={filter === "all" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setFilter("all")}
-            className="text-xs"
-          >
-            Newest
-          </Button>
-          <Button
-            variant={filter === "trending" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setFilter("trending")}
-            className="text-xs"
-          >
-            Active
-          </Button>
-          <Button
-            variant={filter === "unanswered" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setFilter("unanswered")}
-            className="text-xs"
-          >
-            Unanswered
-          </Button>
+    <section aria-label="Questions">
+      <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-foreground/80 pb-2">
+        <p className="eyebrow">
+          {total.toLocaleString()} {total === 1 ? "question" : "questions"}
+        </p>
+        <div role="tablist" aria-label="Sort questions" className="flex gap-4">
+          {SORTS.map((s) => (
+            <button
+              key={s.value}
+              role="tab"
+              aria-selected={sort === s.value}
+              onClick={() => setSort(s.value)}
+              className={cn(
+                "border-b-2 pb-0.5 text-sm transition-colors",
+                sort === s.value ? "border-primary font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {s.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Questions List */}
-      <div className="space-y-4">
-        {filteredDoubts.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground border rounded-xl bg-card/40 backdrop-blur-sm">
-            No questions found
-          </div>
-        ) : (
-          filteredDoubts.map((doubt) => (
-            <DoubtCard key={doubt.id} doubt={doubt} />
-          ))
-        )}
-      </div>
+      {items.length === 0 && !loading ? (
+        <div className="border-b py-16 text-center">
+          <h3 className="font-display text-xl">{sort === "unanswered" ? "Everything has an answer" : "No questions yet"}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {sort === "unanswered" ? "Nothing is waiting for a reply right now." : "Ask the first one and start the conversation."}
+          </p>
+          {sort !== "unanswered" && (
+            <Button asChild className="mt-4">
+              <Link href="/ask">Ask a question</Link>
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className={cn("relative divide-y", loading && page === 1 && "opacity-60")}>
+          {items.map((d) => (
+            <DoubtCard key={d.id} doubt={d} />
+          ))}
+        </div>
+      )}
 
-      {/* sentinel for intersection observer */}
-      <div ref={sentinelRef} className="h-2" aria-hidden />
+      {error && (
+        <p role="alert" className="mt-4 text-sm text-destructive">
+          Could not load questions.{" "}
+          <button className="underline" onClick={() => fetchPage(sort === "newest" && page === 1 ? 1 : page + 1, sort)}>
+            Retry
+          </button>
+        </p>
+      )}
 
-      {/* Load More */}
-      {shouldShowLoadMore() && (
-        <div className="flex justify-center pt-6">
-          <Button onClick={loadMore} disabled={loading} variant="outline">
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              "Load more questions"
-            )}
+      {hasMore && (
+        <div className="mt-6 flex justify-center">
+          <Button variant="outline" disabled={loading} onClick={() => fetchPage(page + 1, sort)}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Load more
           </Button>
         </div>
       )}
-    </div>
+    </section>
   )
 }

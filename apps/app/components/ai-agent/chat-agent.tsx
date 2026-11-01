@@ -1,5 +1,6 @@
 ﻿"use client"
 
+import { QAStreamError, streamQA } from "@/lib/stream-qa"
 import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -97,7 +98,7 @@ function TypingDots() {
       {[0, 1, 2].map((i) => (
         <div
           key={i}
-          className="w-1 h-1 rounded-full bg-cyan-400 animate-[bounce_1s_ease-in-out_infinite]"
+          className="w-1 h-1 rounded-full bg-primary animate-[bounce_1s_ease-in-out_infinite]"
           style={{ animationDelay: `${i * 0.15}s` }}
         />
       ))}
@@ -107,7 +108,7 @@ function TypingDots() {
 
 function MasteryPill({ delta }: { delta: number }) {
   return (
-    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[8px] font-bold text-emerald-400 mt-1">
+    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success/10 border border-success/20 text-[8px] font-bold text-success mt-1">
       <Atom className="h-2.5 w-2.5" />
       Mastery +{delta}%
     </div>
@@ -117,8 +118,8 @@ function MasteryPill({ delta }: { delta: number }) {
 function LanguageBadge({ lang }: { lang: Language }) {
   if (lang === "auto" || lang === "english") return null
   const map = {
-    hindi: { label: "🌍 Hindi Mode Active", cls: "bg-orange-500/10 border-orange-500/20 text-orange-400" },
-    bilingual: { label: "🌍 Bilingual Technical Mode", cls: "bg-blue-500/10 border-blue-500/20 text-blue-400" },
+    hindi: { label: "🌍 Hindi Mode Active", cls: "bg-warning/10 border-warning/20 text-warning" },
+    bilingual: { label: "🌍 Bilingual Technical Mode", cls: "bg-primary/10 border-primary/20 text-primary" },
   } as any
   const info = map[lang]
   if (!info) return null
@@ -134,8 +135,8 @@ function StepBadge({ index, validated }: { index: number; validated?: boolean })
     <div className={cn(
       "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[8px] font-bold mb-1",
       validated
-        ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-        : "bg-white/[0.03] border-white/[0.08] text-white/30"
+        ? "bg-success/10 border-success/20 text-success"
+        : "bg-card border-border text-muted-foreground"
     )}>
       {validated ? <CheckCircle2 className="h-2.5 w-2.5" /> : <ScanLine className="h-2.5 w-2.5" />}
       Step {index + 1} {validated ? "· Validated" : "· Pending validation"}
@@ -151,15 +152,15 @@ function MessageBubble({ msg, showTrace, selectedLanguage }: { msg: Message; sho
     return (
       <div className="flex justify-end gap-2.5 items-start group">
         <div className="max-w-[72%] space-y-1">
-          <div className="rounded-2xl rounded-tr-sm bg-gradient-to-br from-cyan-500/15 to-blue-500/10 border border-cyan-500/15 px-4 py-2.5">
-            <p className="text-[13px] text-white/80 leading-relaxed">{msg.content}</p>
+          <div className="rounded rounded-tr-sm border border-primary/15 px-4 py-2.5">
+            <p className="text-[13px] text-foreground leading-relaxed">{msg.content}</p>
           </div>
-          <p className="text-[8px] text-white/20 text-right font-mono">
+          <p className="text-[8px] text-muted-foreground text-right font-mono">
             {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </p>
         </div>
-        <div className="w-7 h-7 rounded-full bg-cyan-500/20 border border-cyan-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-          <User className="h-3.5 w-3.5 text-cyan-400" />
+        <div className="w-7 h-7 rounded-full bg-primary/20 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <User className="h-3.5 w-3.5 text-primary" />
         </div>
       </div>
     )
@@ -167,18 +168,18 @@ function MessageBubble({ msg, showTrace, selectedLanguage }: { msg: Message; sho
 
   return (
     <div className="flex gap-2.5 items-start group">
-      <div className="w-7 h-7 rounded-full bg-purple-500/20 border border-purple-500/15 flex items-center justify-center flex-shrink-0 mt-0.5">
-        <BrainCircuit className="h-3.5 w-3.5 text-purple-400" />
+      <div className="w-7 h-7 rounded-full bg-primary/20 border border-primary/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <BrainCircuit className="h-3.5 w-3.5 text-primary" />
       </div>
       <div className="max-w-[80%] space-y-1 flex-1 min-w-0">
         {msg.stepIndex !== undefined && (
           <StepBadge index={msg.stepIndex} validated={msg.stepValidated} />
         )}
         <div className={cn(
-          "rounded-2xl rounded-tl-sm border px-4 py-3",
-          "bg-gradient-to-br from-white/[0.03] to-white/[0.01] border-white/[0.07]",
+          "rounded rounded-tl-sm border px-4 py-3",
+          "border-border",
           "transition-all duration-300",
-          msg.isStreaming && "border-cyan-500/20"
+          msg.isStreaming && "border-primary/20"
         )}>
           {msg.isStreaming ? (
             <TypingDots />
@@ -202,7 +203,7 @@ function MessageBubble({ msg, showTrace, selectedLanguage }: { msg: Message; sho
         </div>
 
         <div className="flex items-center flex-wrap gap-2 pt-0.5">
-          <p className="text-[8px] text-white/20 font-mono">
+          <p className="text-[8px] text-muted-foreground font-mono">
             {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </p>
           {selectedLanguage === "hindi" && <LanguageBadge lang="hindi" />}
@@ -225,11 +226,11 @@ function StructuredModeGuide({ step }: { step: number }) {
     "Verify your answer against edge cases.",
   ]
   return (
-    <div className="flex items-start gap-2 px-4 py-2.5 bg-purple-500/5 border-b border-purple-500/10">
-      <Layers className="h-3.5 w-3.5 text-purple-400 flex-shrink-0 mt-0.5" />
+    <div className="flex items-start gap-2 px-4 py-2.5 bg-primary/5 border-b border-primary/10">
+      <Layers className="h-3.5 w-3.5 text-primary flex-shrink-0 mt-0.5" />
       <div>
-        <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-purple-400 mb-0.5">Structured Mode — Step {step + 1}/4</p>
-        <p className="text-[11px] text-white/40">{steps[Math.min(step, steps.length - 1)]}</p>
+        <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-primary mb-0.5">Structured Mode — Step {step + 1}/4</p>
+        <p className="text-[11px] text-muted-foreground">{steps[Math.min(step, steps.length - 1)]}</p>
       </div>
     </div>
   )
@@ -245,16 +246,16 @@ function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-6 px-8 py-12">
       <div className="relative">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-purple-500/10 border border-cyan-500/15 flex items-center justify-center">
-          <BrainCircuit className="h-8 w-8 text-cyan-400" />
+        <div className="w-16 h-16 rounded border border-primary/15 flex items-center justify-center">
+          <BrainCircuit className="h-8 w-8 text-primary" />
         </div>
-        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-400/20 border border-emerald-400/40 flex items-center justify-center">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-success/20 border border-success/40 flex items-center justify-center">
+          <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
         </div>
       </div>
       <div className="text-center space-y-1.5 max-w-md">
-        <h2 className="text-base font-bold text-white/60 tracking-tight">ENTROPY Cognitive Engine</h2>
-        <p className="text-[11px] text-white/25 leading-relaxed">
+        <h2 className="text-base font-bold text-foreground tracking-tight">ENTROPY Cognitive Engine</h2>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
           7-Layer structured reasoning · Edge-accelerated inference · Multilingual explainability
         </p>
       </div>
@@ -262,9 +263,9 @@ function EmptyState() {
         {prompts.map((p) => (
           <button
             key={p}
-            className="text-left px-3 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04] hover:border-white/10 transition-all group"
+            className="text-left px-3 py-2.5 rounded bg-card border border-border hover:bg-accent hover:border-border transition-all group"
           >
-            <p className="text-[10px] text-white/30 group-hover:text-white/50 transition-colors leading-relaxed">{p}</p>
+            <p className="text-[10px] text-muted-foreground group-hover:text-muted-foreground transition-colors leading-relaxed">{p}</p>
           </button>
         ))}
       </div>
@@ -282,7 +283,7 @@ function LanguageToggle({ value, onChange }: { value: Language; onChange: (v: La
     { id: "bilingual", label: "Bilingual" },
   ]
   return (
-    <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+    <div className="flex items-center gap-0.5 p-0.5 rounded bg-card border border-border">
       {opts.map((o) => (
         <button
           key={o.id}
@@ -290,8 +291,8 @@ function LanguageToggle({ value, onChange }: { value: Language; onChange: (v: La
           className={cn(
             "px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-widest transition-all",
             value === o.id
-              ? "bg-orange-500/20 border border-orange-500/30 text-orange-400"
-              : "text-white/20 hover:text-white/40"
+              ? "bg-warning/20 border border-warning/30 text-warning"
+              : "text-muted-foreground hover:text-muted-foreground"
           )}
         >
           {o.label}
@@ -477,21 +478,20 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
     ].filter(Boolean).join(" ")
 
     try {
-      const response = await fetch("/api/ai-agent/qa", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // Stream the answer: tokens appear as they are generated; the final event carries the full result
+      const data = await streamQA(
+        {
           question: text,
           systemPrompt: systemHints || undefined,
           mode,
           language: toLangCode(effectiveLang),
-          userId: userId || undefined,
           conversationId: conversationId || undefined,
-        }),
-      })
-
-      if (!response.ok) throw new Error("API error")
-      const data = await response.json()
+        },
+        {
+          token: (t) =>
+            setMessages((prev) => prev.map((m) => (m.id === placeholderId ? { ...m, content: m.content + t } : m))),
+        }
+      )
 
       // Track conversation ID returned by the server
       if (data.conversationId && !conversationId) {
@@ -567,13 +567,13 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
           m.id === placeholderId
             ? {
                 ...m,
-                content: "Cognitive engine encountered an error. Check your API connection.",
+                content: err instanceof QAStreamError ? err.message : "The AI tutor ran into a problem. Please try again.",
                 isStreaming: false,
               }
             : m
         )
       )
-      toast({ title: "Engine Error", description: "Failed to reach ENTROPY backend", variant: "destructive" })
+      toast({ title: "AI tutor unavailable", description: err instanceof QAStreamError ? err.message : "Could not reach the AI service.", variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -599,48 +599,48 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0a0f] relative">
+    <div className="flex flex-col h-full bg-background relative">
 
       {/* ── Study Plan Modal ── */}
       {showStudyPlan && studyPlan && (
-        <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4">
-          <div className="w-full max-w-lg bg-[#0f0f1a] border border-purple-500/20 rounded-2xl p-5 mt-4">
+        <div className="absolute inset-0 z-50 bg-background flex items-start justify-center overflow-y-auto p-4">
+          <div className="w-full max-w-lg bg-background border border-primary/20 rounded p-5 mt-4">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-sm font-bold text-white/80">{studyPlan.title || "Your Study Plan"}</h3>
-                <p className="text-[10px] text-purple-400/60 mt-0.5">{studyPlan.final_outcome || studyPlan.goal}</p>
+                <h3 className="text-sm font-bold text-foreground">{studyPlan.title || "Your Study Plan"}</h3>
+                <p className="text-[10px] text-primary/60 mt-0.5">{studyPlan.final_outcome || studyPlan.goal}</p>
               </div>
-              <button onClick={() => setShowStudyPlan(false)} className="text-white/20 hover:text-white/50 text-xs">✕</button>
+              <button onClick={() => setShowStudyPlan(false)} className="text-muted-foreground hover:text-muted-foreground text-xs">✕</button>
             </div>
             <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
               {(studyPlan.daily_plan || []).map((day: any) => (
-                <div key={day.day} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                <div key={day.day} className="rounded border border-border bg-card p-3">
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-[9px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full">Day {day.day}</span>
-                    <span className="text-[11px] font-semibold text-white/70">{day.concept_focus}</span>
+                    <span className="text-[9px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Day {day.day}</span>
+                    <span className="text-[11px] font-semibold text-foreground">{day.concept_focus}</span>
                   </div>
                   <ul className="space-y-0.5">
                     {(day.tasks || []).map((task: string, ti: number) => (
                       <li key={ti} className="flex gap-1.5 items-start">
-                        <span className="text-emerald-400 text-[10px] mt-0.5">›</span>
-                        <span className="text-[10px] text-white/40 leading-relaxed">{task}</span>
+                        <span className="text-success text-[10px] mt-0.5">›</span>
+                        <span className="text-[10px] text-muted-foreground leading-relaxed">{task}</span>
                       </li>
                     ))}
                   </ul>
                   {day.milestone && (
-                    <p className="text-[9px] text-amber-400/60 mt-1.5 flex items-center gap-1">
+                    <p className="text-[9px] text-warning/60 mt-1.5 flex items-center gap-1">
                       <Trophy className="h-2.5 w-2.5" />{day.milestone}
                     </p>
                   )}
-                  <p className="text-[8px] text-white/20 mt-1 font-mono">{day.estimated_minutes} min</p>
+                  <p className="text-[8px] text-muted-foreground mt-1 font-mono">{day.estimated_minutes} min</p>
                 </div>
               ))}
             </div>
             {studyPlan.success_metrics && (
-              <div className="mt-3 pt-3 border-t border-white/[0.06]">
-                <p className="text-[9px] text-white/30 uppercase tracking-widest mb-1">Success Metrics</p>
+              <div className="mt-3 pt-3 border-t border-border">
+                <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">Success Metrics</p>
                 {studyPlan.success_metrics.map((m: string, i: number) => (
-                  <p key={i} className="text-[10px] text-emerald-400/60">✓ {m}</p>
+                  <p key={i} className="text-[10px] text-success/60">✓ {m}</p>
                 ))}
               </div>
             )}
@@ -668,12 +668,12 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
 
       {/* ── Spaced Repetition Review Banner ── */}
       {reviewQueue.length > 0 && messages.length === 0 && (
-        <div className="flex-shrink-0 border-b border-amber-500/10 bg-amber-500/[0.03] px-4 py-2">
+        <div className="flex-shrink-0 border-b border-warning/10 bg-warning/[0.03] px-4 py-2">
           <div className="flex items-center gap-2 mb-1.5">
-            <Bell className="h-3 w-3 text-amber-400/70" />
-            <span className="text-[9px] font-bold text-amber-400/70 uppercase tracking-widest">
+            <Bell className="h-3 w-3 text-warning/70" />
+            <span className="text-[9px] font-bold text-warning/70 uppercase tracking-widest">
               {reviewQueue.filter(r => r.urgency === "critical").length > 0 ? "⚠ Critical Review Due" : "Review Due"}
-              <span className="ml-1.5 text-amber-400/40">({reviewQueue.length} concept{reviewQueue.length > 1 ? "s" : ""})</span>
+              <span className="ml-1.5 text-warning/40">({reviewQueue.length} concept{reviewQueue.length > 1 ? "s" : ""})</span>
             </span>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -682,10 +682,10 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
                 key={item.concept}
                 onClick={() => triggerReview(item)}
                 className={cn(
-                  "px-2.5 py-1 rounded-lg border text-[9px] font-bold transition-all hover:scale-[1.02]",
+                  "px-2.5 py-1 rounded border text-[9px] font-bold transition-all hover:scale-[1.02]",
                   item.urgency === "critical"
-                    ? "bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/15"
-                    : "bg-amber-500/10 border-amber-500/20 text-amber-400 hover:bg-amber-500/15"
+                    ? "bg-destructive/10 border-destructive/20 text-destructive hover:bg-destructive/15"
+                    : "bg-warning/10 border-warning/20 text-warning hover:bg-warning/15"
                 )}
               >
                 {item.concept} · {item.mastery}%
@@ -697,12 +697,12 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
 
       {/* ── Context doc banner ── */}
       {contextDoc && (
-        <div className="flex-shrink-0 flex items-center gap-2 px-5 py-1.5 bg-cyan-500/5 border-b border-cyan-500/10">
-          <ScanLine className="h-3 w-3 text-cyan-400" />
-          <span className="text-[9px] text-cyan-400 uppercase tracking-widest font-bold">
+        <div className="flex-shrink-0 flex items-center gap-2 px-5 py-1.5 bg-primary/5 border-b border-primary/10">
+          <ScanLine className="h-3 w-3 text-primary" />
+          <span className="text-[9px] text-primary uppercase tracking-widest font-bold">
             Source: {contextDoc.name || "Uploaded Document"}
           </span>
-          <span className="text-[8px] text-cyan-400/40 font-mono">· Grounded inference active</span>
+          <span className="text-[8px] text-primary/40 font-mono">· Grounded inference active</span>
         </div>
       )}
 
@@ -713,7 +713,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
 
       {/* ── Chat Concept Graph (collapsible) ── */}
       {showGraph && (
-        <div className="flex-shrink-0 border-b border-white/[0.06] bg-[#0c0c14]">
+        <div className="flex-shrink-0 border-b border-border bg-background">
           <ChatConceptGraph messages={messages} className="mx-4 my-3" />
         </div>
       )}
@@ -735,17 +735,17 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
       </div>
 
       {/* ── Bottom cognitive controls bar ── */}
-      <div className="flex-shrink-0 border-t border-white/[0.06] bg-[#0c0c14]">
+      <div className="flex-shrink-0 border-t border-border bg-background">
 
         {/* Control strip */}
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-white/[0.04] overflow-x-auto">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-border overflow-x-auto">
 
           {/* New Chat button — under progress */}
           {userId && (
             <button
               onClick={() => toast({ title: "New Chat", description: "New session management is still under progress — coming soon." })}
               title="New Chat"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/[0.06] bg-white/[0.02] text-[9px] font-bold uppercase tracking-widest text-white/25 hover:text-white/50 hover:border-white/10 transition-all flex-shrink-0"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-border bg-card text-[9px] font-bold uppercase tracking-widest text-muted-foreground hover:text-muted-foreground hover:border-border transition-all flex-shrink-0"
             >
               <PlusCircle className="h-3 w-3" />
               <span className="hidden sm:inline">New</span>
@@ -755,22 +755,22 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
           {/* Mode selector */}
           <ModeSelector mode={mode} onChange={setMode} disabled={loading} />
 
-          <div className="w-px h-4 bg-white/[0.08] flex-shrink-0" />
+          <div className="w-px h-4 bg-accent flex-shrink-0" />
 
           {/* Language toggle */}
           <LanguageToggle value={language} onChange={setLanguage} />
 
-          <div className="w-px h-4 bg-white/[0.08] flex-shrink-0 hidden lg:block" />
+          <div className="w-px h-4 bg-accent flex-shrink-0 hidden lg:block" />
 
           {/* Trace panel button — shows all references of the current chat */}
           <button
             onClick={() => setShowTracePanel(v => !v)}
             title="Show all references and reasoning traces for this chat"
             className={cn(
-              "hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[9px] font-bold uppercase tracking-widest transition-all flex-shrink-0",
+              "hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded border text-[9px] font-bold uppercase tracking-widest transition-all flex-shrink-0",
               showTracePanel
-                ? "bg-cyan-500/10 border-cyan-500/30 text-cyan-400"
-                : "bg-white/[0.02] border-white/[0.06] text-white/25 hover:text-white/45"
+                ? "bg-primary/10 border-primary/30 text-primary"
+                : "bg-card border-border text-muted-foreground hover:text-muted-foreground"
             )}
           >
             <BrainCircuit className="h-3 w-3" />
@@ -782,10 +782,10 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
             onClick={() => setShowGraph(v => !v)}
             title="Show concept graph of this conversation"
             className={cn(
-              "hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[9px] font-bold uppercase tracking-widest transition-all flex-shrink-0",
+              "hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded border text-[9px] font-bold uppercase tracking-widest transition-all flex-shrink-0",
               showGraph
-                ? "bg-purple-500/10 border-purple-500/30 text-purple-400"
-                : "bg-white/[0.02] border-white/[0.06] text-white/25 hover:text-white/45"
+                ? "bg-primary/10 border-primary/30 text-primary"
+                : "bg-card border-border text-muted-foreground hover:text-muted-foreground"
             )}
           >
             <Network className="h-3 w-3" />
@@ -803,7 +803,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
               }}
               disabled={studyPlanLoading}
               title="Generate AI Study Plan from your current goal"
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-500/20 bg-purple-500/5 text-purple-400/60 text-[9px] font-bold uppercase tracking-widest hover:bg-purple-500/10 hover:text-purple-400 transition-all flex-shrink-0 disabled:opacity-40"
+              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded border border-primary/20 bg-primary/5 text-primary/60 text-[9px] font-bold uppercase tracking-widest hover:bg-primary/10 hover:text-primary transition-all flex-shrink-0 disabled:opacity-40"
             >
               {studyPlanLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <CalendarDays className="h-3 w-3" />}
               <span className="hidden xl:inline">Plan</span>
@@ -814,7 +814,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
           <button
             onClick={() => { setMode("exam"); setShowExam(true) }}
             title="Simulate Exam"
-            className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-amber-500/20 bg-amber-500/5 text-amber-400 text-[9px] font-bold uppercase tracking-widest hover:bg-amber-500/10 transition-all flex-shrink-0"
+            className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded border border-warning/20 bg-warning/5 text-warning text-[9px] font-bold uppercase tracking-widest hover:bg-warning/10 transition-all flex-shrink-0"
           >
             <FlaskConical className="h-3 w-3" />
             Exam
@@ -825,10 +825,10 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
             onClick={() => setVoiceActive(v => !v)}
             title={voiceActive ? "Stop voice input" : "Start voice input"}
             className={cn(
-              "ml-auto flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[9px] font-bold uppercase tracking-widest transition-all",
+              "ml-auto flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded border text-[9px] font-bold uppercase tracking-widest transition-all",
               voiceActive
-                ? "bg-red-500/10 border-red-500/30 text-red-400 animate-pulse"
-                : "bg-white/[0.02] border-white/[0.06] text-white/25 hover:text-white/45"
+                ? "bg-destructive/10 border-destructive/30 text-destructive animate-pulse"
+                : "bg-card border-border text-muted-foreground hover:text-muted-foreground"
             )}
           >
             {voiceActive ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
@@ -853,16 +853,16 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
               rows={1}
               disabled={loading || mode === "exam"}
               className={cn(
-                "w-full resize-none bg-white/[0.03] border rounded-xl px-4 py-3 pr-12",
-                "text-[13px] text-white/80 placeholder:text-white/15",
+                "w-full resize-none bg-card border rounded px-4 py-3 pr-12",
+                "text-[13px] text-foreground placeholder:text-muted-foreground",
                 "focus:outline-none focus:ring-1",
                 "transition-all duration-200 min-h-[48px] max-h-36",
                 "font-sans leading-relaxed scrollbar-thin",
                 mode === "structured"
-                  ? "border-purple-500/20 focus:ring-purple-500/30 focus:border-purple-500/30"
+                  ? "border-primary/20 focus:ring-primary/30 focus:border-primary/30"
                   : mode === "exam"
-                  ? "border-amber-500/20 opacity-40 cursor-not-allowed"
-                  : "border-white/[0.08] focus:ring-cyan-500/25 focus:border-cyan-500/20"
+                  ? "border-warning/20 opacity-40 cursor-not-allowed"
+                  : "border-border focus:ring-primary/25 focus:border-primary/20"
               )}
               style={{ height: "auto", overflowY: input.split("\n").length > 3 ? "auto" : "hidden" }}
               onInput={(e) => {
@@ -877,11 +877,11 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
             onClick={sendMessage}
             disabled={loading || !input.trim() || mode === "exam"}
             className={cn(
-              "flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+              "flex-shrink-0 w-10 h-10 rounded flex items-center justify-center transition-all",
               "border font-bold",
               input.trim() && !loading && mode !== "exam"
-                ? "bg-gradient-to-br from-cyan-500/30 to-purple-500/20 border-cyan-500/40 text-cyan-400 hover:from-cyan-500/40 hover:to-purple-500/30 shadow-[0_0_20px_rgba(34,211,238,0.15)]"
-                : "bg-white/[0.03] border-white/[0.06] text-white/15 cursor-not-allowed"
+                ? "border-primary/40 text-primary"
+                : "bg-card border-border text-muted-foreground cursor-not-allowed"
             )}
           >
             {loading
@@ -894,28 +894,28 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
         {/* Status footer */}
         <div className="flex items-center gap-3 px-4 pb-2.5">
           <div className="flex items-center gap-1.5">
-            <div className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
-            <span className="text-[8px] text-white/20 uppercase tracking-widest">Engine Active</span>
+            <div className="w-1 h-1 rounded-full bg-success animate-pulse" />
+            <span className="text-[8px] text-muted-foreground uppercase tracking-widest">Engine Active</span>
           </div>
-          <span className="text-[8px] text-white/10">·</span>
-          <span className="text-[8px] text-white/15 font-mono">
+          <span className="text-[8px] text-muted-foreground">·</span>
+          <span className="text-[8px] text-muted-foreground font-mono">
             {messages.filter(m => m.role === "assistant").length} responses
           </span>
           {language !== "auto" && language !== "english" && (
             <>
-              <span className="text-[8px] text-white/10">·</span>
+              <span className="text-[8px] text-muted-foreground">·</span>
               <LanguageBadge lang={language} />
             </>
           )}
           {mode === "structured" && (
             <>
-              <span className="text-[8px] text-white/10">·</span>
-              <span className="text-[8px] text-purple-400/60 font-bold uppercase tracking-widest">Structured · Step {structuredStep + 1}/4</span>
+              <span className="text-[8px] text-muted-foreground">·</span>
+              <span className="text-[8px] text-primary/60 font-bold uppercase tracking-widest">Structured · Step {structuredStep + 1}/4</span>
             </>
           )}
-          <div className="ml-auto flex items-center gap-1 bg-amber-500/8 px-1.5 py-0.5 rounded">
-            <Zap className="h-2 w-2 text-amber-400/60" />
-            <span className="text-[7px] text-amber-400/60 font-mono">Edge ⚡</span>
+          <div className="ml-auto flex items-center gap-1 bg-warning/8 px-1.5 py-0.5 rounded">
+            <Zap className="h-2 w-2 text-warning/60" />
+            <span className="text-[7px] text-warning/60 font-mono">Edge ⚡</span>
           </div>
         </div>
       </div>
@@ -972,14 +972,14 @@ function TracePanel({ messages, contextDoc, onClose }: { messages: Message[]; co
   const allSources = Array.from(sourceMap.values())
 
   return (
-    <div className="absolute inset-0 z-40 bg-[#0a0a0f]/95 backdrop-blur-sm flex flex-col">
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-cyan-500/15 bg-cyan-500/[0.03] flex-shrink-0">
-        <BrainCircuit className="h-3.5 w-3.5 text-cyan-400" />
-        <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-widest">Conversation References</span>
-        <span className="text-[9px] text-white/20 font-mono ml-1">
+    <div className="absolute inset-0 z-40 bg-background/95 flex flex-col">
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-primary/15 bg-primary/[0.03] flex-shrink-0">
+        <BrainCircuit className="h-3.5 w-3.5 text-primary" />
+        <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Conversation References</span>
+        <span className="text-[9px] text-muted-foreground font-mono ml-1">
           {assistantMsgs.length} reasoning traces · {concepts.length} concepts
         </span>
-        <button onClick={onClose} className="ml-auto text-white/20 hover:text-white/55 transition-colors">
+        <button onClick={onClose} className="ml-auto text-muted-foreground hover:text-muted-foreground transition-colors">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -990,13 +990,13 @@ function TracePanel({ messages, contextDoc, onClose }: { messages: Message[]; co
         {contextDoc && (
           <section className="space-y-2">
             <div className="flex items-center gap-1.5">
-              <Link2 className="h-3 w-3 text-cyan-400/60" />
-              <span className="text-[9px] font-bold uppercase tracking-widest text-cyan-400/60">Source Document</span>
+              <Link2 className="h-3 w-3 text-primary/60" />
+              <span className="text-[9px] font-bold uppercase tracking-widest text-primary/60">Source Document</span>
             </div>
-            <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-cyan-500/[0.04] border border-cyan-500/15">
-              <AlignLeft className="h-3.5 w-3.5 text-cyan-400/50 shrink-0" />
-              <span className="text-[11px] text-white/60 truncate">{contextDoc.name || contextDoc.title || "Uploaded document"}</span>
-              <span className="text-[8px] text-cyan-400/40 font-mono ml-auto shrink-0">Grounded</span>
+            <div className="flex items-center gap-3 px-3 py-2.5 rounded bg-primary/[0.04] border border-primary/15">
+              <AlignLeft className="h-3.5 w-3.5 text-primary/50 shrink-0" />
+              <span className="text-[11px] text-foreground truncate">{contextDoc.name || contextDoc.title || "Uploaded document"}</span>
+              <span className="text-[8px] text-primary/40 font-mono ml-auto shrink-0">Grounded</span>
             </div>
           </section>
         )}
@@ -1005,27 +1005,27 @@ function TracePanel({ messages, contextDoc, onClose }: { messages: Message[]; co
         {allSources.length > 0 && (
           <section className="space-y-2">
             <div className="flex items-center gap-1.5">
-              <BookOpen className="h-3 w-3 text-teal-400/60" />
-              <span className="text-[9px] font-bold uppercase tracking-widest text-teal-400/60">Sources</span>
-              <span className="ml-auto text-[8px] text-white/20">{allSources.length} references</span>
+              <BookOpen className="h-3 w-3 text-primary/60" />
+              <span className="text-[9px] font-bold uppercase tracking-widest text-primary/60">Sources</span>
+              <span className="ml-auto text-[8px] text-muted-foreground">{allSources.length} references</span>
             </div>
             <div className="space-y-1.5">
               {allSources.map((src, i) => (
-                <div key={i} className="rounded-xl bg-white/[0.02] border border-white/[0.05] px-3 py-2.5">
+                <div key={i} className="rounded bg-card border border-border px-3 py-2.5">
                   <div className="flex items-start gap-2">
-                    <span className="mt-0.5 flex-shrink-0 text-[7px] font-bold text-teal-400 bg-teal-400/10 rounded px-1 py-0.5">[{i + 1}]</span>
+                    <span className="mt-0.5 flex-shrink-0 text-[7px] font-bold text-primary bg-primary/10 rounded px-1 py-0.5">[{i + 1}]</span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <p className="text-[10px] font-semibold text-white/70 truncate">{src.title}</p>
+                        <p className="text-[10px] font-semibold text-foreground truncate">{src.title}</p>
                         <span className={cn(
                           "flex-shrink-0 text-[6px] px-1 rounded font-bold uppercase",
-                          src.type === "web" ? "text-sky-400 bg-sky-400/10" : "text-violet-400 bg-violet-400/10"
+                          src.type === "web" ? "text-primary bg-primary/10" : "text-primary bg-primary/10"
                         )}>{src.type === "web" ? "web" : "doc"}</span>
                       </div>
-                      {src.snippet && <p className="text-[8px] text-white/35 mt-0.5 line-clamp-2">{src.snippet}</p>}
+                      {src.snippet && <p className="text-[8px] text-muted-foreground mt-0.5 line-clamp-2">{src.snippet}</p>}
                       {src.url && (
                         <a href={src.url} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-0.5 mt-1 text-[8px] text-teal-400/70 hover:text-teal-400 transition-colors truncate">
+                          className="flex items-center gap-0.5 mt-1 text-[8px] text-primary/70 hover:text-primary transition-colors truncate">
                           <ExternalLink className="h-2.5 w-2.5 flex-shrink-0" />
                           <span className="truncate">{src.url}</span>
                         </a>
@@ -1041,20 +1041,20 @@ function TracePanel({ messages, contextDoc, onClose }: { messages: Message[]; co
         {/* Concepts referenced */}
         <section className="space-y-2">
           <div className="flex items-center gap-1.5">
-            <Tag className="h-3 w-3 text-purple-400/60" />
-            <span className="text-[9px] font-bold uppercase tracking-widest text-purple-400/60">Concepts Referenced</span>
-            <span className="ml-auto text-[8px] text-white/20">{concepts.length} unique</span>
+            <Tag className="h-3 w-3 text-primary/60" />
+            <span className="text-[9px] font-bold uppercase tracking-widest text-primary/60">Concepts Referenced</span>
+            <span className="ml-auto text-[8px] text-muted-foreground">{concepts.length} unique</span>
           </div>
           {concepts.length === 0
-            ? <p className="text-[9px] text-white/20 py-2">No concepts tracked yet — ask a question to start</p>
+            ? <p className="text-[9px] text-muted-foreground py-2">No concepts tracked yet — ask a question to start</p>
             : (
               <div className="space-y-1.5">
                 {concepts.map(c => (
-                  <div key={c.name} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:bg-white/[0.04] transition-colors">
-                    <div className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
-                    <span className="text-[11px] text-white/65 flex-1 truncate">{c.name}</span>
-                    <span className="text-[8px] text-purple-400/50 font-mono shrink-0">×{c.count}</span>
-                    <span className="text-[8px] text-emerald-400/50 font-mono shrink-0">+{c.totalImpact}%</span>
+                  <div key={c.name} className="flex items-center gap-3 px-3 py-2 rounded bg-card border border-border hover:bg-accent transition-colors">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                    <span className="text-[11px] text-foreground flex-1 truncate">{c.name}</span>
+                    <span className="text-[8px] text-primary/50 font-mono shrink-0">×{c.count}</span>
+                    <span className="text-[8px] text-success/50 font-mono shrink-0">+{c.totalImpact}%</span>
                   </div>
                 ))}
               </div>
@@ -1066,12 +1066,12 @@ function TracePanel({ messages, contextDoc, onClose }: { messages: Message[]; co
         {intents.length > 0 && (
           <section className="space-y-2">
             <div className="flex items-center gap-1.5">
-              <Layers className="h-3 w-3 text-amber-400/60" />
-              <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400/60">Query Intents Detected</span>
+              <Layers className="h-3 w-3 text-warning/60" />
+              <span className="text-[9px] font-bold uppercase tracking-widest text-warning/60">Query Intents Detected</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {intents.map(intent => (
-                <span key={intent} className="px-2.5 py-1 rounded-full bg-amber-500/[0.06] border border-amber-500/15 text-[9px] text-amber-400/70 font-mono">
+                <span key={intent} className="px-2.5 py-1 rounded-full bg-warning/[0.06] border border-warning/15 text-[9px] text-warning/70 font-mono">
                   {intent}
                 </span>
               ))}
@@ -1082,30 +1082,30 @@ function TracePanel({ messages, contextDoc, onClose }: { messages: Message[]; co
         {/* Per-message trace timeline */}
         <section className="space-y-2">
           <div className="flex items-center gap-1.5">
-            <AlignLeft className="h-3 w-3 text-white/30" />
-            <span className="text-[9px] font-bold uppercase tracking-widest text-white/30">Reasoning Timeline</span>
-            {avgMs > 0 && <span className="ml-auto text-[8px] text-white/20 font-mono">avg {avgMs}ms</span>}
+            <AlignLeft className="h-3 w-3 text-muted-foreground" />
+            <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Reasoning Timeline</span>
+            {avgMs > 0 && <span className="ml-auto text-[8px] text-muted-foreground font-mono">avg {avgMs}ms</span>}
           </div>
           {assistantMsgs.length === 0
-            ? <p className="text-[9px] text-white/20 py-2">No responses yet — ask a question to see the reasoning timeline</p>
+            ? <p className="text-[9px] text-muted-foreground py-2">No responses yet — ask a question to see the reasoning timeline</p>
             : (
               <div className="space-y-1.5">
                 {assistantMsgs.map((m, i) => (
-                  <div key={m.id} className="flex gap-3 px-3 py-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-                    <span className="text-[8px] text-white/20 font-mono w-4 shrink-0 mt-0.5">{i + 1}</span>
+                  <div key={m.id} className="flex gap-3 px-3 py-2.5 rounded bg-card border border-border">
+                    <span className="text-[8px] text-muted-foreground font-mono w-4 shrink-0 mt-0.5">{i + 1}</span>
                     <div className="flex-1 min-w-0 space-y-0.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[9px] font-bold text-cyan-400/70">{m.trace?.concept}</span>
-                        <span className="text-[8px] text-white/20">·</span>
-                        <span className="text-[8px] text-white/35">{m.trace?.intent}</span>
+                        <span className="text-[9px] font-bold text-primary/70">{m.trace?.concept}</span>
+                        <span className="text-[8px] text-muted-foreground">·</span>
+                        <span className="text-[8px] text-muted-foreground">{m.trace?.intent}</span>
                       </div>
-                      <p className="text-[10px] text-white/40 line-clamp-2 leading-relaxed">
+                      <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed">
                         {m.content.slice(0, 120)}{m.content.length > 120 ? "…" : ""}
                       </p>
                     </div>
                     <div className="shrink-0 flex flex-col items-end gap-0.5">
-                      <span className="text-[8px] text-purple-400/50 font-mono">+{m.trace?.masteryImpact}%</span>
-                      <span className="text-[7px] text-white/15 font-mono">{m.trace?.inferenceMs}ms</span>
+                      <span className="text-[8px] text-primary/50 font-mono">+{m.trace?.masteryImpact}%</span>
+                      <span className="text-[7px] text-muted-foreground font-mono">{m.trace?.inferenceMs}ms</span>
                     </div>
                   </div>
                 ))}
@@ -1137,11 +1137,11 @@ function ChatConceptGraph({ messages, className }: { messages: Message[]; classN
   if (nodes.length === 0) {
     return (
       <div className={cn("flex flex-col items-center justify-center h-28 gap-2", className)}>
-        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-amber-400/30 bg-amber-400/10">
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-          <span className="text-[7px] font-bold uppercase tracking-[0.18em] text-amber-400">Beta</span>
+        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-warning/30 bg-warning/10">
+          <span className="h-1.5 w-1.5 rounded-full bg-warning animate-pulse" />
+          <span className="text-[7px] font-bold uppercase tracking-[0.18em] text-warning">Beta</span>
         </div>
-        <p className="text-[9px] text-white/20 text-center">Start asking questions to build the concept graph</p>
+        <p className="text-[9px] text-muted-foreground text-center">Start asking questions to build the concept graph</p>
       </div>
     )
   }
@@ -1157,11 +1157,11 @@ function ChatConceptGraph({ messages, className }: { messages: Message[]; classN
   const nodeColors = ["#22d3ee", "#a78bfa", "#34d399", "#f59e0b", "#f87171", "#fb923c", "#e879f9"]
 
   return (
-    <div className={cn("rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden", className)}>
+    <div className={cn("rounded border border-border bg-card overflow-hidden", className)}>
       <div className="flex items-center gap-2 px-3 pt-2.5 pb-1">
-        <Network className="h-3 w-3 text-purple-400/60" />
-        <span className="text-[9px] font-bold uppercase tracking-widest text-purple-400/60">Chat Concept Graph</span>
-        <span className="ml-auto text-[8px] text-white/20 font-mono">{nodes.length} concepts · {uniquePairs.length} links</span>
+        <Network className="h-3 w-3 text-primary/60" />
+        <span className="text-[9px] font-bold uppercase tracking-widest text-primary/60">Chat Concept Graph</span>
+        <span className="ml-auto text-[8px] text-muted-foreground font-mono">{nodes.length} concepts · {uniquePairs.length} links</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 130 }}>
         {/* Edges */}

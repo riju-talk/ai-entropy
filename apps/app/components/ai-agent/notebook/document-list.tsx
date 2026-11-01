@@ -17,10 +17,10 @@ interface DocumentListProps {
 }
 
 const DOC_ICON: Record<string, string> = {
-    PDF: "text-red-400",
-    DOCX: "text-blue-400",
-    TXT: "text-white/40",
-    PPTX: "text-orange-400",
+    PDF: "text-destructive",
+    DOCX: "text-primary",
+    TXT: "text-muted-foreground",
+    PPTX: "text-warning",
 }
 
 export function DocumentList({ userId, selectedDocId, onSelect, refreshKey }: DocumentListProps) {
@@ -89,9 +89,9 @@ export function DocumentList({ userId, selectedDocId, onSelect, refreshKey }: Do
     if (loading) {
         return (
             <div className="space-y-1.5 mt-1">
-                <Skeleton className="h-9 w-full rounded-xl bg-white/[0.03]" />
-                <Skeleton className="h-11 w-full rounded-xl bg-white/[0.03]" />
-                <Skeleton className="h-11 w-full rounded-xl bg-white/[0.03]" />
+                <Skeleton className="h-9 w-full rounded bg-card" />
+                <Skeleton className="h-11 w-full rounded bg-card" />
+                <Skeleton className="h-11 w-full rounded bg-card" />
             </div>
         )
     }
@@ -108,20 +108,20 @@ export function DocumentList({ userId, selectedDocId, onSelect, refreshKey }: Do
             {/* ── Source count + Select toggle ───────────────────────────── */}
             {docs.length > 0 && (
                 <div className="flex items-center justify-between px-0.5 mt-0.5">
-                    <span className="text-[9px] text-white/25 uppercase tracking-widest font-bold">
+                    <span className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold">
                         {docs.length} source{docs.length !== 1 ? "s" : ""}
                     </span>
                     {selectMode ? (
                         <button
                             onClick={exitSelectMode}
-                            className="flex items-center gap-1 text-[9px] text-white/35 hover:text-white/65 transition-colors"
+                            className="flex items-center gap-1 text-[9px] text-muted-foreground hover:text-foreground transition-colors"
                         >
                             <X className="h-2.5 w-2.5" /> Cancel
                         </button>
                     ) : (
                         <button
                             onClick={() => setSelectMode(true)}
-                            className="text-[9px] text-white/25 hover:text-white/55 transition-colors uppercase tracking-widest"
+                            className="text-[9px] text-muted-foreground hover:text-muted-foreground transition-colors uppercase tracking-widest"
                         >
                             Select
                         </button>
@@ -131,8 +131,8 @@ export function DocumentList({ userId, selectedDocId, onSelect, refreshKey }: Do
 
             {/* ── Bulk delete bar ─────────────────────────────────────────── */}
             {selectMode && someChecked && (
-                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-red-500/[0.07] border border-red-500/20">
-                    <span className="text-[9px] font-bold text-red-400 flex-1 truncate">
+                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded bg-destructive/[0.07] border border-destructive/20">
+                    <span className="text-[9px] font-bold text-destructive flex-1 truncate">
                         {checked.size} selected
                     </span>
                     <Button
@@ -155,10 +155,10 @@ export function DocumentList({ userId, selectedDocId, onSelect, refreshKey }: Do
             {selectMode && docs.length > 0 && (
                 <button
                     onClick={() => setChecked(allChecked ? new Set() : new Set(docs.map(d => d.id)))}
-                    className="flex items-center gap-2 px-2.5 py-1 text-[9px] text-white/30 hover:text-white/60 transition-colors"
+                    className="flex items-center gap-2 px-2.5 py-1 text-[9px] text-muted-foreground hover:text-foreground transition-colors"
                 >
                     {allChecked
-                        ? <CheckSquare className="h-2.5 w-2.5 text-cyan-400 shrink-0" />
+                        ? <CheckSquare className="h-2.5 w-2.5 text-primary shrink-0" />
                         : <Square className="h-2.5 w-2.5 shrink-0" />
                     }
                     <span className="uppercase tracking-widest">
@@ -170,11 +170,11 @@ export function DocumentList({ userId, selectedDocId, onSelect, refreshKey }: Do
             {/* ── Document cards ──────────────────────────────────────────── */}
             {docs.length === 0 ? (
                 <div className="text-center py-8 px-2">
-                    <div className="w-10 h-10 rounded-2xl bg-white/[0.03] border border-white/[0.05] flex items-center justify-center mx-auto mb-3">
-                        <FileText className="h-5 w-5 text-white/15" />
+                    <div className="w-10 h-10 rounded bg-card border border-border flex items-center justify-center mx-auto mb-3">
+                        <FileText className="h-5 w-5 text-muted-foreground" />
                     </div>
-                    <p className="text-[10px] text-white/25 font-bold uppercase tracking-widest">No sources yet</p>
-                    <p className="text-[9px] text-white/15 mt-1">PDF · DOCX · TXT · PPTX</p>
+                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">No sources yet</p>
+                    <p className="text-[9px] text-muted-foreground mt-1">PDF · DOCX · TXT · PPTX</p>
                 </div>
             ) : (
                 <div className="space-y-1 w-full">
@@ -182,35 +182,35 @@ export function DocumentList({ userId, selectedDocId, onSelect, refreshKey }: Do
                         const isChecked = checked.has(doc.id)
                         const isActive  = selectedDocId === doc.id
                         const typeKey   = (doc.type || "").toUpperCase()
-                        const iconColor = DOC_ICON[typeKey] ?? "text-white/35"
+                        const iconColor = DOC_ICON[typeKey] ?? "text-muted-foreground"
 
                         return (
                             <div
                                 key={doc.id}
                                 onClick={() => selectMode ? toggleCheck(doc.id) : onSelect(isActive ? null : doc)}
                                 className={cn(
-                                    "group flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl cursor-pointer transition-all border w-full min-w-0 overflow-hidden",
+                                    "group flex items-center gap-2.5 px-2.5 py-2.5 rounded cursor-pointer transition-all border w-full min-w-0 overflow-hidden",
                                     isActive && !selectMode
-                                        ? "bg-cyan-500/[0.07] border-cyan-500/25 shadow-[0_0_0_1px_rgba(34,211,238,0.1)]"
+                                        ? "bg-primary/[0.07] border-primary/25"
                                         : isChecked
-                                            ? "bg-red-500/[0.06] border-red-500/20"
-                                            : "bg-white/[0.02] border-white/[0.04] hover:bg-white/[0.05] hover:border-white/[0.09]"
+                                            ? "bg-destructive/[0.06] border-destructive/20"
+                                            : "bg-card border-border hover:bg-accent hover:border-border"
                                 )}
                             >
                                 {/* Icon / checkbox */}
                                 {selectMode ? (
                                     <div className="shrink-0 w-5 h-5 flex items-center justify-center">
                                         {isChecked
-                                            ? <CheckSquare className="h-3.5 w-3.5 text-red-400" />
-                                            : <Square className="h-3.5 w-3.5 text-white/20" />
+                                            ? <CheckSquare className="h-3.5 w-3.5 text-destructive" />
+                                            : <Square className="h-3.5 w-3.5 text-muted-foreground" />
                                         }
                                     </div>
                                 ) : (
                                     <div className={cn(
-                                        "h-7 w-7 rounded-lg flex items-center justify-center shrink-0",
-                                        isActive ? "bg-cyan-500/15" : "bg-white/[0.04]"
+                                        "h-7 w-7 rounded flex items-center justify-center shrink-0",
+                                        isActive ? "bg-primary/15" : "bg-accent"
                                     )}>
-                                        <File className={cn("h-3.5 w-3.5", isActive ? "text-cyan-400" : iconColor)} />
+                                        <File className={cn("h-3.5 w-3.5", isActive ? "text-primary" : iconColor)} />
                                     </div>
                                 )}
 
@@ -218,18 +218,18 @@ export function DocumentList({ userId, selectedDocId, onSelect, refreshKey }: Do
                                 <div className="flex-1 min-w-0">
                                     <p className={cn(
                                         "text-[11px] font-medium leading-snug truncate",
-                                        isActive && !selectMode ? "text-cyan-300" : "text-white/65"
+                                        isActive && !selectMode ? "text-primary" : "text-foreground"
                                     )}>
                                         {doc.title}
                                     </p>
-                                    <p className="text-[8px] text-white/20 uppercase tracking-wider mt-0.5">
+                                    <p className="text-[8px] text-muted-foreground uppercase tracking-wider mt-0.5">
                                         {doc.type || "Document"}
                                     </p>
                                 </div>
 
                                 {/* Active pulse dot */}
                                 {!selectMode && isActive && (
-                                    <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_5px_rgba(34,211,238,0.7)] animate-pulse" />
+                                    <div className="shrink-0 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                                 )}
                             </div>
                         )

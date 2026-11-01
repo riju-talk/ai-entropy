@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
 import { PrismaClient } from "@prisma/client"
+import { prisma as sharedPrisma } from "@/lib/prisma"
 import { authOptions } from "@/lib/auth"
 import { createDoubtSchema, voteSchema } from "@/lib/validations"
 import { awardCredits } from "./credits"
@@ -11,7 +12,7 @@ import { awardCredits } from "./credits"
 let __prisma__: PrismaClient | undefined
 function getPrisma() {
   if (!__prisma__) {
-    __prisma__ = new PrismaClient({ log: ["error", "warn"] })
+    __prisma__ = sharedPrisma
   }
   return __prisma__
 }

@@ -1,10 +1,10 @@
-"""Entropy AI — LLM client (delegates to bedrock_service)"""
+"""Entropy AI - async LLM helpers (delegate to ai_service / Groq)"""
 import asyncio
 import json
 import logging
 
 from app.core.config import settings
-from app.services.bedrock_service import get_bedrock_service
+from app.services.ai_service import get_ai_service
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ async def generate_text(
     temperature: float | None = None,
 ) -> str:
     """Single-turn text generation — returns plain string."""
-    svc = get_bedrock_service()
+    svc = get_ai_service()
     temp = temperature if temperature is not None else settings.LLM_TEMPERATURE
     return await _run_sync(svc.generate, prompt, system=system_prompt, temperature=temp)
 
@@ -32,7 +32,7 @@ async def generate_json(
     temperature: float | None = None,
 ) -> dict:
     """Generate structured JSON output — retries up to 3 times."""
-    svc = get_bedrock_service()
+    svc = get_ai_service()
     temp = temperature if temperature is not None else settings.LLM_TEMPERATURE
     json_system = (
         system_prompt

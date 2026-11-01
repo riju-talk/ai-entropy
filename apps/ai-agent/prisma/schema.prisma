@@ -1,8 +1,8 @@
 generator client {
   provider             = "prisma-client-py"
   interface            = "asyncio"
-  recursive_type_depth = "5"
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  recursive_type_depth = "2"
+  binaryTargets        = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -73,6 +73,16 @@ model User {
   streaks              Streak?
   discounts            UserDiscount[]
   userStats            UserStat?
+  studySessions        StudySession[]
+  learnerProfile       LearnerProfile?
+  mentorProfile        MentorProfile?
+  mentorshipRequests   MentorshipRequest[]   @relation("MentorshipStudent")
+  createdEvents        CampusEvent[]         @relation("EventCreator")
+  eventRsvps           EventRsvp[]
+  posts                Post[]
+  postVotes            PostVote[]
+  comments             Comment[]
+  commentVotes         CommentVote[]
 
   @@index([createdAt])
   @@map("users")
@@ -139,9 +149,9 @@ model Answer {
   updatedAt    DateTime     @updatedAt
   isAnswered   String?      @unique @db.Uuid
   isAiAssisted Boolean      @default(false)
+  downvotes    Int          @default(0)
   isAccepted   Boolean      @default(false)
   upvotes      Int          @default(0)
-  downvotes    Int          @default(0)
   votes        AnswerVote[]
   author       User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
   doubt        Doubt        @relation(fields: [doubtId], references: [id], onDelete: Cascade)
@@ -208,8 +218,8 @@ model PointsLedger {
   eventType   PointEventType
   points      Int
   description String?
-  doubtId     String?
   createdAt   DateTime       @default(now())
+  doubtId     String?
   user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
@@ -323,15 +333,15 @@ model Conversation {
   userId       String
   title        String?
   context      Json?
-  sessionType  String    @default("QA")
-  systemPrompt String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  sessionType  String    @default("QA")
+  systemPrompt String?
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages     Message[]
 
   @@index([userId, createdAt])
-  @@index([sessionType])
+  @@index([userId, sessionType])
   @@map("conversations")
 }
 
@@ -376,14 +386,18 @@ model UserDiscount {
 }
 
 model AchievementProgress {
-  id            String      @id @default(cuid())
-  userId        String
-  achievementId String
-  current       Int         @default(0)
-  target        Int
-  lastUpdated   DateTime    @default(now())
-  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String      @id @default(cuid())
+  userId         String
+  achievementId  String
+  current        Int         @default(0)
+  target         Int
+  daySpan        Int         @default(0)
+  firstDate      DateTime?
+  lastDate       DateTime    @default(now()) @map("last_updated")
+  uniqueUsers    String[]
+  validatedCount Int         @default(0)
+  achievement    Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, achievementId])
   @@index([userId])
@@ -392,14 +406,17 @@ model AchievementProgress {
 
 model Community {
   id          String   @id @default(cuid())
+  slug        String?  @unique
   name        String
   description String?
+  rules       String[] @default([])
   subject     Subject?
   isPublic    Boolean  @default(true)
   createdBy   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   users       User?    @relation(fields: [createdBy], references: [id])
+  posts       Post[]
 
   @@index([createdBy])
   @@index([isPublic])
@@ -450,10 +467,25 @@ model Concept {
   updatedAt      DateTime        @updatedAt
   masteryRecords MasteryRecord[]
 
-  @@index([domain])
   @@index([difficulty])
+  @@index([domain])
   @@index([isActive])
   @@map("concepts")
+}
+
+model EventLog {
+  id          String    @id @default(cuid())
+  eventType   String
+  userId      String?
+  targetId    String?
+  metadata    Json
+  emittedAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([eventType, emittedAt])
+  @@index([processedAt])
+  @@index([userId, emittedAt])
+  @@map("event_logs")
 }
 
 model MasteryRecord {
@@ -474,7 +506,7 @@ model MasteryRecord {
   @@map("mastery_records")
 }
 
-model XPLedger {
+model XpLedger {
   id            String   @id @default(cuid())
   userId        String
   eventType     String
@@ -490,71 +522,11 @@ model XPLedger {
   flagged       Boolean  @default(false)
   createdAt     DateTime @default(now())
 
-  @@index([userId, createdAt])
+  @@index([conceptId])
   @@index([eventType])
-  @@index([conceptId])
   @@index([flagged])
+  @@index([userId, createdAt])
   @@map("xp_ledger")
-}
-
-model EventLog {
-  id          String    @id @default(cuid())
-  eventType   String
-  userId      String?
-  targetId    String?
-  metadata    Json
-  emittedAt   DateTime  @default(now())
-  processedAt DateTime?
-
-  @@index([eventType, emittedAt])
-  @@index([userId, emittedAt])
-  @@index([processedAt])
-  @@map("event_logs")
-}
-
-model TrustScore {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  score     Float    @default(0.5)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId])
-  @@map("trust_scores")
-}
-
-model FactCheckLog {
-  id                 String   @id @default(cuid())
-  userId             String
-  generatedText      String
-  contextUsed        String   @default("")
-  claimsChecked      Int      @default(0)
-  entailmentCount    Int      @default(0)
-  contradictionCount Int      @default(0)
-  neutralCount       Int      @default(0)
-  overallConfidence  Float    @default(0.5)
-  safeToDisplay      Boolean  @default(true)
-  checks             Json?
-  createdAt          DateTime @default(now())
-
-  @@index([userId, createdAt])
-  @@index([safeToDisplay])
-  @@map("fact_check_logs")
-}
-
-model ConceptAttempt {
-  id                 String   @id @default(cuid())
-  userId             String
-  conceptId          String?
-  masteryScoreBefore Float    @default(0)
-  masteryScoreAfter  Float    @default(0)
-  correct            Boolean  @default(false)
-  difficulty         Int      @default(1)
-  createdAt          DateTime @default(now())
-
-  @@index([userId, createdAt])
-  @@index([conceptId])
-  @@map("concept_attempts")
 }
 
 enum Role {
@@ -651,4 +623,257 @@ enum CommunityRole {
   ADMIN
   MODERATOR
   MEMBER
+}
+
+// Models used by the FastAPI service (apps/ai-agent). Keep them here: this file is the single
+// source of truth and apps/ai-agent/prisma/schema.prisma is generated from it (npm run db:sync).
+model ConceptAttempt {
+  id                 String   @id @default(cuid())
+  userId             String
+  conceptId          String?
+  masteryScoreBefore Float    @default(0)
+  masteryScoreAfter  Float    @default(0)
+  correct            Boolean  @default(false)
+  difficulty         Int      @default(1)
+  createdAt          DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([conceptId])
+  @@map("concept_attempts")
+}
+
+model FactCheckLog {
+  id                 String   @id @default(cuid())
+  userId             String
+  generatedText      String
+  contextUsed        String   @default("")
+  claimsChecked      Int      @default(0)
+  entailmentCount    Int      @default(0)
+  contradictionCount Int      @default(0)
+  neutralCount       Int      @default(0)
+  overallConfidence  Float    @default(0.5)
+  safeToDisplay      Boolean  @default(true)
+  checks             Json?
+  createdAt          DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([safeToDisplay])
+  @@map("fact_check_logs")
+}
+
+model TrustScore {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  score     Float    @default(0.5)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("trust_scores")
+}
+
+// Focus timer (Pomodoro). One row per work interval; endedAt is null while it runs.
+model StudySession {
+  id             String    @id @default(cuid())
+  userId         String
+  topic          String
+  plannedMinutes Int       @default(25)
+  actualSeconds  Int       @default(0)
+  completed      Boolean   @default(false)
+  startedAt      DateTime  @default(now())
+  endedAt        DateTime?
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startedAt])
+  @@map("study_sessions")
+}
+
+// Long-lived learner memory: aggregates built from study sessions (procedural/episodic summary).
+model LearnerProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  totalFocusSeconds Int      @default(0)
+  sessionsCompleted Int      @default(0)
+  topicSeconds      Json     @default("{}")
+  preferences       Json     @default("{}")
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("learner_profiles")
+}
+
+// ---- Mentorship -------------------------------------------------------------------------------
+// A user becomes a mentor by registering a profile; students send them session requests.
+model MentorProfile {
+  id           String              @id @default(cuid())
+  userId       String              @unique
+  headline     String
+  bio          String
+  university   String?
+  subjects     String[]
+  expertise    String[]
+  availability String
+  isActive     Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requests     MentorshipRequest[]
+
+  @@index([isActive, createdAt])
+  @@map("mentor_profiles")
+}
+
+enum MentorshipStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+model MentorshipRequest {
+  id            String           @id @default(cuid())
+  mentorId      String
+  studentId     String
+  topic         String
+  message       String
+  preferredTime String?
+  status        MentorshipStatus @default(PENDING)
+  mentorNote    String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  mentor        MentorProfile    @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  student       User             @relation("MentorshipStudent", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([mentorId, status])
+  @@index([studentId, createdAt])
+  @@map("mentorship_requests")
+}
+
+// ---- Happenings (campus events) ---------------------------------------------------------------
+enum EventCategory {
+  WORKSHOP
+  CONFERENCE
+  MEETUP
+  HACKATHON
+  SEMINAR
+  OTHER
+}
+
+model CampusEvent {
+  id          String        @id @default(cuid())
+  title       String
+  description String
+  category    EventCategory @default(OTHER)
+  location    String
+  startsAt    DateTime
+  endsAt      DateTime?
+  capacity    Int?
+  tags        String[]
+  createdById String
+  createdAt   DateTime      @default(now())
+  creator     User          @relation("EventCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  rsvps       EventRsvp[]
+
+  @@index([startsAt])
+  @@map("campus_events")
+}
+
+model EventRsvp {
+  id        String      @id @default(cuid())
+  eventId   String
+  userId    String
+  createdAt DateTime    @default(now())
+  event     CampusEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([userId])
+  @@map("event_rsvps")
+}
+
+// Reddit-style community content. Score is denormalised (sum of votes) so feeds can sort in SQL.
+model Post {
+  id           String     @id @default(cuid())
+  communityId  String
+  authorId     String
+  title        String
+  body         String?
+  url          String?
+  score        Int        @default(1)
+  commentCount Int        @default(0)
+  isPinned     Boolean    @default(false)
+  isRemoved    Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  community    Community  @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  author       User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  votes        PostVote[]
+  comments     Comment[]
+
+  @@index([communityId, createdAt])
+  @@index([communityId, score])
+  @@index([authorId])
+  @@map("posts")
+}
+
+model PostVote {
+  id     String @id @default(cuid())
+  postId String
+  userId String
+  value  Int
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId])
+  @@map("post_votes")
+}
+
+model Comment {
+  id        String        @id @default(cuid())
+  postId    String
+  authorId  String
+  parentId  String?
+  body      String
+  score     Int           @default(1)
+  isRemoved Boolean       @default(false)
+  createdAt DateTime      @default(now())
+  post      Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]     @relation("CommentReplies")
+  votes     CommentVote[]
+
+  @@index([postId, createdAt])
+  @@index([parentId])
+  @@index([authorId])
+  @@map("comments")
+}
+
+model CommentVote {
+  id        String  @id @default(cuid())
+  commentId String
+  userId    String
+  value     Int
+  comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@index([userId])
+  @@map("comment_votes")
+}
+
+// Embedded document chunks for the AI service when Pinecone is not configured (cosine search in the service).
+model DocChunk {
+  id        String   @id @default(cuid())
+  namespace String
+  source    String
+  content   String
+  metadata  Json?
+  embedding Json
+  createdAt DateTime @default(now())
+
+  @@index([namespace])
+  @@index([namespace, source])
+  @@map("doc_chunks")
 }

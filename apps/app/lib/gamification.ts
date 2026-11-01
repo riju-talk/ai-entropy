@@ -1,11 +1,8 @@
+import { prisma as sharedPrisma } from "@/lib/prisma"
 import { PrismaClient, PointEventType } from "@prisma/client";
+import { aiFetch } from "@/lib/ai-proxy";
 
-const prisma = new PrismaClient();
-
-const BACKEND_URL =
-    process.env.BACKEND_URL ||
-    process.env.NEXT_PUBLIC_BACKEND_URL ||
-    "http://localhost:8000";
+const prisma = sharedPrisma;
 
 // Level constants (kept for UI calculations)
 const XP_FOR_LEVEL_1 = 0;
@@ -84,18 +81,12 @@ async function postGamificationEvent(
     eventType: string,
     metadata?: Record<string, unknown>
 ) {
-    function joinUrl(base: string, path: string) {
-        if (!base.endsWith("/")) base += "/";
-        if (path.startsWith("/")) path = path.slice(1);
-        return base + path;
-    }
     try {
-        const url = joinUrl(BACKEND_URL, "/api/gamification/event");
-        const resp = await fetch(url, {
+        const resp = await aiFetch("/api/gamification/event", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ user_id: userId, event_type: eventType, metadata: metadata || {} }),
-        });
+        }, userId);
         if (!resp.ok) {
             console.error(`[Gamification] Backend error for ${eventType}:`, resp.status, await resp.text());
             return null;
@@ -204,11 +195,7 @@ export async function deductCredits(userId: string, amount: number, description:
  */
 export async function getLeaderboard(_period: "all" | "weekly" | "monthly") {
     try {
-        const url = joinUrl(BACKEND_URL, "/api/gamification/leaderboard/xp?limit=100");
-        const resp = await fetch(
-            url,
-            { cache: "no-store" }
-        );
+        const resp = await aiFetch("/api/gamification/leaderboard/xp?limit=100");
         if (!resp.ok) {
             throw new Error(`AI backend leaderboard error: ${resp.status}`);
         }

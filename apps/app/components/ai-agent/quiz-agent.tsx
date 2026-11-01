@@ -85,12 +85,12 @@ const SECTION_META: Record<QuestionType, {
   label: string; short: string; icon: React.ElementType
   ring: string; pill: string; accent: string
 }> = {
-  single_correct:  { label: "Single Correct Answer",   short: "SCQ", icon: CheckCircle2, ring: "border-l-cyan-500/50",    pill: "bg-cyan-400/10 border-cyan-400/20 text-cyan-400",         accent: "text-cyan-400" },
-  multiple_correct:{ label: "Multiple Correct Answers", short: "MCQ", icon: ListChecks,   ring: "border-l-purple-500/50",  pill: "bg-purple-400/10 border-purple-400/20 text-purple-400",   accent: "text-purple-400" },
-  fill_blank:      { label: "Fill in the Blanks",       short: "FIB", icon: PenLine,      ring: "border-l-amber-500/50",   pill: "bg-amber-400/10 border-amber-400/20 text-amber-400",      accent: "text-amber-400" },
-  true_false:      { label: "True / False",             short: "T/F", icon: ToggleLeft,   ring: "border-l-emerald-500/50", pill: "bg-emerald-400/10 border-emerald-400/20 text-emerald-400", accent: "text-emerald-400" },
-  short_answer:    { label: "Short Answer",             short: "SA",  icon: AlignLeft,    ring: "border-l-orange-500/50",  pill: "bg-orange-400/10 border-orange-400/20 text-orange-400",   accent: "text-orange-400" },
-  long_answer:     { label: "Long Answer / Essay",      short: "LA",  icon: FileText,     ring: "border-l-rose-500/50",    pill: "bg-rose-400/10 border-rose-400/20 text-rose-400",         accent: "text-rose-400" },
+  single_correct:  { label: "Single Correct Answer",   short: "SCQ", icon: CheckCircle2, ring: "border-l-primary/50",    pill: "bg-primary/10 border-primary/20 text-primary",         accent: "text-primary" },
+  multiple_correct:{ label: "Multiple Correct Answers", short: "MCQ", icon: ListChecks,   ring: "border-l-primary/50",  pill: "bg-primary/10 border-primary/20 text-primary",   accent: "text-primary" },
+  fill_blank:      { label: "Fill in the Blanks",       short: "FIB", icon: PenLine,      ring: "border-l-primary/50",   pill: "bg-warning/10 border-warning/20 text-warning",      accent: "text-warning" },
+  true_false:      { label: "True / False",             short: "T/F", icon: ToggleLeft,   ring: "border-l-primary/50", pill: "bg-success/10 border-success/20 text-success", accent: "text-success" },
+  short_answer:    { label: "Short Answer",             short: "SA",  icon: AlignLeft,    ring: "border-l-orange-500/50",  pill: "bg-warning/10 border-warning/20 text-warning",   accent: "text-warning" },
+  long_answer:     { label: "Long Answer / Essay",      short: "LA",  icon: FileText,     ring: "border-l-primary/50",    pill: "bg-primary/10 border-primary/20 text-primary",         accent: "text-primary" },
 }
 
 type QuizDifficulty = "easy" | "medium" | "hard"
@@ -418,58 +418,58 @@ export function QuizAgent() {
 
   if (phase === "configure") {
     const diffStyle: Record<string, string> = {
-      easy:   "bg-emerald-500/10 border-emerald-500/30 text-emerald-400",
-      medium: "bg-amber-500/10  border-amber-500/30  text-amber-400",
-      hard:   "bg-red-500/10    border-red-500/30    text-red-400",
+      easy:   "bg-success/10 border-success/30 text-success",
+      medium: "bg-warning/10  border-warning/30  text-warning",
+      hard:   "bg-destructive/10    border-destructive/30    text-destructive",
     }
     return (
       <div className="h-full flex items-center justify-center overflow-y-auto">
         <div className="w-full max-w-md px-6 py-8 space-y-6">
           <div className="flex flex-col items-center gap-3 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-              <ClipboardList className="h-6 w-6 text-amber-400" />
+            <div className="w-12 h-12 rounded bg-warning/10 border border-warning/20 flex items-center justify-center">
+              <ClipboardList className="h-6 w-6 text-warning" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white/70 uppercase tracking-widest">Full Assessment Generation</h2>
-              <p className="text-[10px] text-white/25 mt-1">All 6 question types · Coursera-style · Full rubric</p>
+              <h2 className="text-sm font-bold text-foreground uppercase tracking-widest">Full Assessment Generation</h2>
+              <p className="text-[10px] text-muted-foreground mt-1">All 6 question types · Coursera-style · Full rubric</p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-1.5 justify-center">
             {(Object.entries(SECTION_META) as [QuestionType, typeof SECTION_META[QuestionType]][]).map(([type, m]) => (
-              <span key={type} className={cn("inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[8px] font-bold uppercase tracking-widest", m.pill)}>
+              <span key={type} className={cn("inline-flex items-center gap-1 px-2 py-1 rounded border text-[8px] font-bold uppercase tracking-widest", m.pill)}>
                 <m.icon className="h-2.5 w-2.5" />{m.short}
               </span>
             ))}
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/30">Topic / Concept</label>
+            <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Topic / Concept</label>
             <textarea value={topic} onChange={e => setTopic(e.target.value)}
               placeholder="e.g. Chain Rule · Recursion · Photosynthesis · Flask APIs"
               rows={2}
-              className="w-full resize-none bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-[13px] text-white/70 placeholder:text-white/15 focus:outline-none focus:ring-1 focus:ring-amber-500/30 focus:border-amber-500/25 transition-all font-sans" />
+              className="w-full resize-none bg-card border border-border rounded px-4 py-3 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-warning/30 focus:border-warning/25 transition-all font-sans" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/30">Difficulty</label>
+              <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Difficulty</label>
               <div className="flex flex-col gap-1">
                 {(["easy", "medium", "hard"] as QuizDifficulty[]).map(d => (
                   <button key={d} onClick={() => setDiff(d)}
-                    className={cn("py-2 rounded-lg border text-[9px] font-bold uppercase tracking-widest transition-all",
-                      difficulty === d ? diffStyle[d] : "bg-white/[0.02] border-white/[0.06] text-white/20 hover:text-white/40"
+                    className={cn("py-2 rounded border text-[9px] font-bold uppercase tracking-widest transition-all",
+                      difficulty === d ? diffStyle[d] : "bg-card border-border text-muted-foreground hover:text-muted-foreground"
                     )}>{d}</button>
                 ))}
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/30">Questions</label>
+              <label className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Questions</label>
               <div className="flex flex-col gap-1">
                 {[5, 10, 15, 20].map(n => (
                   <button key={n} onClick={() => setNumQ(n)}
-                    className={cn("py-2 rounded-lg border text-[10px] font-bold transition-all",
-                      numQ === n ? "bg-amber-500/10 border-amber-500/30 text-amber-400" : "bg-white/[0.02] border-white/[0.06] text-white/20 hover:text-white/40"
+                    className={cn("py-2 rounded border text-[10px] font-bold transition-all",
+                      numQ === n ? "bg-warning/10 border-warning/30 text-warning" : "bg-card border-border text-muted-foreground hover:text-muted-foreground"
                     )}>{n} questions</button>
                 ))}
               </div>
@@ -477,10 +477,10 @@ export function QuizAgent() {
           </div>
 
           <button onClick={handleGenerate} disabled={!topic.trim() || loading}
-            className={cn("w-full flex items-center justify-center gap-2 py-3 rounded-xl border font-bold text-[11px] uppercase tracking-widest transition-all",
+            className={cn("w-full flex items-center justify-center gap-2 py-3 rounded border font-bold text-[11px] uppercase tracking-widest transition-all",
               !loading && topic.trim()
-                ? "bg-amber-500/15 border-amber-500/30 text-amber-300 hover:bg-amber-500/25 shadow-[0_0_20px_rgba(245,158,11,0.12)]"
-                : "bg-white/[0.02] border-white/[0.06] text-white/20 cursor-not-allowed"
+                ? "bg-warning/15 border-warning/30 text-warning hover:bg-warning/25"
+                : "bg-card border-border text-muted-foreground cursor-not-allowed"
             )}>
             {loading ? <><Loader2 className="h-4 w-4 animate-spin" />Generating…</>
               : <><BookOpen className="h-4 w-4" />Generate Full Assessment — {numQ} Questions</>}
@@ -498,47 +498,47 @@ export function QuizAgent() {
     return (
       <div className="flex flex-col h-full">
         {/* Top bar */}
-        <div className="shrink-0 flex items-center gap-3 px-4 py-2.5 border-b border-white/[0.06] bg-[#0c0c14]">
-          <ClipboardList className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+        <div className="shrink-0 flex items-center gap-3 px-4 py-2.5 border-b border-border bg-background">
+          <ClipboardList className="h-3.5 w-3.5 text-warning shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-semibold text-white/60 truncate">{topic}</p>
-            <p className="text-[8px] text-white/20 font-mono uppercase tracking-widest">{difficulty} · {questions.length} questions · {totalPts} pts</p>
+            <p className="text-[11px] font-semibold text-foreground truncate">{topic}</p>
+            <p className="text-[8px] text-muted-foreground font-mono uppercase tracking-widest">{difficulty} · {questions.length} questions · {totalPts} pts</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[8px] text-white/25 font-mono">{answeredCount}/{questions.length}</span>
-            <div className="w-20 h-1 rounded-full bg-white/[0.07]">
-              <div className="h-full rounded-full bg-amber-500/60 transition-all" style={{ width: `${(answeredCount / (questions.length || 1)) * 100}%` }} />
+            <span className="text-[8px] text-muted-foreground font-mono">{answeredCount}/{questions.length}</span>
+            <div className="w-20 h-1 rounded-full bg-accent">
+              <div className="h-full rounded-full bg-warning/60 transition-all" style={{ width: `${(answeredCount / (questions.length || 1)) * 100}%` }} />
             </div>
             <button onClick={() => { setPhase("configure"); setQuestions([]); setAnswers({}) }}
-              className="text-white/15 hover:text-white/40 transition-colors ml-1">
+              className="text-muted-foreground hover:text-muted-foreground transition-colors ml-1">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
         {fetchNote && (
-          <div className="shrink-0 px-4 py-1.5 bg-amber-500/[0.04] border-b border-amber-500/10">
-            <p className="text-[8px] text-amber-400/50">{fetchNote}</p>
+          <div className="shrink-0 px-4 py-1.5 bg-warning/[0.04] border-b border-warning/10">
+            <p className="text-[8px] text-warning/50">{fetchNote}</p>
           </div>
         )}
         <div className="flex flex-1 min-h-0">
           {/* Section nav */}
-          <nav className="w-44 shrink-0 border-r border-white/[0.05] bg-[#0b0b16] overflow-y-auto py-4 px-2 hidden lg:flex flex-col gap-1">
-            <p className="text-[7px] font-bold uppercase tracking-[0.22em] text-white/20 px-2 mb-1.5">Sections</p>
+          <nav className="w-44 shrink-0 border-r border-border bg-background overflow-y-auto py-4 px-2 hidden lg:flex flex-col gap-1">
+            <p className="text-[7px] font-bold uppercase tracking-[0.22em] text-muted-foreground px-2 mb-1.5">Sections</p>
             {sectionMap.map(([label, qs], si) => {
               const m = qs[0] ? SECTION_META[qs[0].type] : null
               const done = qs.filter(q => isAnswered(answers[q.id])).length
               return (
-                <a key={si} href={`#qa-sec-${si}`} className="rounded-lg px-2 py-1.5 hover:bg-white/[0.03] transition-colors block">
+                <a key={si} href={`#qa-sec-${si}`} className="rounded px-2 py-1.5 hover:bg-card transition-colors block">
                   <div className="flex items-center gap-1.5">
                     {m && <m.icon className={cn("h-2.5 w-2.5 shrink-0", m.accent)} />}
-                    <p className="text-[8px] font-semibold text-white/35 truncate">{label.replace(/^Section [A-F] — /, "")}</p>
+                    <p className="text-[8px] font-semibold text-muted-foreground truncate">{label.replace(/^Section [A-F] — /, "")}</p>
                   </div>
-                  <p className="text-[7px] text-white/20 font-mono pl-4">{done}/{qs.length} answered</p>
+                  <p className="text-[7px] text-muted-foreground font-mono pl-4">{done}/{qs.length} answered</p>
                 </a>
               )
             })}
-            <div className="mt-auto pt-3 border-t border-white/[0.04] px-2">
-              <p className="text-[7px] text-white/15 leading-relaxed">Answer in any order. Saves automatically.</p>
+            <div className="mt-auto pt-3 border-t border-border px-2">
+              <p className="text-[7px] text-muted-foreground leading-relaxed">Answer in any order. Saves automatically.</p>
             </div>
           </nav>
           {/* Questions */}
@@ -549,12 +549,12 @@ export function QuizAgent() {
                 const secPts = qs.reduce((s, q) => s + q.points, 0)
                 return (
                   <section key={si} id={`qa-sec-${si}`} className="scroll-mt-2 space-y-4">
-                    <div className={cn("border-l-2 pl-3 pb-0.5", m ? m.ring : "border-l-white/20")}>
+                    <div className={cn("border-l-2 pl-3 pb-0.5", m ? m.ring : "border-l-border")}>
                       <div className="flex items-center gap-1.5 mb-0.5">
                         {m && <m.icon className={cn("h-3.5 w-3.5", m.accent)} />}
-                        <h3 className="text-[11px] font-bold text-white/60">{label}</h3>
+                        <h3 className="text-[11px] font-bold text-foreground">{label}</h3>
                       </div>
-                      <p className="text-[8px] text-white/20">{m?.label} · {qs.length} question{qs.length !== 1 ? "s" : ""} · {secPts} pts</p>
+                      <p className="text-[8px] text-muted-foreground">{m?.label} · {qs.length} question{qs.length !== 1 ? "s" : ""} · {secPts} pts</p>
                     </div>
                     {qs.map(q => (
                       <QuestionBlock key={q.id} q={q} globalIndex={questions.indexOf(q)} answer={answers[q.id]} onChange={upd => setAnswer(q.id, upd)} />
@@ -562,13 +562,13 @@ export function QuizAgent() {
                   </section>
                 )
               })}
-              <div className="space-y-3 pb-12 border-t border-white/[0.05] pt-6">
-                <p className="text-[9px] text-white/25">
+              <div className="space-y-3 pb-12 border-t border-border pt-6">
+                <p className="text-[9px] text-muted-foreground">
                   {answeredCount} of {questions.length} answered.{" "}
                   {questions.length - answeredCount > 0 ? `${questions.length - answeredCount} unanswered will score 0.` : "All questions answered — ready to submit."}
                 </p>
                 <button onClick={handleSubmit}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-[11px] font-bold uppercase tracking-widest text-amber-300 hover:bg-amber-500/20 transition-all">
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded border border-warning/30 bg-warning/10 text-[11px] font-bold uppercase tracking-widest text-warning hover:bg-warning/20 transition-all">
                   <CheckCircle2 className="h-4 w-4" />Submit &amp; View Full Rubric
                 </button>
               </div>
@@ -585,22 +585,22 @@ export function QuizAgent() {
   const earnedPts = questions.reduce((s, q) => { const a = answers[q.id]; return s + (a ? scoreAnswer(q, a) : 0) }, 0)
   const pct   = Math.round((earnedPts / (totalPts || 1)) * 100)
   const grade = pct >= 90 ? "A" : pct >= 80 ? "B+" : pct >= 70 ? "B" : pct >= 60 ? "C" : pct >= 50 ? "D" : "F"
-  const gColor = pct >= 70 ? "text-emerald-400" : pct >= 50 ? "text-amber-400" : "text-red-400"
-  const gBorder = pct >= 70 ? "border-emerald-500/20" : pct >= 50 ? "border-amber-500/20" : "border-red-500/20"
+  const gColor = pct >= 70 ? "text-success" : pct >= 50 ? "text-warning" : "text-destructive"
+  const gBorder = pct >= 70 ? "border-success/20" : pct >= 50 ? "border-warning/20" : "border-destructive/20"
 
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="px-5 py-6 space-y-8 max-w-2xl">
         {/* Grade card */}
-        <div className={cn("rounded-2xl border bg-white/[0.015] p-5 space-y-5", gBorder)}>
+        <div className={cn("rounded border bg-card p-5 space-y-5", gBorder)}>
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/20 mb-0.5">Assessment Complete</p>
-              <h2 className="text-[13px] font-bold text-white/70">{topic}</h2>
-              <p className="text-[9px] text-white/25">{difficulty} · {questions.length} questions</p>
+              <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-0.5">Assessment Complete</p>
+              <h2 className="text-[13px] font-bold text-foreground">{topic}</h2>
+              <p className="text-[9px] text-muted-foreground">{difficulty} · {questions.length} questions</p>
             </div>
             <button onClick={() => { setPhase("configure"); setQuestions([]); setAnswers({}) }}
-              className="text-white/15 hover:text-white/40 transition-colors">
+              className="text-muted-foreground hover:text-muted-foreground transition-colors">
               <RefreshCw className="h-4 w-4" />
             </button>
           </div>
@@ -608,17 +608,17 @@ export function QuizAgent() {
             {[
               { label: "Grade",  val: grade,         color: gColor },
               { label: "Score",  val: `${pct}%`,     color: gColor },
-              { label: "Earned", val: `${earnedPts}`, color: "text-white/50" },
-              { label: "Total",  val: `${totalPts}`,  color: "text-white/25" },
+              { label: "Earned", val: `${earnedPts}`, color: "text-muted-foreground" },
+              { label: "Total",  val: `${totalPts}`,  color: "text-muted-foreground" },
             ].map(b => (
-              <div key={b.label} className="rounded-xl bg-white/[0.03] border border-white/[0.05] p-3 text-center">
+              <div key={b.label} className="rounded bg-card border border-border p-3 text-center">
                 <p className={cn("text-xl font-bold", b.color)}>{b.val}</p>
-                <p className="text-[7px] uppercase tracking-widest text-white/20 mt-0.5">{b.label}</p>
+                <p className="text-[7px] uppercase tracking-widest text-muted-foreground mt-0.5">{b.label}</p>
               </div>
             ))}
           </div>
           <div className="space-y-1.5">
-            <p className="text-[7px] font-bold uppercase tracking-[0.18em] text-white/20">By Section</p>
+            <p className="text-[7px] font-bold uppercase tracking-[0.18em] text-muted-foreground">By Section</p>
             {(Object.keys(SECTION_META) as QuestionType[]).map(type => {
               const typeQs = questions.filter(q => q.type === type)
               if (!typeQs.length) return null
@@ -629,10 +629,10 @@ export function QuizAgent() {
               return (
                 <div key={type} className="flex items-center gap-2.5">
                   <span className={cn("text-[7px] font-bold w-8 text-right font-mono shrink-0", m.accent)}>{m.short}</span>
-                  <div className="flex-1 h-1.5 rounded-full bg-white/[0.05]">
-                    <div className={cn("h-full rounded-full", tPct >= 70 ? "bg-emerald-500/50" : tPct >= 50 ? "bg-amber-500/50" : "bg-red-500/50")} style={{ width: `${tPct}%` }} />
+                  <div className="flex-1 h-1.5 rounded-full bg-accent">
+                    <div className={cn("h-full rounded-full", tPct >= 70 ? "bg-success/50" : tPct >= 50 ? "bg-warning/50" : "bg-destructive/50")} style={{ width: `${tPct}%` }} />
                   </div>
-                  <span className="text-[7px] text-white/25 font-mono w-14 text-right shrink-0">{tEarned}/{tPts} pts · {tPct}%</span>
+                  <span className="text-[7px] text-muted-foreground font-mono w-14 text-right shrink-0">{tEarned}/{tPts} pts · {tPct}%</span>
                 </div>
               )
             })}
@@ -641,10 +641,10 @@ export function QuizAgent() {
 
         {/* Full rubric */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2 border-b border-white/[0.05] pb-2">
-            <Brain className="h-3.5 w-3.5 text-amber-400" />
-            <h3 className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Full Answer Rubric</h3>
-            <span className="text-[8px] text-white/20 font-mono ml-auto">{questions.length} items</span>
+          <div className="flex items-center gap-2 border-b border-border pb-2">
+            <Brain className="h-3.5 w-3.5 text-warning" />
+            <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Full Answer Rubric</h3>
+            <span className="text-[8px] text-muted-foreground font-mono ml-auto">{questions.length} items</span>
           </div>
           {questions.map((q, idx) => {
             const a = answers[q.id]
@@ -653,41 +653,41 @@ export function QuizAgent() {
             const isPartial = pts > 0 && pts < q.points
             const m = SECTION_META[q.type]
             return (
-              <div key={q.id} className={cn("rounded-xl border bg-white/[0.01] overflow-hidden",
-                isCorrect ? "border-emerald-500/20" : isPartial ? "border-amber-500/20" : "border-white/[0.06]")}>
-                <div className="flex items-start gap-2.5 px-4 py-3 border-b border-white/[0.04] bg-white/[0.01]">
-                  <span className="text-[8px] text-white/25 font-mono shrink-0 pt-0.5 w-4">{idx + 1}.</span>
+              <div key={q.id} className={cn("rounded border bg-card overflow-hidden",
+                isCorrect ? "border-success/20" : isPartial ? "border-warning/20" : "border-border")}>
+                <div className="flex items-start gap-2.5 px-4 py-3 border-b border-border bg-card">
+                  <span className="text-[8px] text-muted-foreground font-mono shrink-0 pt-0.5 w-4">{idx + 1}.</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-1">
                       <span className={cn("text-[7px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-widest", m.pill)}>{m.short}</span>
-                      <span className="text-[7px] text-white/20 font-mono">{q.points} pts max</span>
+                      <span className="text-[7px] text-muted-foreground font-mono">{q.points} pts max</span>
                     </div>
-                    <p className="text-[12px] text-white/70 leading-relaxed">{q.question}</p>
+                    <p className="text-[12px] text-foreground leading-relaxed">{q.question}</p>
                   </div>
                   <div className="shrink-0 flex flex-col items-end gap-0.5 pt-0.5">
-                    {isCorrect ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                      : isPartial ? <div className="h-3.5 w-3.5 rounded-full border-2 border-amber-400" />
-                      : <XCircle className="h-3.5 w-3.5 text-red-500/50" />}
-                    <span className={cn("text-[9px] font-bold font-mono", isCorrect ? "text-emerald-400" : isPartial ? "text-amber-400" : "text-white/25")}>{pts}/{q.points}</span>
+                    {isCorrect ? <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                      : isPartial ? <div className="h-3.5 w-3.5 rounded-full border-2 border-warning" />
+                      : <XCircle className="h-3.5 w-3.5 text-destructive/50" />}
+                    <span className={cn("text-[9px] font-bold font-mono", isCorrect ? "text-success" : isPartial ? "text-warning" : "text-muted-foreground")}>{pts}/{q.points}</span>
                   </div>
                 </div>
                 <div className="px-4 py-3 space-y-3">
                   <div className="space-y-1">
-                    <p className="text-[7px] font-bold uppercase tracking-widest text-white/20">Your Answer</p>
+                    <p className="text-[7px] font-bold uppercase tracking-widest text-muted-foreground">Your Answer</p>
                     <UserAnswerView q={q} answer={a} />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-[7px] font-bold uppercase tracking-widest text-emerald-400/40">Correct / Model Answer</p>
+                    <p className="text-[7px] font-bold uppercase tracking-widest text-success/40">Correct / Model Answer</p>
                     <CorrectAnswerView q={q} />
                   </div>
                   {q.type === "long_answer" && (
                     <div className="space-y-1">
-                      <p className="text-[7px] font-bold uppercase tracking-widest text-amber-400/40">Marking Rubric</p>
-                      <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] divide-y divide-white/[0.03]">
+                      <p className="text-[7px] font-bold uppercase tracking-widest text-warning/40">Marking Rubric</p>
+                      <div className="rounded bg-card border border-border divide-y divide-border">
                         {(q as LongAnswerQ).rubricCriteria.map((c, ci) => (
                           <div key={ci} className="flex items-center justify-between px-3 py-1.5">
-                            <span className="text-[9px] text-white/40">{c.criterion}</span>
-                            <span className="text-[8px] text-amber-400/50 font-mono shrink-0 ml-3">{c.points}p</span>
+                            <span className="text-[9px] text-muted-foreground">{c.criterion}</span>
+                            <span className="text-[8px] text-warning/50 font-mono shrink-0 ml-3">{c.points}p</span>
                           </div>
                         ))}
                       </div>
@@ -695,17 +695,17 @@ export function QuizAgent() {
                   )}
                   {q.type === "short_answer" && (
                     <div className="space-y-1">
-                      <p className="text-[7px] font-bold uppercase tracking-widest text-amber-400/40">Rubric Keywords</p>
+                      <p className="text-[7px] font-bold uppercase tracking-widest text-warning/40">Rubric Keywords</p>
                       <div className="flex flex-wrap gap-1">
                         {(q as ShortAnswerQ).rubricKeywords.map((kw, ki) => (
-                          <span key={ki} className="text-[8px] font-mono px-2 py-0.5 rounded bg-amber-500/[0.05] border border-amber-500/10 text-amber-400/50">{kw}</span>
+                          <span key={ki} className="text-[8px] font-mono px-2 py-0.5 rounded bg-warning/[0.05] border border-warning/10 text-warning/50">{kw}</span>
                         ))}
                       </div>
                     </div>
                   )}
-                  <div className="rounded-lg bg-cyan-500/[0.02] border border-cyan-500/10 px-3 py-2">
-                    <p className="text-[7px] font-bold uppercase tracking-[0.15em] text-cyan-400/35 mb-0.5">Examiner Note</p>
-                    <p className="text-[10px] text-white/30 leading-relaxed">{(q as any).explanation || "Refer to the model answer above."}</p>
+                  <div className="rounded bg-primary/[0.02] border border-primary/10 px-3 py-2">
+                    <p className="text-[7px] font-bold uppercase tracking-[0.15em] text-primary/35 mb-0.5">Examiner Note</p>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">{(q as any).explanation || "Refer to the model answer above."}</p>
                   </div>
                 </div>
               </div>
@@ -714,7 +714,7 @@ export function QuizAgent() {
         </div>
 
         <button onClick={() => { setPhase("configure"); setQuestions([]); setAnswers({}) }}
-          className="w-full flex items-center justify-center gap-2 py-3 mb-8 rounded-xl border border-white/[0.07] bg-white/[0.02] text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white/55 hover:border-white/10 transition-all">
+          className="w-full flex items-center justify-center gap-2 py-3 mb-8 rounded border border-border bg-card text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:text-muted-foreground hover:border-border transition-all">
           <RefreshCw className="h-3.5 w-3.5" />New Assessment
         </button>
       </div>
@@ -730,18 +730,18 @@ function QuestionBlock({ q, globalIndex, answer, onChange }: {
   const m = SECTION_META[q.type]
   const answered = isAnswered(answer)
   return (
-    <div className={cn("rounded-xl border transition-all",
-      answered ? "border-white/[0.10] bg-white/[0.012]" : "border-white/[0.05] bg-white/[0.005]")}>
+    <div className={cn("rounded border transition-all",
+      answered ? "border-border bg-card" : "border-border bg-card")}>
       <div className="flex items-start gap-2.5 px-4 pt-4 pb-2">
-        <div className="shrink-0 w-5 h-5 rounded-full bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mt-0.5">
-          {answered ? <CheckCircle2 className="h-3 w-3 text-emerald-400" /> : <span className="text-[8px] font-bold text-white/20">{globalIndex + 1}</span>}
+        <div className="shrink-0 w-5 h-5 rounded-full bg-card border border-border flex items-center justify-center mt-0.5">
+          {answered ? <CheckCircle2 className="h-3 w-3 text-success" /> : <span className="text-[8px] font-bold text-muted-foreground">{globalIndex + 1}</span>}
         </div>
         <div className="flex-1 space-y-1">
           <div className="flex items-center gap-1.5">
             <span className={cn("text-[7px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-widest", m.pill)}>{m.short}</span>
-            <span className="text-[7px] text-white/20 font-mono">{q.points} {q.points === 1 ? "pt" : "pts"}</span>
+            <span className="text-[7px] text-muted-foreground font-mono">{q.points} {q.points === 1 ? "pt" : "pts"}</span>
           </div>
-          <p className="text-[12px] text-white/75 leading-relaxed">{q.question}</p>
+          <p className="text-[12px] text-foreground leading-relaxed">{q.question}</p>
         </div>
       </div>
       <div className="px-4 pb-4 pl-11 space-y-1.5">
@@ -749,10 +749,10 @@ function QuestionBlock({ q, globalIndex, answer, onChange }: {
           const sel = (answer as AnsScq)?.selectedIndex === i
           return (
             <button key={i} onClick={() => onChange({ selectedIndex: i } as Partial<AnsScq>)}
-              className={cn("w-full text-left flex items-start gap-2.5 px-3 py-2.5 rounded-lg border text-[12px] leading-relaxed transition-all",
-                sel ? "bg-amber-500/8 border-amber-500/25 text-white/75" : "bg-white/[0.02] border-white/[0.05] text-white/40 hover:text-white/60 hover:border-white/10")}>
-              <span className={cn("mt-0.5 shrink-0 w-3.5 h-3.5 rounded-full border flex items-center justify-center", sel ? "border-amber-400 bg-amber-400/15" : "border-white/15")}>
-                {sel && <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />}
+              className={cn("w-full text-left flex items-start gap-2.5 px-3 py-2.5 rounded border text-[12px] leading-relaxed transition-all",
+                sel ? "bg-warning/8 border-warning/25 text-foreground" : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-border")}>
+              <span className={cn("mt-0.5 shrink-0 w-3.5 h-3.5 rounded-full border flex items-center justify-center", sel ? "border-warning bg-warning/15" : "border-border")}>
+                {sel && <span className="w-1.5 h-1.5 rounded-full bg-warning" />}
               </span>
               {opt}
             </button>
@@ -760,7 +760,7 @@ function QuestionBlock({ q, globalIndex, answer, onChange }: {
         })}
         {q.type === "multiple_correct" && (
           <>
-            <p className="text-[8px] text-white/20 italic">Select all that apply</p>
+            <p className="text-[8px] text-muted-foreground italic">Select all that apply</p>
             {(q as MultipleCorrectQ).options.map((opt, i) => {
               const sel = ((answer as AnsMcq)?.selectedIndices || []).includes(i)
               return (
@@ -768,10 +768,10 @@ function QuestionBlock({ q, globalIndex, answer, onChange }: {
                   const prev = (answer as AnsMcq)?.selectedIndices || []
                   onChange({ selectedIndices: sel ? prev.filter(x => x !== i) : [...prev, i] } as Partial<AnsMcq>)
                 }}
-                  className={cn("w-full text-left flex items-start gap-2.5 px-3 py-2.5 rounded-lg border text-[12px] leading-relaxed transition-all",
-                    sel ? "bg-purple-500/8 border-purple-500/25 text-white/75" : "bg-white/[0.02] border-white/[0.05] text-white/40 hover:text-white/60 hover:border-white/10")}>
-                  <span className={cn("mt-0.5 shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center", sel ? "border-purple-400 bg-purple-400/15" : "border-white/15")}>
-                    {sel && <CheckSquare className="h-2.5 w-2.5 text-purple-400" />}
+                  className={cn("w-full text-left flex items-start gap-2.5 px-3 py-2.5 rounded border text-[12px] leading-relaxed transition-all",
+                    sel ? "bg-primary/8 border-primary/25 text-foreground" : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-border")}>
+                  <span className={cn("mt-0.5 shrink-0 w-3.5 h-3.5 rounded border flex items-center justify-center", sel ? "border-primary bg-primary/15" : "border-border")}>
+                    {sel && <CheckSquare className="h-2.5 w-2.5 text-primary" />}
                   </span>
                   {opt}
                 </button>
@@ -781,10 +781,10 @@ function QuestionBlock({ q, globalIndex, answer, onChange }: {
         )}
         {q.type === "fill_blank" && (
           <>
-            <p className="text-[8px] text-white/20 italic">Fill in each blank from the question above</p>
+            <p className="text-[8px] text-muted-foreground italic">Fill in each blank from the question above</p>
             {(q as FillBlankQ).blanks.map((_, bi) => (
               <div key={bi} className="flex items-center gap-2">
-                <span className="text-[8px] text-white/25 font-mono shrink-0 w-12">Blank {bi + 1}</span>
+                <span className="text-[8px] text-muted-foreground font-mono shrink-0 w-12">Blank {bi + 1}</span>
                 <input value={(answer as AnsFib)?.values?.[bi] || ""}
                   onChange={e => {
                     const vals = [...((answer as AnsFib)?.values || Array((q as FillBlankQ).blanks.length).fill(""))]
@@ -792,7 +792,7 @@ function QuestionBlock({ q, globalIndex, answer, onChange }: {
                     onChange({ values: vals } as Partial<AnsFib>)
                   }}
                   placeholder="Your answer…"
-                  className="flex-1 bg-white/[0.03] border border-white/[0.07] rounded-lg px-3 py-1.5 text-[12px] text-white/65 placeholder:text-white/12 focus:outline-none focus:border-amber-500/25 transition-colors" />
+                  className="flex-1 bg-card border border-border rounded px-3 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-warning/25 transition-colors" />
               </div>
             ))}
           </>
@@ -803,9 +803,9 @@ function QuestionBlock({ q, globalIndex, answer, onChange }: {
               const sel = (answer as AnsTf)?.value === val
               return (
                 <button key={String(val)} onClick={() => onChange({ value: val } as Partial<AnsTf>)}
-                  className={cn("flex-1 py-2.5 rounded-lg border font-bold text-[12px] transition-all",
-                    sel ? (val ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400" : "bg-red-500/10 border-red-500/25 text-red-400")
-                      : "bg-white/[0.02] border-white/[0.05] text-white/25 hover:text-white/50")}>
+                  className={cn("flex-1 py-2.5 rounded border font-bold text-[12px] transition-all",
+                    sel ? (val ? "bg-success/10 border-success/25 text-success" : "bg-destructive/10 border-destructive/25 text-destructive")
+                      : "bg-card border-border text-muted-foreground hover:text-muted-foreground")}>
                   {val ? "True" : "False"}
                 </button>
               )
@@ -814,27 +814,27 @@ function QuestionBlock({ q, globalIndex, answer, onChange }: {
         )}
         {q.type === "short_answer" && (
           <>
-            <p className="text-[8px] text-white/20 italic">2–5 sentences</p>
+            <p className="text-[8px] text-muted-foreground italic">2–5 sentences</p>
             <textarea value={(answer as AnsText)?.text || ""} onChange={e => onChange({ text: e.target.value } as Partial<AnsText>)}
               placeholder="Your answer…" rows={3}
-              className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-3 py-2 text-[12px] text-white/65 placeholder:text-white/12 resize-y focus:outline-none focus:border-amber-500/25 transition-colors font-sans leading-relaxed" />
-            <p className="text-[7px] text-white/15 font-mono text-right">{wordCount((answer as AnsText)?.text || "")} words</p>
+              className="w-full bg-card border border-border rounded px-3 py-2 text-[12px] text-foreground placeholder:text-muted-foreground resize-y focus:outline-none focus:border-warning/25 transition-colors font-sans leading-relaxed" />
+            <p className="text-[7px] text-muted-foreground font-mono text-right">{wordCount((answer as AnsText)?.text || "")} words</p>
           </>
         )}
         {q.type === "long_answer" && (
           <>
-            <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] px-3 py-2">
-              <p className="text-[7px] font-bold uppercase tracking-widest text-amber-400/35 mb-1">Marking criteria (shown after submit)</p>
+            <div className="rounded bg-card border border-border px-3 py-2">
+              <p className="text-[7px] font-bold uppercase tracking-widest text-warning/35 mb-1">Marking criteria (shown after submit)</p>
               <div className="flex flex-wrap gap-x-3 gap-y-0.5">
                 {(q as LongAnswerQ).rubricCriteria.map((c, ci) => (
-                  <p key={ci} className="text-[7px] text-white/20">· {c.criterion} ({c.points}p)</p>
+                  <p key={ci} className="text-[7px] text-muted-foreground">· {c.criterion} ({c.points}p)</p>
                 ))}
               </div>
             </div>
             <textarea value={(answer as AnsText)?.text || ""} onChange={e => onChange({ text: e.target.value } as Partial<AnsText>)}
               placeholder="Write your answer here…" rows={10}
-              className="w-full bg-white/[0.03] border border-white/[0.07] rounded-lg px-3 py-2 text-[12px] text-white/65 placeholder:text-white/12 resize-y focus:outline-none focus:border-amber-500/25 transition-colors font-sans leading-relaxed" />
-            <p className="text-[7px] text-white/15 font-mono text-right">{wordCount((answer as AnsText)?.text || "")} words</p>
+              className="w-full bg-card border border-border rounded px-3 py-2 text-[12px] text-foreground placeholder:text-muted-foreground resize-y focus:outline-none focus:border-warning/25 transition-colors font-sans leading-relaxed" />
+            <p className="text-[7px] text-muted-foreground font-mono text-right">{wordCount((answer as AnsText)?.text || "")} words</p>
           </>
         )}
       </div>
@@ -846,30 +846,30 @@ function QuestionBlock({ q, globalIndex, answer, onChange }: {
 
 function UserAnswerView({ q, answer }: { q: AnyQ; answer: Answer | undefined }) {
   if (!answer || !isAnswered(answer))
-    return <p className="text-[9px] text-white/15 italic">Not attempted</p>
+    return <p className="text-[9px] text-muted-foreground italic">Not attempted</p>
   switch (q.type) {
     case "single_correct": {
       const idx = (answer as AnsScq).selectedIndex
-      if (idx === null) return <p className="text-[9px] text-white/15 italic">Not attempted</p>
-      return <p className="text-[10px] text-white/50 bg-white/[0.02] border border-white/[0.05] rounded px-2 py-1">{String.fromCharCode(65 + idx)}. {(q as SingleCorrectQ).options[idx]}</p>
+      if (idx === null) return <p className="text-[9px] text-muted-foreground italic">Not attempted</p>
+      return <p className="text-[10px] text-muted-foreground bg-card border border-border rounded px-2 py-1">{String.fromCharCode(65 + idx)}. {(q as SingleCorrectQ).options[idx]}</p>
     }
     case "multiple_correct": {
       const idxs = (answer as AnsMcq).selectedIndices
-      return <div className="flex flex-wrap gap-1">{idxs.map(i => <span key={i} className="text-[9px] text-white/50 bg-white/[0.02] border border-white/[0.05] rounded px-2 py-0.5">{String.fromCharCode(65 + i)}. {(q as MultipleCorrectQ).options[i]}</span>)}</div>
+      return <div className="flex flex-wrap gap-1">{idxs.map(i => <span key={i} className="text-[9px] text-muted-foreground bg-card border border-border rounded px-2 py-0.5">{String.fromCharCode(65 + i)}. {(q as MultipleCorrectQ).options[i]}</span>)}</div>
     }
     case "fill_blank": {
       const vals = (answer as AnsFib).values
-      return <div className="flex flex-wrap gap-1">{vals.map((v, i) => <span key={i} className="text-[9px] text-white/50 bg-white/[0.02] border border-white/[0.05] rounded px-2 py-0.5 font-mono">Blank {i + 1}: {v || "—"}</span>)}</div>
+      return <div className="flex flex-wrap gap-1">{vals.map((v, i) => <span key={i} className="text-[9px] text-muted-foreground bg-card border border-border rounded px-2 py-0.5 font-mono">Blank {i + 1}: {v || "—"}</span>)}</div>
     }
     case "true_false": {
       const val = (answer as AnsTf).value
-      if (val === null) return <p className="text-[9px] text-white/15 italic">Not attempted</p>
-      return <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded", val ? "text-emerald-400 bg-emerald-400/10" : "text-red-400 bg-red-400/10")}>{val ? "True" : "False"}</span>
+      if (val === null) return <p className="text-[9px] text-muted-foreground italic">Not attempted</p>
+      return <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded", val ? "text-success bg-success/10" : "text-destructive bg-destructive/10")}>{val ? "True" : "False"}</span>
     }
     case "short_answer":
     case "long_answer": {
       const text = (answer as AnsText).text
-      return <p className="text-[10px] text-white/50 bg-white/[0.02] border border-white/[0.05] rounded px-2 py-1 leading-relaxed whitespace-pre-wrap">{text}</p>
+      return <p className="text-[10px] text-muted-foreground bg-card border border-border rounded px-2 py-1 leading-relaxed whitespace-pre-wrap">{text}</p>
     }
   }
 }
@@ -877,15 +877,15 @@ function UserAnswerView({ q, answer }: { q: AnyQ; answer: Answer | undefined }) 
 function CorrectAnswerView({ q }: { q: AnyQ }) {
   switch (q.type) {
     case "single_correct":
-      return <p className="text-[10px] text-emerald-400/70 bg-emerald-400/[0.03] border border-emerald-400/12 rounded px-2 py-1">{String.fromCharCode(65 + q.correctIndex)}. {q.options[q.correctIndex]}</p>
+      return <p className="text-[10px] text-success/70 bg-success/[0.03] border border-success/12 rounded px-2 py-1">{String.fromCharCode(65 + q.correctIndex)}. {q.options[q.correctIndex]}</p>
     case "multiple_correct":
-      return <div className="flex flex-wrap gap-1">{q.correctIndices.map(i => <span key={i} className="text-[9px] text-emerald-400/70 bg-emerald-400/[0.03] border border-emerald-400/12 rounded px-2 py-0.5">{String.fromCharCode(65 + i)}. {q.options[i]}</span>)}</div>
+      return <div className="flex flex-wrap gap-1">{q.correctIndices.map(i => <span key={i} className="text-[9px] text-success/70 bg-success/[0.03] border border-success/12 rounded px-2 py-0.5">{String.fromCharCode(65 + i)}. {q.options[i]}</span>)}</div>
     case "fill_blank":
-      return <div className="flex flex-wrap gap-1">{q.blanks.map((b, i) => <span key={i} className="text-[9px] text-emerald-400/70 bg-emerald-400/[0.03] border border-emerald-400/12 rounded px-2 py-0.5 font-mono">Blank {i + 1}: {b}</span>)}</div>
+      return <div className="flex flex-wrap gap-1">{q.blanks.map((b, i) => <span key={i} className="text-[9px] text-success/70 bg-success/[0.03] border border-success/12 rounded px-2 py-0.5 font-mono">Blank {i + 1}: {b}</span>)}</div>
     case "true_false":
-      return <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded", q.correct ? "text-emerald-400 bg-emerald-400/10" : "text-red-400 bg-red-400/10")}>{q.correct ? "True" : "False"}</span>
+      return <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded", q.correct ? "text-success bg-success/10" : "text-destructive bg-destructive/10")}>{q.correct ? "True" : "False"}</span>
     case "short_answer":
     case "long_answer":
-      return <p className="text-[10px] text-emerald-400/60 bg-emerald-400/[0.02] border border-emerald-400/08 rounded px-2 py-1 leading-relaxed italic whitespace-pre-wrap">{q.sampleAnswer}</p>
+      return <p className="text-[10px] text-success/60 bg-success/[0.02] border border-success/08 rounded px-2 py-1 leading-relaxed italic whitespace-pre-wrap">{q.sampleAnswer}</p>
   }
 }

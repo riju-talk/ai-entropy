@@ -1,125 +1,115 @@
-﻿"use client"
+"use client"
 
-import { Button } from "@/components/ui/button"
-import { Loader2, Globe, Github, Brain } from "lucide-react"
-import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
-import { signIn, useSession } from "next-auth/react"
+import { Suspense, useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
+import { getProviders, signIn, useSession } from "next-auth/react"
+import { Github, Globe, Loader2 } from "lucide-react"
 
-export default function SignInPage() {
-  const [isLoading, setIsLoading] = useState<string | null>(null)
-  const { toast } = useToast()
+import { DevLogin } from "@/components/dev-login"
+import { authErrorMessage } from "@/lib/auth-errors"
+
+const OAUTH = [
+  { id: "google", label: "Google", Icon: Globe },
+  { id: "github", label: "GitHub", Icon: Github },
+] as const
+
+function SignInForm() {
+  const [busy, setBusy] = useState<string | null>(null)
+  const [available, setAvailable] = useState<string[] | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const { data: session, status } = useSession()
+  const params = useSearchParams()
+  const { status } = useSession()
 
-  const callbackUrl = searchParams.get('callbackUrl') || '/'
+  const callbackUrl = params.get("callbackUrl") || "/"
+  const errorCode = params.get("error")
 
   useEffect(() => {
-    if (status === 'authenticated') {
-      router.push(callbackUrl)
-    }
+    if (status === "authenticated") router.push(callbackUrl)
   }, [status, router, callbackUrl])
 
-  const handleSignIn = async (provider: "google" | "github") => {
-    setIsLoading(provider)
-    try {
-      const result = await signIn(provider, { callbackUrl, redirect: true })
-      if (result?.error) {
-        toast({ title: "Sign-in failed", description: `There was an issue signing in with ${provider}. Please try again.`, variant: "destructive" })
-      }
-    } catch (error) {
-      console.error(`${provider} sign-in failed:`, error)
-      toast({ title: "Sign-in failed", description: `There was an issue signing in with ${provider}. Please try again.`, variant: "destructive" })
-    } finally {
-      setIsLoading(null)
-    }
-  }
+  useEffect(() => {
+    getProviders()
+      .then((p) => setAvailable(Object.keys(p ?? {})))
+      .catch(() => {
+        setAvailable([])
+        setLoadFailed(true)
+      })
+  }, [])
 
-  if (status === 'loading') {
-    return (
-      <div className="flex items-center justify-center gap-3 text-white/40 font-mono">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        <span className="text-[11px] uppercase tracking-widest">Initialising...</span>
-      </div>
-    )
+  const oauthShown = OAUTH.filter((p) => available?.includes(p.id))
+  const hasDemo = !!available?.includes("dev-login")
+  const nothingConfigured = available !== null && oauthShown.length === 0 && !hasDemo
+
+  const start = async (id: string) => {
+    setBusy(id)
+    try {
+      await signIn(id, { callbackUrl })
+    } finally {
+      setBusy(null)
+    }
   }
 
   return (
-    <div className="space-y-8 font-mono">
-      {/* Header */}
-      <div className="space-y-1">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="bg-cyan-500/10 border border-cyan-500/30 p-1.5 rounded-lg">
-            <Brain className="h-4 w-4 text-cyan-400" />
-          </div>
-          <span className="text-[10px] uppercase tracking-[0.2em] text-white/30">ENTROPY · AUTH</span>
-        </div>
-        <h1 className="text-2xl font-black text-white tracking-tight">
-          Sign in
-        </h1>
-        <p className="text-[12px] text-white/40 leading-relaxed">
-          Access your cognitive workspace. Choose a provider to continue.
+    <div className="space-y-8">
+      <div>
+        <h1 className="font-display text-4xl">Sign in</h1>
+        <p className="mt-2 text-muted-foreground">
+          {hasDemo && oauthShown.length === 0 ? "Pick a demo account to try the app." : "Pick a provider to continue. No password to remember."}
         </p>
       </div>
 
-      {/* Auth box */}
-      <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-6 space-y-3 shadow-[0_0_40px_rgba(6,182,212,0.05)]">
-        <div className="text-[9px] uppercase tracking-[0.2em] text-cyan-500/50 mb-4">// SELECT_PROVIDER</div>
-
-        {/* Google */}
-        <button
-          disabled={!!isLoading}
-          onClick={() => handleSignIn("google")}
-          className="w-full flex items-center gap-3 px-4 h-11 rounded-lg border border-white/[0.08] bg-white/[0.02] text-white/70 hover:text-white hover:border-white/20 hover:bg-white/[0.05] transition-all text-[11px] uppercase tracking-[0.1em] font-bold disabled:opacity-40"
-        >
-          {isLoading === "google" ? (
-            <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />
-          ) : (
-            <Globe className="h-4 w-4 text-white/40" />
-          )}
-          {isLoading === "google" ? "Redirecting..." : "Continue with Google"}
-        </button>
-
-        {/* GitHub */}
-        <button
-          disabled={!!isLoading}
-          onClick={() => handleSignIn("github")}
-          className="w-full flex items-center gap-3 px-4 h-11 rounded-lg border border-white/[0.08] bg-white/[0.02] text-white/70 hover:text-white hover:border-white/20 hover:bg-white/[0.05] transition-all text-[11px] uppercase tracking-[0.1em] font-bold disabled:opacity-40"
-        >
-          {isLoading === "github" ? (
-            <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />
-          ) : (
-            <Github className="h-4 w-4 text-white/40" />
-          )}
-          {isLoading === "github" ? "Redirecting..." : "Continue with GitHub"}
-        </button>
-
-        <div className="flex items-center gap-3 py-1">
-          <div className="flex-1 h-px bg-white/[0.06]" />
-          <span className="text-[9px] uppercase tracking-[0.2em] text-white/20">or</span>
-          <div className="flex-1 h-px bg-white/[0.06]" />
+      {errorCode && (
+        <div role="alert" className="border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm">
+          {authErrorMessage(errorCode)}
         </div>
+      )}
 
-        <Link
-          href="/"
-          className="w-full flex items-center justify-center h-10 rounded-lg text-[11px] uppercase tracking-[0.1em] text-white/25 hover:text-white/50 transition-colors"
-        >
-          Explore as guest
-        </Link>
-      </div>
-
-      {/* Footer */}
-      <div className="text-[10px] text-white/20 space-y-2 text-center">
-        <p>By signing in you agree to our Terms of Service</p>
-        <div className="flex justify-center gap-3">
-          <Link href="#" className="hover:text-white/40 transition-colors">Privacy policy</Link>
-          <span className="text-white/10">·</span>
-          <Link href="#" className="hover:text-white/40 transition-colors">Terms of service</Link>
+      {available === null && (
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="font-mono text-xs">Loading sign-in options...</span>
         </div>
-      </div>
+      )}
+
+      {oauthShown.length > 0 && (
+        <div className="space-y-3">
+          {oauthShown.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              disabled={!!busy}
+              onClick={() => start(id)}
+              className="flex h-11 w-full items-center gap-3 border border-foreground/70 px-4 text-sm font-medium transition-colors hover:bg-foreground hover:text-background disabled:opacity-40"
+            >
+              {busy === id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" strokeWidth={1.5} />}
+              {busy === id ? "Redirecting..." : `Continue with ${label}`}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {nothingConfigured && (
+        <div role="alert" className="border-l-2 border-warning bg-warning/5 px-4 py-3 text-sm">
+          {loadFailed
+            ? "Could not reach the sign-in service. Refresh the page, or try again in a moment."
+            : "No sign-in method is configured on this server. Set Google or GitHub credentials, or ENABLE_DEV_LOGIN=true for local demos."}
+        </div>
+      )}
+
+      <DevLogin callbackUrl={callbackUrl} />
+
+      <Link href="/" className="inline-block text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">
+        Look around as a guest
+      </Link>
     </div>
+  )
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignInForm />
+    </Suspense>
   )
 }

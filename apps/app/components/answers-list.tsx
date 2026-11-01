@@ -179,14 +179,14 @@ export function AnswersList({ answers: initialAnswers, doubtAuthorId, currentUse
                     <ThumbsUp className={`h-4 w-4 ${userVote === "UP" ? "fill-current" : ""}`} />
                   </Button>
                   <span className={`font-semibold text-lg ${
-                    voteState.count > 0 ? "text-orange-500" : voteState.count < 0 ? "text-blue-500" : ""
+                    voteState.count > 0 ? "text-primary" : voteState.count < 0 ? "text-muted-foreground" : ""
                   }`}>
                     {voteState.count}
                   </span>
                   <Button
                     variant={userVote === "DOWN" ? "default" : "ghost"}
                     size="sm"
-                    className={`h-8 w-8 p-0 ${userVote === "DOWN" ? "bg-blue-500 hover:bg-blue-600" : ""}`}
+                    className={`h-8 w-8 p-0 ${userVote === "DOWN" ? "bg-foreground text-background hover:bg-foreground/90" : ""}`}
                     onClick={() => handleVote(answer.id, "down")}
                     disabled={!isAuthenticated}
                   >

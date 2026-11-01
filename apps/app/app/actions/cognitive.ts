@@ -1,13 +1,12 @@
 "use server"
 
 import { PrismaClient } from "@prisma/client"
+import { prisma as sharedPrisma } from "@/lib/prisma"
+import { aiFetch } from "@/lib/ai-proxy"
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient }
-const prisma = globalForPrisma.prisma || new PrismaClient()
+const prisma = globalForPrisma.prisma || sharedPrisma
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma
-
-const AI_BACKEND = process.env.BACKEND_URL || "http://localhost:8000"
-const AI_TOKEN = process.env.AI_BACKEND_TOKEN || ""
 
 export interface ConceptRecord {
     concept: string
@@ -63,14 +62,8 @@ export async function getCognitiveProfile(userId: string): Promise<{
 
         try {
             const [statsRes, profileRes] = await Promise.all([
-                fetch(`${AI_BACKEND}/api/mastery/cognitive-stats/${userId}`, {
-                    headers: { Authorization: `Bearer ${AI_TOKEN}` },
-                    cache: "no-store",
-                }),
-                fetch(`${AI_BACKEND}/api/mastery/profile/${userId}`, {
-                    headers: { Authorization: `Bearer ${AI_TOKEN}` },
-                    cache: "no-store",
-                }),
+                aiFetch(`/api/mastery/cognitive-stats/${encodeURIComponent(userId)}`, {}, userId),
+                aiFetch(`/api/mastery/profile/${encodeURIComponent(userId)}`, {}, userId),
             ])
 
             if (profileRes.ok) {

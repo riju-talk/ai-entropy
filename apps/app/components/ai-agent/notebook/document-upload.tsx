@@ -108,17 +108,17 @@ export function DocumentUpload({ userId, onUploaded }: { userId?: string; onUplo
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
                 className={cn(
-                    "w-full flex items-center justify-center gap-2 h-9 rounded-xl",
-                    "border border-dashed border-white/[0.12] bg-white/[0.02]",
-                    "text-[10px] font-bold uppercase tracking-widest text-white/40",
-                    "hover:border-cyan-500/40 hover:bg-cyan-500/[0.05] hover:text-cyan-400",
+                    "w-full flex items-center justify-center gap-2 h-9 rounded",
+                    "border border-dashed border-border bg-card",
+                    "text-[10px] font-bold uppercase tracking-widest text-muted-foreground",
+                    "hover:border-primary/40 hover:bg-primary/[0.05] hover:text-primary",
                     "transition-all duration-200 cursor-pointer",
                     "disabled:opacity-40 disabled:cursor-not-allowed",
                 )}
             >
                 {isUploading
-                    ? <Loader2 className="h-3 w-3 animate-spin text-cyan-400" />
-                    : <Plus className="h-3 w-3 text-cyan-400" />
+                    ? <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                    : <Plus className="h-3 w-3 text-primary" />
                 }
                 {isUploading ? "Processing..." : "Add Source"}
             </button>

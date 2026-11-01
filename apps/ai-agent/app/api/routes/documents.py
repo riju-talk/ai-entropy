@@ -1,5 +1,5 @@
 """
-Document upload  →  S3  →  extract text  →  chunk  →  embed  →  Pinecone
+Document upload  →  Supabase Storage  →  extract text  →  chunk  →  embed  →  Pinecone
 
 Supported file types
 --------------------
@@ -7,11 +7,9 @@ Supported file types
   .txt          — UTF-8 decode
   .docx         — python-docx
   .pptx         — python-pptx  (all slides)
-  .png          — Bedrock Claude 3 vision  (OCR + description)
-  .jpg / .jpeg  — Bedrock Claude 3 vision  (OCR + description)
 
-S3 layout
----------
+Storage layout (Supabase Storage bucket)
+---------------------------------------
   documents/{user_id}/{timestamp}-{uuid}{ext}   ← original file
   processed/{user_id}/{doc_id}.txt              ← extracted text (stored after embedding)
 """
@@ -34,14 +32,7 @@ logger = logging.getLogger(__name__)
 MAX_FILE_SIZE        = 20 * 1024 * 1024   # 20 MB
 MAX_FILES_PER_UPLOAD = 10
 
-ALLOWED_EXT = {".pdf", ".txt", ".docx", ".pptx", ".png", ".jpg", ".jpeg"}
-
-# Map image extension → MIME type used by Claude vision
-_IMAGE_MIME = {
-    ".png":  "image/png",
-    ".jpg":  "image/jpeg",
-    ".jpeg": "image/jpeg",
-}
+ALLOWED_EXT = {".pdf", ".txt", ".docx", ".pptx"}
 
 
 # ── Service accessors ─────────────────────────────────────────────────────────
@@ -54,14 +45,14 @@ def _get_langchain_service():
 
 
 def _get_s3():
-    """Return the S3Service singleton, or None if S3 is not configured."""
-    if not settings.S3_BUCKET_NAME:
+    """Return the StorageService singleton, or None if Supabase Storage is not configured."""
+    from app.services.storage_service import get_storage_service, storage_configured
+    if not storage_configured():
         return None
     try:
-        from app.services.s3_service import get_s3_service
-        return get_s3_service()
+        return get_storage_service()
     except Exception as exc:
-        logger.warning("S3 service unavailable: %s — uploads will not be backed up", exc)
+        logger.warning("Storage service unavailable: %s — uploads will not be backed up", exc)
         return None
 
 
@@ -108,13 +99,6 @@ def _extract_pptx(content: bytes) -> str:
     return "\n\n".join(parts)
 
 
-def _extract_image(content: bytes, media_type: str) -> str:
-    """OCR / describe an image using Bedrock Claude 3 vision."""
-    from app.services.bedrock_service import get_bedrock_service
-    svc = get_bedrock_service()
-    return svc.describe_image_bytes(content, media_type)
-
-
 def _extract_text(content: bytes, filename: str) -> str:
     """Dispatch to the correct extractor based on file extension."""
     suffix = Path(filename).suffix.lower()
@@ -127,8 +111,6 @@ def _extract_text(content: bytes, filename: str) -> str:
         return _extract_docx(content)
     elif suffix == ".pptx":
         return _extract_pptx(content)
-    elif suffix in _IMAGE_MIME:
-        return _extract_image(content, _IMAGE_MIME[suffix])
 
     # Fallback — try UTF-8
     return content.decode(errors="ignore")
@@ -137,11 +119,11 @@ def _extract_text(content: bytes, filename: str) -> str:
 
 async def _extract_and_update_graph(text: str, user_id: str, filename: str) -> None:
     """
-    Background task: ask Claude to extract concepts + relationships from
+    Background task: ask the LLM to extract concepts + relationships from
     the document text, then write them into the Neo4j knowledge graph.
 
     We send the first ~6 000 characters (enough context, cheap to call).
-    Claude returns a JSON object like:
+    The LLM returns a JSON object like:
       {
         "concepts": [
           {"name": "...", "description": "...", "domain": "...", "difficulty": 1-5},
@@ -154,10 +136,10 @@ async def _extract_and_update_graph(text: str, user_id: str, filename: str) -> N
       }
     """
     try:
-        from app.services.bedrock_service import get_bedrock_service
+        from app.services.ai_service import get_ai_service
         from app.services import knowledge_graph_service as kg
 
-        svc    = get_bedrock_service()
+        svc    = get_ai_service()
         sample = text[:6000].strip()
 
         prompt = (
@@ -173,7 +155,7 @@ async def _extract_and_update_graph(text: str, user_id: str, filename: str) -> N
             f"Document excerpt from '{filename}':\n{sample}"
         )
 
-        raw = svc.generate(prompt=prompt)
+        raw = await asyncio.to_thread(svc.generate, prompt, fast=True)
 
         # Strip accidental markdown code fences
         raw = re.sub(r"```(?:json)?\s*", "", raw).strip().rstrip("`")
@@ -207,7 +189,7 @@ async def _extract_and_update_graph(text: str, user_id: str, filename: str) -> N
         )
 
     except json.JSONDecodeError as exc:
-        logger.warning("[GRAPH] Claude returned non-JSON for '%s': %s", filename, exc)
+        logger.warning("[GRAPH] LLM returned non-JSON for '%s': %s", filename, exc)
     except Exception as exc:
         logger.warning("[GRAPH] knowledge-graph update failed for '%s': %s", filename, exc)
 
@@ -215,24 +197,11 @@ async def _extract_and_update_graph(text: str, user_id: str, filename: str) -> N
 
 @router.get("/")
 async def list_documents():
-    """Return Pinecone index stats — document count per namespace."""
-    try:
-        svc = _get_langchain_service()
-        index = svc.pc.Index(svc.index_name)
-        stats = index.describe_index_stats()
-        namespaces    = stats.get("namespaces", {}) if isinstance(stats, dict) else {}
-        total_vectors = stats.get("total_vector_count", 0) if isinstance(stats, dict) else 0
-        return {
-            "status":        "ok",
-            "index":         svc.index_name,
-            "total_vectors": total_vectors,
-            "namespaces":    list(namespaces.keys()),
-        }
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("Failed to describe Pinecone index: %s", exc)
-        return {"status": "unavailable", "error": str(exc)}
+    """Vector store stats: backend (pinecone | postgres), chunk count and namespaces."""
+    from app.core.vector_store import get_vector_store
+
+    stats = await get_vector_store().stats()
+    return {"status": "ok" if "error" not in stats else "unavailable", "index": stats["backend"], **stats}
 
 
 @router.post("/upload")
@@ -242,7 +211,7 @@ async def upload_documents(
     user_id: Optional[str]             = Form(None),
 ):
     """
-    Upload one or more files  →  S3 (backup)  →  extract text  →  embed  →  Pinecone.
+    Upload one or more files  →  Supabase Storage (backup)  →  extract text  →  embed  →  Pinecone.
 
     Returns
     -------
@@ -287,7 +256,7 @@ async def upload_documents(
             if len(content) > MAX_FILE_SIZE:
                 raise HTTPException(400, f"'{f.filename}' exceeds 20 MB limit.")
 
-            # ── Step 1: back up raw bytes to S3 ──────────────────────────────
+            # ── Step 1: back up raw bytes to storage ──────────────────────────────
             s3_info: dict = {}
             if s3_svc:
                 try:
@@ -299,12 +268,12 @@ async def upload_documents(
                     )
                     s3_uploads.append(s3_info)
                     logger.info(
-                        "[S3] %s → s3://%s/%s",
+                        "[STORAGE] %s → %s/%s",
                         f.filename, s3_info.get("bucket"), s3_info.get("s3_key"),
                     )
                 except Exception as s3_exc:
                     logger.warning(
-                        "[S3] Upload failed for '%s': %s  (processing continues)",
+                        "[STORAGE] Upload failed for '%s': %s  (processing continues)",
                         f.filename, s3_exc,
                     )
 
@@ -314,12 +283,12 @@ async def upload_documents(
                 logger.warning("[UPLOAD] No text extracted from '%s' — skipping", f.filename)
                 continue
 
-            # ── Step 3: store extracted text back to S3 (processed/ prefix) ──
+            # ── Step 3: store extracted text back to storage (processed/ prefix) ──
             if s3_svc and s3_info.get("doc_id"):
                 try:
                     s3_svc.store_processed_text(namespace, s3_info["doc_id"], text)
                 except Exception as exc:
-                    logger.warning("[S3] Could not store processed text: %s", exc)
+                    logger.warning("[STORAGE] Could not store processed text: %s", exc)
 
             # ── Step 4: build LangChain Document ─────────────────────────────
             meta = {
@@ -369,14 +338,14 @@ async def upload_documents(
 @router.post("/presign")
 async def presign_upload(body: dict):
     """
-    Generate a presigned PUT URL for direct browser-to-S3 upload.
+    Generate a signed upload URL for direct browser-to-storage upload.
 
     Body: { "user_id": str, "filename": str, "content_type": str (optional) }
     Returns: { "upload_url": str, "s3_key": str, "doc_id": str, "bucket": str }
     """
     s3_svc = _get_s3()
     if not s3_svc:
-        raise HTTPException(503, detail="S3 is not configured (S3_BUCKET_NAME missing).")
+        raise HTTPException(503, detail="Storage is not configured (SUPABASE_URL / SUPABASE_SERVICE_KEY missing).")
 
     user_id      = (body.get("user_id") or "anonymous").strip()
     filename     = (body.get("filename") or "upload").strip()
@@ -406,7 +375,7 @@ async def delete_document_by_source(
     s3_key: Optional[str] = None,
 ):
     """
-    Remove a document's vectors from Pinecone and (optionally) its file from S3.
+    Remove a document's vectors from Pinecone and (optionally) its file from storage.
 
     Query params:
       user_id  — Pinecone namespace / S3 prefix
@@ -416,29 +385,27 @@ async def delete_document_by_source(
     deleted_vectors = False
     deleted_s3      = False
 
-    # ── 1. Remove vectors from Pinecone ───────────────────────────────────
+    # ── 1. Remove vectors from the vector store ───────────────────────────
     if source:
         try:
-            lc_svc = _get_langchain_service()
-            index  = lc_svc.pc.Index(lc_svc.index_name)
-            index.delete(filter={"source": source}, namespace=user_id)
-            deleted_vectors = True
-            logger.info("[DELETE] Pinecone vectors removed: source=%s namespace=%s", source, user_id)
-        except HTTPException:
-            raise
-        except Exception as exc:
-            logger.warning("[DELETE] Could not remove Pinecone vectors for source='%s': %s", source, exc)
+            from app.core.vector_store import get_vector_store
 
-    # ── 2. Remove file from S3 ────────────────────────────────────────────
+            await get_vector_store().delete_source(user_id, source)
+            deleted_vectors = True
+            logger.info("[DELETE] vectors removed: source=%s namespace=%s", source, user_id)
+        except Exception as exc:
+            logger.warning("[DELETE] Could not remove vectors for source='%s': %s", source, exc)
+
+    # ── 2. Remove file from storage ────────────────────────────────────────────
     if s3_key:
         s3_svc = _get_s3()
         if s3_svc:
             try:
                 s3_svc.delete_file(s3_key)
                 deleted_s3 = True
-                logger.info("[DELETE] S3 object removed: %s", s3_key)
+                logger.info("[DELETE] Storage object removed: %s", s3_key)
             except Exception as exc:
-                logger.warning("[DELETE] Could not delete S3 object '%s': %s", s3_key, exc)
+                logger.warning("[DELETE] Could not delete storage object '%s': %s", s3_key, exc)
 
     # ── 3. Remove document node + orphaned mastery edges from knowledge graph
     graph_result: dict = {}
@@ -462,20 +429,20 @@ async def delete_document_by_source(
 @router.get("/download")
 async def download_url(s3_key: str):
     """
-    Generate a presigned GET URL for downloading a document from S3.
+    Generate a signed URL for downloading a stored document.
 
     Query param: s3_key (e.g. documents/user123/20260101-uuid.pdf)
     Returns: { "download_url": str, "expires_in": int }
     """
     s3_svc = _get_s3()
     if not s3_svc:
-        raise HTTPException(503, detail="S3 is not configured.")
+        raise HTTPException(503, detail="Storage is not configured.")
 
     if not s3_key:
         raise HTTPException(400, detail="s3_key is required.")
 
     if not s3_svc.file_exists(s3_key):
-        raise HTTPException(404, detail="File not found in S3.")
+        raise HTTPException(404, detail="File not found in storage.")
 
     url = s3_svc.get_presigned_url(s3_key)
     return {"download_url": url, "s3_key": s3_key, "expires_in": 3600}

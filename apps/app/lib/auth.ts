@@ -1,92 +1,102 @@
-// lib/auth.ts
 import { NextAuthOptions } from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 import GitHubProvider from "next-auth/providers/github"
+import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@auth/prisma-adapter"
-import { PrismaClient } from "@prisma/client"
 
-// Local Prisma singleton
-let __prisma__: PrismaClient | undefined
-function getPrisma() {
-  if (!__prisma__) {
-    __prisma__ = new PrismaClient({ log: ["error", "warn"] })
-  }
-  return __prisma__
-}
+import { prisma } from "@/lib/prisma"
 
-const prisma = getPrisma()
+const isProd = process.env.NODE_ENV === "production"
 
-// Prefer GITHUB_ID/SECRET but also support *_CLIENT_* fallbacks
+// OAuth providers are only registered when their credentials exist. Registering one with
+// undefined credentials makes every sign-in attempt fail with an opaque "Configuration" error.
+const googleId = process.env.GOOGLE_CLIENT_ID
+const googleSecret = process.env.GOOGLE_CLIENT_SECRET
 const githubId = process.env.GITHUB_ID || process.env.GITHUB_CLIENT_ID
 const githubSecret = process.env.GITHUB_SECRET || process.env.GITHUB_CLIENT_SECRET
 
+// Demo login (no password) for local development and the Docker demo stack. It can never be on for a
+// real deployment: outside `next dev` it also requires NEXTAUTH_URL to point at this machine.
+export const DEV_LOGIN_DOMAIN = "@local.dev"
+function isLocalUrl(url?: string) {
+  try {
+    const host = new URL(url || "").hostname
+    return host === "localhost" || host === "127.0.0.1" || host === "[::1]"
+  } catch {
+    return false
+  }
+}
+const devLoginEnabled = process.env.ENABLE_DEV_LOGIN === "true" && (!isProd || isLocalUrl(process.env.NEXTAUTH_URL))
+
+// A missing secret makes NextAuth throw on every request in production; in development fall back to a
+// fixed value so the app still starts. Never used when NODE_ENV=production.
+const secret = process.env.NEXTAUTH_SECRET || (isProd ? undefined : "dev-only-secret-not-for-production")
+if (isProd && !process.env.NEXTAUTH_SECRET) console.error("[auth] NEXTAUTH_SECRET is not set; sign-in will not work")
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as any,
+  secret,
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-    ...(githubId && githubSecret
+    ...(devLoginEnabled
       ? [
-          GitHubProvider({
-            clientId: githubId,
-            clientSecret: githubSecret,
+          CredentialsProvider({
+            id: "dev-login",
+            name: "Demo login",
+            credentials: { email: { label: "Email", type: "text" }, name: { label: "Name", type: "text" } },
+            async authorize(credentials) {
+              const email = String(credentials?.email || "").trim().toLowerCase()
+              if (!/^[a-z0-9._-]+@local\.dev$/.test(email)) return null
+              const name = String(credentials?.name || "").trim().slice(0, 80) || email.split("@")[0]
+              try {
+                const user = await prisma.user.upsert({ where: { email }, update: {}, create: { email, name } })
+                return { id: user.id, email: user.email, name: user.name, image: user.image, role: user.role } as any
+              } catch (err) {
+                console.error("[auth] demo login failed:", (err as Error).message)
+                throw new Error("DatabaseUnavailable")
+              }
+            },
           }),
         ]
       : []),
+    ...(googleId && googleSecret ? [GoogleProvider({ clientId: googleId, clientSecret: googleSecret })] : []),
+    ...(githubId && githubSecret ? [GitHubProvider({ clientId: githubId, clientSecret: githubSecret })] : []),
   ],
   pages: {
     signIn: "/auth/signin",
     error: "/auth/error",
-    newUser: "/", // new accounts land on home
+    newUser: "/",
   },
-  session: {
-    strategy: "jwt",
-  },
+  session: { strategy: "jwt" },
   callbacks: {
-    // persist user id/role into the token
     async jwt({ token, user }) {
       if (user) {
-        ;(token as any).id = (user as any).id
-        ;(token as any).role = (user as any).role ?? "STUDENT"
+        token.id = (user as any).id
+        token.role = (user as any).role ?? "STUDENT"
       }
       return token
     },
 
-    // expose token props on session.user
     async session({ session, token }) {
       if (session.user) {
-        ;(session.user as any).id = (token as any).id
-        ;(session.user as any).role = (token as any).role ?? "STUDENT"
+        session.user.id = token.id as string
+        session.user.role = (token.role as string) ?? "STUDENT"
       }
       return session
     },
 
-    // attempt to link OAuth account to existing user by email when appropriate
+    // Link a new OAuth provider to an existing user with the same email instead of failing.
     async signIn({ user, account, profile }) {
+      if (!account || account.type !== "oauth") return true
       try {
-        // Only proceed for OAuth providers
-        if (!account || account.type !== "oauth") return true
-
-        // If account already exists, allow sign in
         const existingAccount = await prisma.account.findUnique({
-          where: {
-            provider_providerAccountId: {
-              provider: account.provider,
-              providerAccountId: String(account.providerAccountId),
-            },
-          },
+          where: { provider_providerAccountId: { provider: account.provider, providerAccountId: String(account.providerAccountId) } },
         })
         if (existingAccount) return true
 
-        // If user email present, try to find user by email
         const email = (profile as any)?.email || user?.email
-        if (!email) return true // no email to match — proceed (NextAuth will create user)
-
+        if (!email) return true
         const existingUser = await prisma.user.findUnique({ where: { email } })
         if (existingUser) {
-          // Link the new provider account to the existing user
           await prisma.account.create({
             data: {
               userId: existingUser.id,
@@ -102,36 +112,31 @@ export const authOptions: NextAuthOptions = {
               session_state: null,
             },
           })
-          return true
         }
-
-        // No existing user — let adapter/createUser handle a new user
         return true
       } catch (err) {
-        console.error("signIn callback error:", err)
-        return false
+        console.error("[auth] signIn callback failed:", (err as Error).message)
+        // Surfaces as ?error=DatabaseUnavailable on /auth/error instead of a generic AccessDenied
+        throw new Error("DatabaseUnavailable")
       }
     },
 
-    // redirect to callbackUrl if specified, otherwise home
     async redirect({ url, baseUrl }) {
-      // Allows relative callback URLs
       if (url.startsWith("/")) return `${baseUrl}${url}`
-      // Allows callback URLs on the same origin
-      else if (new URL(url).origin === baseUrl) return url
+      try {
+        if (new URL(url).origin === baseUrl) return url
+      } catch {
+        /* malformed url: fall through to home */
+      }
       return baseUrl
     },
   },
   debug: process.env.NODE_ENV === "development",
 }
 
-// Helpful diagnostics in dev
-if (process.env.NODE_ENV === "development") {
-  console.log("NextAuth config:", {
-    GITHUB_ID: !!githubId,
-    GITHUB_SECRET: !!githubSecret,
-    GOOGLE_CLIENT_ID: !!process.env.GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET: !!process.env.GOOGLE_CLIENT_SECRET,
-    NEXTAUTH_SECRET: !!process.env.NEXTAUTH_SECRET,
-  })
+/** Which sign-in methods this server actually offers (used by diagnostics and the sign-in page). */
+export const enabledAuthMethods = {
+  google: !!(googleId && googleSecret),
+  github: !!(githubId && githubSecret),
+  demo: devLoginEnabled,
 }

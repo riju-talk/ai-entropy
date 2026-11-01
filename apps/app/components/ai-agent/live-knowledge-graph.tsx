@@ -231,17 +231,17 @@ export function LiveKnowledgeGraph({
   return (
     <div
       ref={containerRef}
-      className={cn("rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden relative select-none", className)}
+      className={cn("rounded border border-border bg-card overflow-hidden relative select-none", className)}
       style={{ height }}
     >
       {/* Empty state */}
       {isEmpty && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-white/20">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="text-muted-foreground">
             <circle cx="12" cy="12" r="10" />
             <path d="M8 12h8M12 8v8" />
           </svg>
-          <p className="text-[11px] text-white/25 text-center max-w-[180px] leading-relaxed">
+          <p className="text-[11px] text-muted-foreground text-center max-w-[180px] leading-relaxed">
             Ask questions or upload documents to build your knowledge graph
           </p>
         </div>
@@ -250,22 +250,22 @@ export function LiveKnowledgeGraph({
       {/* Zoom hint */}
       {!isEmpty && nodes.length > 0 && (
         <div className="absolute bottom-2 right-3 pointer-events-none">
-          <span className="text-[7px] font-mono text-white/20 uppercase tracking-widest">scroll to zoom · drag to pan · dbl-click to reset</span>
+          <span className="text-[7px] font-mono text-muted-foreground uppercase tracking-widest">scroll to zoom · drag to pan · dbl-click to reset</span>
         </div>
       )}
 
       {/* Live badge */}
       {isLive && !isEmpty && (
         <div className="absolute top-2 left-3 flex items-center gap-1 pointer-events-none">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-[7px] font-mono text-emerald-400/60 uppercase tracking-widest">LIVE</span>
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+          <span className="text-[7px] font-mono text-success/60 uppercase tracking-widest">LIVE</span>
         </div>
       )}
 
       {/* Node count */}
       {nodes.length > 0 && (
         <div className="absolute top-2 right-3 pointer-events-none">
-          <span className="text-[8px] font-mono text-white/20">{nodes.length} concepts</span>
+          <span className="text-[8px] font-mono text-muted-foreground">{nodes.length} concepts</span>
         </div>
       )}
 
@@ -280,19 +280,19 @@ export function LiveKnowledgeGraph({
             className="absolute z-10 pointer-events-none"
             style={{ left: nx + 12, top: ny - 10 }}
           >
-            <div className="rounded-lg border border-white/10 bg-black/80 backdrop-blur-sm px-2.5 py-1.5 text-left shadow-xl">
-              <p className="text-[10px] font-semibold text-white/90 leading-tight">{hoveredNode.label}</p>
+            <div className="rounded border border-border bg-background px-2.5 py-1.5 text-left shadow-xl">
+              <p className="text-[10px] font-semibold text-foreground leading-tight">{hoveredNode.label}</p>
               {hoveredNode.domain && (
-                <p className="text-[8px] text-white/40 mt-0.5 capitalize">{hoveredNode.domain}</p>
+                <p className="text-[8px] text-muted-foreground mt-0.5 capitalize">{hoveredNode.domain}</p>
               )}
               <div className="flex items-center gap-2 mt-1">
-                <div className="h-1 w-16 rounded-full bg-white/10 overflow-hidden">
+                <div className="h-1 w-16 rounded-full bg-accent overflow-hidden">
                   <div className="h-full rounded-full transition-all" style={{ width: `${hoveredNode.mastery}%`, backgroundColor: color }} />
                 </div>
                 <span className="text-[8px] font-mono" style={{ color }}>{hoveredNode.mastery.toFixed(0)}%</span>
               </div>
               {hoveredNode.difficulty > 1 && (
-                <p className="text-[7px] text-white/25 mt-0.5">difficulty {hoveredNode.difficulty}</p>
+                <p className="text-[7px] text-muted-foreground mt-0.5">difficulty {hoveredNode.difficulty}</p>
               )}
             </div>
           </div>

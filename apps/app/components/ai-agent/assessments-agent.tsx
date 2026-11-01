@@ -217,12 +217,12 @@ export function AssessmentsAgent({ contextDoc }: AssessmentsAgentProps) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-2xl p-6 relative overflow-hidden">
+      <div className="bg-card border border-primary/20 rounded p-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-4 opacity-10">
-          <GraduationCap className="h-24 w-24 text-cyan-500" />
+          <GraduationCap className="h-24 w-24 text-primary" />
         </div>
         <div className="flex items-center gap-3 mb-2">
-          <GraduationCap className="h-6 w-6 text-cyan-400" />
+          <GraduationCap className="h-6 w-6 text-primary" />
           <h3 className="text-xl font-bold text-foreground">AI Assessments</h3>
         </div>
         <p className="text-sm text-muted-foreground max-w-xl font-medium">
@@ -304,7 +304,7 @@ export function AssessmentsAgent({ contextDoc }: AssessmentsAgentProps) {
                   </Button>
 
                   {showAdvanced && (
-                    <div className="space-y-2 p-4 border border-border/50 rounded-xl bg-muted/30 backdrop-blur-md">
+                    <div className="space-y-2 p-4 border border-border/50 rounded bg-muted/30">
                       <Label htmlFor="custom-prompt" className="text-sm font-bold uppercase tracking-wider text-muted-foreground opacity-70">
                         Custom System Prompt (Optional)
                       </Label>
@@ -371,11 +371,11 @@ export function AssessmentsAgent({ contextDoc }: AssessmentsAgentProps) {
                       {currentQuestionData.options.map((option, idx) => (
                         <div
                           key={idx}
-                          className={`flex items-center space-x-2 p-3 rounded-lg border ${showResults
+                          className={`flex items-center space-x-2 p-3 rounded border ${showResults
                             ? idx === currentQuestionData.correctAnswer
-                              ? "bg-green-500/10 border-green-500"
+                              ? "bg-success/10 border-success"
                               : selectedAnswers[currentQuestion] === idx
-                                ? "bg-red-500/10 border-red-500"
+                                ? "bg-destructive/10 border-destructive"
                                 : ""
                             : ""
                             }`}
@@ -385,19 +385,19 @@ export function AssessmentsAgent({ contextDoc }: AssessmentsAgentProps) {
                             {option}
                           </Label>
                           {showResults && idx === currentQuestionData.correctAnswer && (
-                            <CheckCircle className="h-5 w-5 text-green-500" />
+                            <CheckCircle className="h-5 w-5 text-success" />
                           )}
                           {showResults &&
                             selectedAnswers[currentQuestion] === idx &&
                             idx !== currentQuestionData.correctAnswer && (
-                              <XCircle className="h-5 w-5 text-red-500" />
+                              <XCircle className="h-5 w-5 text-destructive" />
                             )}
                         </div>
                       ))}
                     </RadioGroup>
 
                     {showResults && (
-                      <div className="bg-muted/50 backdrop-blur-md p-4 rounded-xl border border-border/50">
+                      <div className="bg-muted/50 p-4 rounded border border-border/50">
                         <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Explanation</p>
                         <p className="text-sm font-medium">{currentQuestionData.explanation}</p>
                       </div>

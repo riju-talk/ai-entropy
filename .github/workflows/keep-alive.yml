@@ -1,49 +1,29 @@
-name: Keep Server Alive
+name: Keep services warm
 
+# Render's free plan sleeps after 15 minutes idle. Neo4j Aura Free pauses after
+# ~3 days idle. /health touches the app and Neo4j, so one ping serves both.
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Ping /docs (HTML check)
+      - name: Ping /health
+        env:
+          HEALTH_URL: ${{ vars.AI_AGENT_HEALTH_URL }}
         run: |
-          DOCS_URL="https://entropy-community-forum.onrender.com/docs"
-          echo "Pinging $DOCS_URL ..."
-          
-          status=$(curl -s -o docs.html -w "%{http_code}" "$DOCS_URL")
-          echo "Status: $status"
-
-          if grep -qi "<html" docs.html; then
-            echo "✅ /docs returned HTML."
-          else
-            echo "❌ /docs did not return HTML!"
-            head -c 200 docs.html
+          if [ -z "$HEALTH_URL" ]; then
+            echo "Set the repository variable AI_AGENT_HEALTH_URL (e.g. https://entropy-ai-agent.onrender.com/health)"
+            exit 1
           fi
-
-      - name: Ping /health (JSON health check)
-        run: |
-          HEALTH_URL="https://entropy-community-forum.onrender.com/health"
-          echo "Pinging $HEALTH_URL ..."
-
-          response=$(curl -s -o health.json -w "%{http_code}" "$HEALTH_URL")
-          echo "Status: $response"
-
-          expected='{"status":"healthy","groq_configured":true,"cwd":"/opt/render/project/src/apps/ai-agent","python_version":"3.13.4 (main, Jun  4 2025, 14:54:08) [GCC 12.2.0]","groq_model":"llama-3.1-8b-instant","embeddings":"GPT4All (local)","vector_store":"Chroma"}'
-
-          received=$(cat health.json)
-
-          if [ "$received" = "$expected" ]; then
-            echo "✅ /health returned expected JSON."
-          else
-            echo "⚠️ /health JSON mismatch!"
-            echo "Received:"
-            echo "$received"
-          fi
-
-      - name: Log timestamp
-        run: echo "Pinged at $(date -u)"
+          for attempt in 1 2 3; do
+            code=$(curl -s -o health.json -w "%{http_code}" --max-time 60 "$HEALTH_URL" || true)
+            echo "attempt $attempt: HTTP $code"
+            [ "$code" = "200" ] && break
+            sleep 15
+          done
+          cat health.json || true
+          [ "$code" = "200" ]

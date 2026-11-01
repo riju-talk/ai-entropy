@@ -3,13 +3,15 @@ Entropy AI Security - Rate Limiting Middleware
 
 Protects API endpoints from abuse through rate limiting.
 """
+import hmac
 import logging
 import time
 from typing import Dict, Optional
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from fastapi import Request, HTTPException
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
@@ -38,6 +40,13 @@ RATE_LIMITS: Dict[str, RateLimitConfig] = {
     # AI/Reasoning
     "/api/reasoning/ask": RateLimitConfig(20, 60, "user"),
     "/api/ai-agent/ask": RateLimitConfig(20, 60, "user"),
+
+    # LLM-backed endpoints (Groq free tier has tight per-minute quotas)
+    "/api/qa": RateLimitConfig(20, 60, "user"),
+    "/api/quiz": RateLimitConfig(10, 60, "user"),
+    "/api/mindmap": RateLimitConfig(10, 60, "user"),
+    "/api/flashcards": RateLimitConfig(10, 60, "user"),
+    "/api/documents": RateLimitConfig(30, 60, "user"),
     
     # Content creation
     "/api/doubts": RateLimitConfig(10, 60, "user"),
@@ -54,7 +63,7 @@ RATE_LIMITS: Dict[str, RateLimitConfig] = {
     "/api/search": RateLimitConfig(30, 60, "user"),
     
     # Default for unmatched routes
-    "default": RateLimitConfig(100, 60, "ip")
+    "default": RateLimitConfig(120, 60, "user")
 }
 
 
@@ -137,6 +146,15 @@ class RateLimiter:
 rate_limiter = RateLimiter()
 
 
+def _forwarded_user_id(request: Request) -> Optional[str]:
+    from app.core.config import settings
+    expected = getattr(settings, "AI_BACKEND_TOKEN", "") or ""
+    supplied = request.headers.get("x-internal-token", "")
+    if expected and hmac.compare_digest(supplied.encode(), expected.encode()):
+        return request.headers.get("x-user-id") or None
+    return None
+
+
 def get_rate_limit_key(request: Request, scope: str) -> str:
     """
     Get rate limit key based on scope.
@@ -149,8 +167,9 @@ def get_rate_limit_key(request: Request, scope: str) -> str:
         Rate limit key
     """
     if scope == "user":
-        # Get user ID from session/auth
-        user_id = request.state.user_id if hasattr(request.state, "user_id") else None
+        # Behind the Next.js BFF every request comes from the same IP, so key on the verified
+        # user id the BFF forwards. The header is only honoured with a valid service token.
+        user_id = _forwarded_user_id(request)
         if user_id:
             return f"user:{user_id}"
         else:
@@ -220,16 +239,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 f"(retry after {retry_after}s)"
             )
             
-            raise HTTPException(
+            return JSONResponse(
                 status_code=429,
-                detail={
-                    "error": "Rate limit exceeded",
-                    "retry_after": retry_after,
-                    "limit": config.requests,
-                    "window": config.window
-                }
+                headers={"Retry-After": str(retry_after)},
+                content={
+                    "detail": {
+                        "error": "Rate limit exceeded",
+                        "retry_after": retry_after,
+                        "limit": config.requests,
+                        "window": config.window,
+                    }
+                },
             )
-        
+
         # Process request
         response = await call_next(request)
         

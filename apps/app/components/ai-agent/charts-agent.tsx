@@ -89,7 +89,7 @@ export function ChartsAgent({ contextDoc }: ChartsAgentProps) {
                 <div className="flex justify-between items-center">
                     <div>
                         <CardTitle className="text-xl font-bold flex items-center gap-2">
-                            <BarChart3 className="h-5 w-5 text-orange-400" />
+                            <BarChart3 className="h-5 w-5 text-warning" />
                             Document Insights
                         </CardTitle>
                         <CardDescription className="text-sm text-muted-foreground">
@@ -102,8 +102,8 @@ export function ChartsAgent({ contextDoc }: ChartsAgentProps) {
                             size="sm"
                             onClick={() => setChartType("bar")}
                             className={cn(
-                                "rounded-xl border-border/50 transition-all",
-                                chartType === "bar" ? "bg-orange-500/10 border-orange-500/30 text-orange-400" : "hover:bg-muted/50"
+                                "rounded border-border/50 transition-all",
+                                chartType === "bar" ? "bg-warning/10 border-warning/30 text-warning" : "hover:bg-muted/50"
                             )}
                         >
                             <BarChart3 className="h-4 w-4" />
@@ -113,8 +113,8 @@ export function ChartsAgent({ contextDoc }: ChartsAgentProps) {
                             size="sm"
                             onClick={() => setChartType("pie")}
                             className={cn(
-                                "rounded-xl border-border/50 transition-all",
-                                chartType === "pie" ? "bg-orange-500/10 border-orange-500/30 text-orange-400" : "hover:bg-muted/50"
+                                "rounded border-border/50 transition-all",
+                                chartType === "pie" ? "bg-warning/10 border-warning/30 text-warning" : "hover:bg-muted/50"
                             )}
                         >
                             <PieChartIcon className="h-4 w-4" />
@@ -124,8 +124,8 @@ export function ChartsAgent({ contextDoc }: ChartsAgentProps) {
                             size="sm"
                             onClick={() => setChartType("line")}
                             className={cn(
-                                "rounded-xl border-border/50 transition-all",
-                                chartType === "line" ? "bg-orange-500/10 border-orange-500/30 text-orange-400" : "hover:bg-muted/50"
+                                "rounded border-border/50 transition-all",
+                                chartType === "line" ? "bg-warning/10 border-warning/30 text-warning" : "hover:bg-muted/50"
                             )}
                         >
                             <LineChartIcon className="h-4 w-4" />
@@ -134,7 +134,7 @@ export function ChartsAgent({ contextDoc }: ChartsAgentProps) {
                             onClick={generateCharts}
                             disabled={loading}
                             size="sm"
-                            className="rounded-xl bg-orange-500 hover:bg-orange-400 text-white font-bold shadow-lg shadow-orange-500/20"
+                            className="rounded bg-warning hover:bg-warning text-foreground font-bold shadow-lg shadow-orange-500/20"
                         >
                             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                         </Button>
@@ -145,11 +145,11 @@ export function ChartsAgent({ contextDoc }: ChartsAgentProps) {
             <CardContent className="px-0 flex-1 min-h-[400px]">
                 {loading ? (
                     <div className="h-full flex flex-col items-center justify-center space-y-4 opacity-50">
-                        <Loader2 className="h-12 w-12 animate-spin text-orange-400" />
+                        <Loader2 className="h-12 w-12 animate-spin text-warning" />
                         <p className="text-sm font-medium animate-pulse">Extracting quantitative insights...</p>
                     </div>
                 ) : data.length > 0 ? (
-                    <div className="h-[400px] w-full bg-muted/20 backdrop-blur-sm rounded-2xl border border-border/50 p-6">
+                    <div className="h-[400px] w-full bg-muted/20 rounded border border-border/50 p-6">
                         <ResponsiveContainer width="100%" height="100%">
                             {chartType === "bar" ? (
                                 <BarChart data={data}>
@@ -178,7 +178,7 @@ export function ChartsAgent({ contextDoc }: ChartsAgentProps) {
                                         ))}
                                     </Pie>
                                     <Tooltip
-                                        contentStyle={{ backgroundColor: 'hsl(var(--background))', borderRadius: '16px', border: '1px solid hsl(var(--border))', shadow: '0 25px 50px -12px rgb(0 0 0 / 0.5)' }}
+                                        contentStyle={{ backgroundColor: 'hsl(var(--background))', borderRadius: '16px', border: '1px solid hsl(var(--border))', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.5)' }}
                                     />
                                     {/* @ts-ignore */}
                                     <Legend verticalAlign="bottom" height={36} wrapperStyle={{ paddingTop: '20px', fontSize: '10px', textTransform: 'uppercase', fontWeight: 'bold', letterSpacing: '0.05em' }} />
@@ -189,7 +189,7 @@ export function ChartsAgent({ contextDoc }: ChartsAgentProps) {
                                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'currentColor', fontSize: 10 }} className="text-muted-foreground font-medium uppercase tracking-wider" dy={10} />
                                     <YAxis axisLine={false} tickLine={false} tick={{ fill: 'currentColor', fontSize: 10 }} className="text-muted-foreground font-medium" />
                                     <Tooltip
-                                        contentStyle={{ backgroundColor: 'hsl(var(--background))', borderRadius: '16px', border: '1px solid hsl(var(--border))', shadow: '0 25px 50px -12px rgb(0 0 0 / 0.5)' }}
+                                        contentStyle={{ backgroundColor: 'hsl(var(--background))', borderRadius: '16px', border: '1px solid hsl(var(--border))', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.5)' }}
                                     />
                                     <Line type="monotone" dataKey="value" stroke="#f97316" strokeWidth={4} dot={{ r: 6, fill: '#f97316', strokeWidth: 3, stroke: 'hsl(var(--background))' }} activeDot={{ r: 8, strokeWidth: 0 }} />
                                 </LineChart>
@@ -197,8 +197,8 @@ export function ChartsAgent({ contextDoc }: ChartsAgentProps) {
                         </ResponsiveContainer>
                     </div>
                 ) : (
-                    <div className="h-full flex flex-col items-center justify-center border-2 border-dashed border-border/50 rounded-2xl bg-muted/5">
-                        <div className="h-16 w-16 rounded-2xl bg-muted/20 flex items-center justify-center mb-4">
+                    <div className="h-full flex flex-col items-center justify-center border-2 border-dashed border-border/50 rounded bg-muted/5">
+                        <div className="h-16 w-16 rounded bg-muted/20 flex items-center justify-center mb-4">
                             <BarChart3 className="h-8 w-8 text-muted-foreground" />
                         </div>
                         <h3 className="text-lg font-bold text-foreground">No data extracted</h3>

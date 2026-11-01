@@ -122,12 +122,12 @@ export function QAAgent() {
                   }`}
                 >
                   {msg.role === "assistant" && (
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shrink-0">
-                      <Bot className="h-5 w-5 text-white" />
+                    <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0">
+                      <Bot className="h-5 w-5 text-foreground" />
                     </div>
                   )}
                   <div
-                    className={`rounded-lg p-3 max-w-[80%] ${
+                    className={`rounded p-3 max-w-[80%] ${
                       msg.role === "user"
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted"
@@ -147,10 +147,10 @@ export function QAAgent() {
               ))}
               {loading && (
                 <div className="flex gap-3">
-                  <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                    <Loader2 className="h-5 w-5 text-white animate-spin" />
+                  <div className="h-8 w-8 rounded-full flex items-center justify-center">
+                    <Loader2 className="h-5 w-5 text-foreground animate-spin" />
                   </div>
-                  <div className="bg-muted rounded-lg p-3">
+                  <div className="bg-muted rounded p-3">
                     <p className="text-sm">Thinking...</p>
                   </div>
                 </div>

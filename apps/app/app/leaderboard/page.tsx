@@ -64,11 +64,11 @@ export default function LeaderboardPage() {
 	const getRankIcon = (rank: number) => {
 		switch (rank) {
 			case 1:
-				return <Crown className="h-6 w-6 text-yellow-500" />
+				return <Crown className="h-6 w-6 text-warning" />
 			case 2:
-				return <Medal className="h-6 w-6 text-gray-400" />
+				return <Medal className="h-6 w-6 text-muted-foreground" />
 			case 3:
-				return <Award className="h-6 w-6 text-amber-600" />
+				return <Award className="h-6 w-6 text-warning" />
 			default:
 				return <span className="text-lg font-bold text-muted-foreground">#{rank}</span>
 		}
@@ -77,34 +77,34 @@ export default function LeaderboardPage() {
 	const getRarityColor = (rarity: string) => {
 		switch (rarity?.toUpperCase()) {
 			case "COMMON":
-				return "bg-gray-500"
+				return "bg-muted-foreground"
 			case "UNCOMMON":
-				return "bg-green-500"
+				return "bg-success"
 			case "RARE":
-				return "bg-blue-500"
+				return "bg-primary"
 			case "EPIC":
-				return "bg-purple-500"
+				return "bg-primary"
 			case "LEGENDARY":
-				return "bg-yellow-500"
+				return "bg-warning"
 			default:
-				return "bg-gray-500"
+				return "bg-muted-foreground"
 		}
 	}
 
 	const getRarityTextColor = (rarity: string) => {
 		switch (rarity?.toUpperCase()) {
 			case "COMMON":
-				return "text-gray-400"
+				return "text-muted-foreground"
 			case "UNCOMMON":
-				return "text-green-400"
+				return "text-success"
 			case "RARE":
-				return "text-blue-400"
+				return "text-primary"
 			case "EPIC":
-				return "text-purple-400"
+				return "text-primary"
 			case "LEGENDARY":
-				return "text-yellow-400"
+				return "text-warning"
 			default:
-				return "text-gray-400"
+				return "text-muted-foreground"
 		}
 	}
 
@@ -115,10 +115,10 @@ export default function LeaderboardPage() {
 					<div className="h-10 w-48 bg-muted rounded"></div>
 					<div className="h-4 w-96 bg-muted rounded"></div>
 				</div>
-				<div className="h-12 w-full bg-muted rounded-lg"></div>
+				<div className="h-12 w-full bg-muted rounded"></div>
 				<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 					{[1, 2, 3].map((i) => (
-						<div key={i} className="h-64 bg-muted rounded-xl"></div>
+						<div key={i} className="h-64 bg-muted rounded"></div>
 					))}
 				</div>
 			</div>
@@ -126,12 +126,12 @@ export default function LeaderboardPage() {
 	}
 	if (leaderboardError) {
 		return (
-			<div className="text-center text-red-500 font-semibold py-8">{leaderboardError}</div>
+			<div className="text-center text-destructive font-semibold py-8">{leaderboardError}</div>
 		)
 	}
 	if (achievementsError) {
 		return (
-			<div className="text-center text-red-500 font-semibold py-8">{achievementsError}</div>
+			<div className="text-center text-destructive font-semibold py-8">{achievementsError}</div>
 		)
 	}
 
@@ -139,7 +139,7 @@ export default function LeaderboardPage() {
 		<div className="relative">
 			<div className="space-y-8">
 				<div className="space-y-3">
-					<h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+					<h1 className="text-4xl font-bold text-primary">
 						Leaderboard
 					</h1>
 					<p className="text-muted-foreground italic">Compete, learn, and climb the ranks in the ENTROPY community</p>
@@ -172,10 +172,10 @@ export default function LeaderboardPage() {
 							<div className="space-y-4 animate-pulse">
 								<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 									{[1, 2, 3].map((i) => (
-										<div key={i} className="h-64 bg-muted rounded-xl border border-white/5"></div>
+										<div key={i} className="h-64 bg-muted rounded border border-border"></div>
 									))}
 								</div>
-								<div className="h-96 bg-muted rounded-xl border border-white/5"></div>
+								<div className="h-96 bg-muted rounded border border-border"></div>
 							</div>
 						)}
 
@@ -186,45 +186,45 @@ export default function LeaderboardPage() {
 									<Card
 										key={stats.id}
 										className={`${index === 0
-											? "md:order-2 border-yellow-500/50 bg-gradient-to-br from-yellow-500/10 to-transparent shadow-2xl shadow-yellow-500/10"
+											? "md:order-2 border-warning/50 shadow-2xl shadow-yellow-500/10"
 											: index === 1
-												? "md:order-1 border-gray-400/30"
-												: "md:order-3 border-amber-600/30"
+												? "md:order-1 border-border"
+												: "md:order-3 border-warning/30"
 											} relative overflow-hidden transition-all duration-500 hover:scale-[1.02] group`}
 									>
 										<CardHeader className="text-center pb-3">
 											<div className="flex justify-center mb-4 transition-transform group-hover:scale-110 duration-300">
 												{getRankIcon(index + 1)}
 											</div>
-											<Avatar className={`h-24 w-24 mx-auto mb-4 border-4 ${index === 0 ? "border-yellow-500" : "border-background"} ring-4 ring-primary/10`}>
+											<Avatar className={`h-24 w-24 mx-auto mb-4 border-4 ${index === 0 ? "border-warning" : "border-background"} ring-4 ring-primary/10`}>
 												<AvatarImage src={stats.image || "/placeholder.svg"} alt={stats.name} />
-												<AvatarFallback className="bg-gradient-to-br from-cyan-400 to-blue-600 text-white text-2xl font-black">
+												<AvatarFallback className="text-foreground text-2xl font-semibold">
 													{stats.name?.[0] || "U"}
 												</AvatarFallback>
 											</Avatar>
-											<CardTitle className="text-2xl font-black tracking-tight">{stats.name}</CardTitle>
+											<CardTitle className="text-2xl font-semibold tracking-tight">{stats.name}</CardTitle>
 											<CardDescription className="font-bold text-primary italic uppercase tracking-widest text-[10px]">
 												{stats.tier || "Initiate"}
 											</CardDescription>
 										</CardHeader>
 										<CardContent className="text-center space-y-4">
 											<div className="space-y-2">
-												<div className="text-3xl font-extrabold text-yellow-400 tracking-tighter tabular-nums">
+												<div className="text-3xl font-semibold text-warning tracking-tighter tabular-nums">
 													{stats.credits?.toLocaleString() || 0}
 												</div>
 												<div className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Entropy Coins</div>
-												<div className="text-2xl font-extrabold text-cyan-400 tracking-tighter tabular-nums">
+												<div className="text-2xl font-semibold text-primary tracking-tighter tabular-nums">
 													{stats.totalXP?.toLocaleString() || 0}
 												</div>
 												<div className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Total XP</div>
 											</div>
-											<div className="flex justify-center space-x-4 text-xs bg-secondary/30 p-3 rounded-2xl border border-white/5 backdrop-blur-sm">
+											<div className="flex justify-center space-x-4 text-xs bg-secondary/30 p-3 rounded border border-border">
 												<div className="flex items-center font-bold">
-													<Trophy className="h-3 w-3 mr-1.5 text-cyan-400" />
+													<Trophy className="h-3 w-3 mr-1.5 text-primary" />
 													{stats.totalAchievements || 0} ACHIEVEMENTS
 												</div>
 												<div className="flex items-center font-bold">
-													<Flame className={`h-3 w-3 mr-1.5 ${stats.streakInfo?.currentStreak > 0 ? "text-orange-500 animate-pulse" : "text-muted-foreground"}`} />
+													<Flame className={`h-3 w-3 mr-1.5 ${stats.streakInfo?.currentStreak > 0 ? "text-warning animate-pulse" : "text-muted-foreground"}`} />
 													{stats.streakInfo?.currentStreak ?? 0} DAYS
 												</div>
 											</div>
@@ -236,16 +236,16 @@ export default function LeaderboardPage() {
 
 						{/* Full Leaderboard */}
 						{!leaderboardLoading && leaderboard.length > 0 && (
-							<Card className="border-white/5 bg-background/30 backdrop-blur-md">
-								<CardHeader className="border-b border-white/5">
-									<CardTitle className="text-xl font-black uppercase tracking-widest">Global Hall of Fame</CardTitle>
+							<Card className="border-border bg-background/30">
+								<CardHeader className="border-b border-border">
+									<CardTitle className="text-xl font-semibold uppercase tracking-widest">Global Hall of Fame</CardTitle>
 								</CardHeader>
 								<CardContent className="pt-6">
 									<div className="space-y-4">
 										{leaderboard.map((stats, index) => (
 											<div
 												key={stats.id}
-												className="flex items-center space-x-6 p-5 rounded-2xl bg-secondary/10 hover:bg-secondary/20 transition-all duration-300 border border-transparent hover:border-white/10 group"
+												className="flex items-center space-x-6 p-5 rounded bg-secondary/10 hover:bg-secondary/20 transition-all duration-300 border border-transparent hover:border-border group"
 											>
 												<div className="flex items-center justify-center w-12 text-center transition-transform group-hover:scale-125">
 													{getRankIcon(index + 1)}
@@ -253,22 +253,22 @@ export default function LeaderboardPage() {
 
 												<Avatar className="h-14 w-14 border-2 border-primary/20 shadow-lg group-hover:shadow-primary/20 transition-all">
 													<AvatarImage src={stats.image || "/placeholder.svg"} alt={stats.name} />
-													<AvatarFallback className="bg-gradient-to-br from-cyan-400 to-blue-600 text-white font-bold">
+													<AvatarFallback className="text-foreground font-bold">
 														{stats.name?.[0] || "U"}
 													</AvatarFallback>
 												</Avatar>
 
 												<div className="flex-1 min-w-0">
 													<div className="flex items-center space-x-3">
-														<h3 className="font-black text-lg group-hover:text-primary transition-colors truncate">
+														<h3 className="font-semibold text-lg group-hover:text-primary transition-colors truncate">
 															{stats.name}
 														</h3>
-														<Badge className="bg-cyan-500/10 text-cyan-400 border-cyan-500/20 text-[10px] font-black h-5 px-2">
+														<Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] font-semibold h-5 px-2">
 															{stats.tier ?? "INITIATE"}
 														</Badge>
 													</div>
 													<div className="flex items-center gap-2 mt-1.5">
-														<Badge className="bg-orange-500/10 text-orange-500 border-none text-[9px] font-black px-2 h-5 tracking-tighter">
+														<Badge className="bg-warning/10 text-warning border-none text-[9px] font-semibold px-2 h-5 tracking-tighter">
 															<Flame className="h-3 w-3 mr-1" />
 															{stats.streakInfo?.currentStreak ?? 0} DAY STREAK
 														</Badge>
@@ -277,16 +277,16 @@ export default function LeaderboardPage() {
 
 												<div className="text-right space-y-1">
 													<div>
-														<div className="text-lg font-black text-yellow-400 tabular-nums tracking-tighter">
+														<div className="text-lg font-semibold text-warning tabular-nums tracking-tighter">
 															{stats.credits?.toLocaleString() || 0} 💰
 														</div>
-														<div className="text-[8px] text-muted-foreground font-black uppercase tracking-widest">Coins</div>
+														<div className="text-[8px] text-muted-foreground font-semibold uppercase tracking-widest">Coins</div>
 													</div>
 													<div>
-														<div className="text-lg font-black text-cyan-400 tabular-nums tracking-tighter">
+														<div className="text-lg font-semibold text-primary tabular-nums tracking-tighter">
 															{stats.totalXP?.toLocaleString() || 0}
 														</div>
-														<div className="text-[8px] text-muted-foreground font-black uppercase tracking-widest">XP</div>
+														<div className="text-[8px] text-muted-foreground font-semibold uppercase tracking-widest">XP</div>
 													</div>
 												</div>
 											</div>
@@ -303,12 +303,12 @@ export default function LeaderboardPage() {
 								<Card key={achievement.id} className="hover:shadow-lg transition-shadow">
 									<CardHeader>
 										<div className="flex items-center space-x-3">
-											<div className={`p-3 rounded-lg ${getRarityColor(achievement.rarity)}`}>
+											<div className={`p-3 rounded ${getRarityColor(achievement.rarity)}`}>
 												<span className="text-2xl">{achievement.icon}</span>
 											</div>
 											<div>
 												<CardTitle className="text-base">{achievement.name}</CardTitle>
-												<Badge className={`${getRarityColor(achievement.rarity)} text-white text-xs mt-1`}>
+												<Badge className={`${getRarityColor(achievement.rarity)} text-foreground text-xs mt-1`}>
 													{achievement.rarity}
 												</Badge>
 											</div>

@@ -58,16 +58,9 @@ data/uploads/
 .DS_Store
 Thumbs.db
 
-# Docker
-.dockerignore
-
 # Prisma
 prisma/*.db
 prisma/*.db-journal
-
-# Lambda
-*.zip
-*.pyz
 
 # Cache
 .cache/

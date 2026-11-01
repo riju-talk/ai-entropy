@@ -1,3 +1,5 @@
+> **Note:** parts of this document describe the earlier AWS design (Bedrock, SQS/Lambda, S3). The current stack is Groq + local embeddings, in-process message queues and Supabase Storage; see the [README](../README.md) and [DEPLOYMENT.md](../DEPLOYMENT.md).
+
 # Entropy Platform - Technical Engineering Summary
 **Author**: Senior Software Engineer  
 **Date**: February 27, 2026  

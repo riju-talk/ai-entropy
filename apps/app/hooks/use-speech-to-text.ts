@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
-type RecognitionStatic = typeof window extends any
-  ? (window & { webkitSpeechRecognition?: any; SpeechRecognition?: any })["SpeechRecognition"]
-  : any
+type RecognitionStatic = any
 
 export function useSpeechToText(opts?: { lang?: string; interimResults?: boolean; continuous?: boolean }) {
   const [listening, setListening] = useState(false)

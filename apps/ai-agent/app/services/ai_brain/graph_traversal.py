@@ -53,7 +53,7 @@ async def traverse_prerequisites(
     try:
         # Cypher query: traverse REQUIRES relationships
         query = """
-        MATCH path = (c:Concept {id: $concept_id})-[:REQUIRES*1..{max_depth}]->(prereq:Concept)
+        MATCH path = (prereq:Concept)-[:PREREQUISITE_OF*1..{max_depth}]->(c:Concept {id: $concept_id})
         WITH prereq, length(path) as distance
         ORDER BY distance
         RETURN DISTINCT prereq.id AS id,
@@ -178,7 +178,7 @@ async def find_dependent_concepts(
     
     try:
         query = """
-        MATCH (dependent:Concept)-[:REQUIRES]->(c:Concept {id: $concept_id})
+        MATCH (c:Concept {id: $concept_id})-[:PREREQUISITE_OF]->(dependent:Concept)
         RETURN DISTINCT dependent.id AS id,
                dependent.name AS name,
                dependent.description AS description,
@@ -232,7 +232,7 @@ async def compute_learning_path(
     try:
         # Get all prerequisites and their relationships
         query = """
-        MATCH path = (c:Concept {id: $concept_id})-[:REQUIRES*0..]->(prereq:Concept)
+        MATCH path = (prereq:Concept)-[:PREREQUISITE_OF*0..]->(c:Concept {id: $concept_id})
         RETURN DISTINCT prereq.id AS id, length(path) as distance
         ORDER BY distance DESC
         """

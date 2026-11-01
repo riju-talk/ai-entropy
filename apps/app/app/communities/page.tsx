@@ -1,184 +1,108 @@
 "use client"
 
-import { useEffect, useState, useRef, useCallback } from "react"
-import { Button } from "@/components/ui/button"
-import { Users, Search, Plus, Loader2 } from "lucide-react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
-import { useAuthModal } from "@/hooks/use-auth-modal"
-import { formatDistanceToNow } from "date-fns"
 
-interface Community {
+import { JoinButton } from "@/components/community/join-button"
+import { PostFeed } from "@/components/community/post-feed"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { apiFetch } from "@/lib/client-api"
+import { cn } from "@/lib/utils"
+
+interface CommunityCard {
   id: string
+  slug: string | null
   name: string
   description: string | null
-  subject: string | null
-  createdAt: string
+  memberCount: number
+  isMember: boolean
 }
 
 export default function CommunitiesPage() {
-  const [communities, setCommunities] = useState<Community[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [page, setPage] = useState(1)
-  const [hasMore, setHasMore] = useState(true)
-  const [loading, setLoading] = useState(false)
-  const [initialLoading, setInitialLoading] = useState(true)
-  const { data: session } = useSession()
-  const { open: openAuthModal } = useAuthModal()
-
-  const observerRef = useRef<IntersectionObserver | null>(null)
-  const lastElementRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      if (loading) return
-      if (observerRef.current) observerRef.current.disconnect()
-
-      observerRef.current = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && hasMore) {
-          setPage((prev) => prev + 1)
-        }
-      })
-
-      if (node) observerRef.current.observe(node)
-    },
-    [loading, hasMore]
-  )
+  const { status } = useSession()
+  const [scope, setScope] = useState<"all" | "joined">("all")
+  const [q, setQ] = useState("")
+  const [list, setList] = useState<CommunityCard[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchCommunities()
-  }, [page])
-
-  const fetchCommunities = async () => {
-    setLoading(true)
-    try {
-      const response = await fetch(`/api/communities/recent?limit=12&page=${page}`)
-      if (response.ok) {
-        const data = await response.json()
-        setCommunities((prev) => (page === 1 ? data.communities : [...prev, ...data.communities]))
-        setHasMore(data.hasMore)
-      }
-    } catch (error) {
-      console.error("Failed to fetch communities:", error)
-    } finally {
-      setLoading(false)
-      setInitialLoading(false)
-    }
-  }
-
-  const filteredCommunities = (communities || []).filter((community) =>
-    community.name.toLowerCase().includes(searchTerm.toLowerCase())
-  )
-
-  const handleCreateCommunity = () => {
-    if (!session) {
-      openAuthModal()
-      return
-    }
-    window.location.href = "/communities/create"
-  }
-
-  if (initialLoading) {
-    return (
-      <div className="max-w-7xl mx-auto py-8 space-y-4 font-mono animate-pulse">
-        <div className="h-6 w-48 bg-white/5 rounded" />
-        <div className="h-10 w-full bg-white/5 rounded-lg" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-44 bg-white/5 rounded-xl border border-white/5" />
-          ))}
-        </div>
-      </div>
-    )
-  }
+    if (status === "loading") return
+    const t = setTimeout(() => {
+      apiFetch<CommunityCard[]>(`/api/communities?limit=30${q ? `&q=${encodeURIComponent(q)}` : ""}`)
+        .then((d) => {
+          setList(d)
+          setError(null)
+        })
+        .catch((e: Error) => setError(e.message))
+    }, q ? 250 : 0)
+    return () => clearTimeout(t)
+  }, [q, status])
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 font-mono">
-      {/* Header */}
-      <div className="flex justify-between items-start">
+    <div className="mx-auto max-w-5xl">
+      <header className="mb-8 flex flex-col gap-4 border-b border-foreground/80 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-cyan-500/60 mb-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span>ENTROPY · COMMUNITIES</span>
-          </div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">Communities</h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            Join communities to connect with others and share knowledge
-          </p>
+          <p className="eyebrow mb-2">Communities</p>
+          <h1 className="font-display text-4xl sm:text-5xl">Find your people.</h1>
         </div>
-        <Button
-          onClick={handleCreateCommunity}
-          size="sm"
-          className="font-mono text-[11px] uppercase tracking-wider bg-cyan-500 hover:bg-cyan-400 text-black"
-        >
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
-          Create
+        <Button asChild size="lg">
+          <Link href="/create-community">Create a community</Link>
         </Button>
-      </div>
+      </header>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50" />
-        <input
-          type="text"
-          placeholder="Search communities..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full h-10 pl-9 pr-4 rounded-lg border border-white/8 bg-[#0d0d14]/80 text-sm font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:border-cyan-500/40 focus:ring-1 focus:ring-cyan-500/20 text-foreground"
-        />
-      </div>
-
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredCommunities.map((community, index) => (
-          <div
-            key={community.id}
-            ref={index === filteredCommunities.length - 1 ? lastElementRef : null}
-          >
-            <Link href={`/communities/${community.id}`}>
-              <div className="rounded-xl border border-white/5 bg-[#0d0d14]/80 p-5 hover:border-cyan-500/20 hover:shadow-[0_0_20px_rgba(6,182,212,0.06)] transition-all duration-300 cursor-pointer h-full flex flex-col gap-3">
-                <div className="flex items-start justify-between">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-white font-black text-base shadow-[0_0_12px_rgba(168,85,247,0.3)]">
-                    {community.name[0].toUpperCase()}
-                  </div>
-                  <span className="text-[10px] uppercase tracking-[0.12em] border border-white/8 text-muted-foreground px-2 py-0.5 rounded">
-                    {formatDistanceToNow(new Date(community.createdAt), { addSuffix: true })}
-                  </span>
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-foreground line-clamp-1">{community.name}</h3>
-                  <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
-                    {community.description || "No description"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 mt-auto pt-2 border-t border-white/5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-                  <Users className="h-3 w-3" />
-                  <span>Community</span>
-                  {community.subject && (
-                    <>
-                      <span className="text-white/20">·</span>
-                      <span className="text-cyan-400/70">{community.subject}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </Link>
-          </div>
-        ))}
-      </div>
-
-      {loading && (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
+      <div className="grid gap-12 lg:grid-cols-[1fr_300px]">
+        <div>
+          {status === "authenticated" && (
+            <div className="mb-4 flex gap-4 text-sm">
+              {(["all", "joined"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setScope(s)}
+                  className={cn("border-b-2 pb-0.5", scope === s ? "border-primary font-medium" : "border-transparent text-muted-foreground hover:text-foreground")}
+                >
+                  {s === "all" ? "Everything" : "Joined only"}
+                </button>
+              ))}
+            </div>
+          )}
+          <PostFeed
+            key={scope}
+            endpoint="/api/feed"
+            showCommunity
+            extraParams={scope === "joined" ? "&joined=1" : ""}
+            empty={scope === "joined" ? "Join a community and its posts will show up here." : "No posts yet. Be the first to start a discussion."}
+          />
         </div>
-      )}
 
-      {!initialLoading && filteredCommunities.length === 0 && (
-        <div className="rounded-xl border border-white/5 bg-[#0d0d14]/80 p-12 text-center">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/40 mb-2">
-            NO_RESULTS
-          </div>
-          <p className="text-sm text-muted-foreground">No communities match your search</p>
-        </div>
-      )}
+        <aside aria-label="Communities">
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search communities" aria-label="Search communities" className="mb-4" />
+          <h2 className="eyebrow mb-1 border-b border-foreground/80 pb-2 text-foreground">{q ? "Results" : "Popular"}</h2>
+          {error ? (
+            <p role="alert" className="py-4 text-sm text-destructive">
+              {error}
+            </p>
+          ) : list === null ? (
+            <p className="py-4 text-sm text-muted-foreground">Loading...</p>
+          ) : list.length === 0 ? (
+            <p className="py-4 text-sm text-muted-foreground">{q ? "No communities match that search." : "No communities yet."}</p>
+          ) : (
+            <ul className="divide-y">
+              {list.map((c) => (
+                <li key={c.id} className="flex items-start justify-between gap-3 py-3">
+                  <Link href={`/communities/${c.slug ?? c.id}`} className="group min-w-0">
+                    <span className="block truncate font-medium group-hover:text-primary">c/{c.slug ?? c.name}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{c.memberCount.toLocaleString()} {c.memberCount === 1 ? "member" : "members"}</span>
+                    {c.description && <span className="mt-0.5 line-clamp-2 block text-sm text-muted-foreground">{c.description}</span>}
+                  </Link>
+                  <JoinButton communityId={c.id} isMember={c.isMember} size="sm" />
+                </li>
+              ))}
+            </ul>
+          )}
+        </aside>
+      </div>
     </div>
   )
 }

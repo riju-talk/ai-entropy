@@ -7,13 +7,14 @@
  */
 
 import { PrismaClient } from "@prisma/client";
+import { prisma as sharedPrisma } from "@/lib/prisma"
 import type {
   AchievementType,
   AchievementRarity,
   BadgeType,
 } from "@prisma/client";
 
-const prisma = new PrismaClient();
+const prisma = sharedPrisma;
 
 /* ============================================================
    TYPE DEFINITIONS

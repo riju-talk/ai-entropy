@@ -63,6 +63,8 @@ async def add_concept(
             """
             MERGE (c:Concept {name: $name})
             ON CREATE SET
+                c.id = toLower(replace($name, ' ', '_')),
+                c.synonyms = [],
                 c.description = $description,
                 c.domain = $domain,
                 c.difficulty = $difficulty,
@@ -98,6 +100,113 @@ async def link_prerequisite(concept: str, prerequisite: str) -> bool:
         )
     logger.debug("Linked prerequisite: %s â†’ %s", prerequisite, concept)
     return True
+
+
+# ---------------------------------------------------------------------------
+# Schema, resolution and growth (used by the pipeline harness)
+# ---------------------------------------------------------------------------
+
+async def ensure_schema() -> None:
+    """Idempotent: uniqueness, lookup index, and a stable `id` on every Concept (older nodes had none)."""
+    driver = await get_driver()
+    async with driver.session() as session:
+        for stmt in (
+            "CREATE CONSTRAINT concept_name_unique IF NOT EXISTS FOR (c:Concept) REQUIRE c.name IS UNIQUE",
+            "CREATE INDEX concept_id_idx IF NOT EXISTS FOR (c:Concept) ON (c.id)",
+            "MATCH (c:Concept) WHERE c.id IS NULL SET c.id = toLower(replace(c.name, ' ', '_'))",
+            "MATCH (c:Concept) WHERE c.synonyms IS NULL SET c.synonyms = []",
+        ):
+            try:
+                await session.run(stmt)
+            except Exception as exc:  # e.g. duplicates block the constraint; the rest still helps
+                logger.warning("Graph schema step skipped (%s): %s", stmt[:40], exc)
+    logger.info("Neo4j schema ensured")
+
+
+async def resolve_concept(name: str) -> Optional[dict]:
+    """Find the graph node for a concept name: exact, synonym, then contains-match (shortest name wins)."""
+    q = (name or "").strip()
+    if len(q) < 2:
+        return None
+    driver = await get_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            """
+            MATCH (c:Concept)
+            WITH c, toLower($q) AS q, toLower(c.name) AS n
+            WHERE n = q OR $q IN coalesce(c.synonyms, [])
+               OR (size(q) >= 4 AND size(n) >= 4 AND (n CONTAINS q OR q CONTAINS n))
+            RETURN c.id AS id, c.name AS name, c.description AS description, c.difficulty AS difficulty
+            ORDER BY CASE WHEN n = q THEN 0 ELSE 1 END, size(c.name)
+            LIMIT 1
+            """,
+            q=q,
+        )
+        rec = await result.single()
+        return dict(rec) if rec else None
+
+
+async def get_graph_context(name: str, user_id: Optional[str] = None) -> Optional[dict]:
+    """
+    Everything the tutor needs about one concept in a single round trip:
+    prerequisites (with the learner's mastery), what it unlocks, related concepts, and mastery of the concept itself.
+    """
+    node = await resolve_concept(name)
+    if not node:
+        return None
+    driver = await get_driver()
+    async with driver.session() as session:
+        result = await session.run(
+            """
+            MATCH (c:Concept {name: $name})
+            OPTIONAL MATCH (p:Concept)-[:PREREQUISITE_OF]->(c)
+            OPTIONAL MATCH (u:User {id: $uid})-[pm:MASTERED_BY]->(p)
+            WITH c, collect(DISTINCT CASE WHEN p IS NULL THEN NULL ELSE
+                 {name: p.name, id: p.id, mastered: coalesce(pm.score, 0) >= 0.7} END) AS prereqs
+            OPTIONAL MATCH (c)-[:PREREQUISITE_OF]->(d:Concept)
+            WITH c, prereqs, collect(DISTINCT CASE WHEN d IS NULL THEN NULL ELSE {name: d.name, id: d.id} END) AS deps
+            OPTIONAL MATCH (c)-[:RELATED_TO]-(r:Concept)
+            WITH c, prereqs, deps, collect(DISTINCT CASE WHEN r IS NULL THEN NULL ELSE {name: r.name, id: r.id} END) AS rel
+            OPTIONAL MATCH (:User {id: $uid})-[m:MASTERED_BY]->(c)
+            RETURN prereqs, deps, rel, m.score AS mastery
+            """,
+            name=node["name"],
+            uid=user_id or "",
+        )
+        rec = await result.single()
+
+    def clean(xs):
+        return [x for x in (xs or []) if x]
+
+    return {
+        **node,
+        "prerequisites": clean(rec["prereqs"]) if rec else [],
+        "dependents": clean(rec["deps"]) if rec else [],
+        "related": clean(rec["rel"]) if rec else [],
+        "mastery": rec["mastery"] if rec else None,
+    }
+
+
+async def grow_graph(concept: str, prerequisites: List[str], related: List[str], domain: str = "") -> None:
+    """Add the concept an answer was about, plus its prerequisites and related concepts, so the graph learns from use."""
+    concept = (concept or "").strip()
+    if len(concept) < 2:
+        return
+    await add_concept(concept, domain=domain)
+    driver = await get_driver()
+    async with driver.session() as session:
+        for pre in [p for p in prerequisites if p and p.strip().lower() != concept.lower()][:5]:
+            await add_concept(pre.strip(), domain=domain)
+            await session.run(
+                "MATCH (a:Concept {name: $a}), (b:Concept {name: $b}) MERGE (a)-[:PREREQUISITE_OF]->(b)",
+                a=pre.strip(), b=concept,
+            )
+        for rel in [r for r in related if r and r.strip().lower() != concept.lower()][:5]:
+            await add_concept(rel.strip(), domain=domain)
+            await session.run(
+                "MATCH (a:Concept {name: $a}), (b:Concept {name: $b}) MERGE (a)-[:RELATED_TO]->(b)",
+                a=concept, b=rel.strip(),
+            )
 
 
 # ---------------------------------------------------------------------------

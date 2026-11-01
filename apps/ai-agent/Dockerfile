@@ -1,38 +1,30 @@
-ARG PYTHON_VERSION=3.12
+# Entropy AI service: single worker, sized for a 512 MB free-tier instance.
+FROM python:3.12-slim
 
-# Builder: build wheels to reduce final image size
-FROM python:${PYTHON_VERSION}-slim AS builder
-WORKDIR /wheels
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    FASTEMBED_CACHE_PATH=/opt/fastembed
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential gcc libssl-dev libffi-dev libxml2-dev libxslt1-dev git curl \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY ./requirements.txt /wheels/requirements.txt
-
-RUN python -m pip install --upgrade pip setuptools wheel
-RUN pip wheel --no-cache-dir --wheel-dir /wheels -r /wheels/requirements.txt
-
-# Runtime image
-FROM python:${PYTHON_VERSION}-slim AS runtime
 WORKDIR /app
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libssl-dev libffi-dev libxml2 libxslt1.1 curl \
+    && apt-get install -y --no-install-recommends curl libgomp1 libatomic1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /wheels /wheels
-RUN python -m pip install --upgrade pip
-RUN pip install --no-cache-dir /wheels/*.whl || true
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
-COPY . /app
+# Prisma query engine for the Postgres client (generate needs placeholder URLs only)
+COPY prisma ./prisma
+RUN DATABASE_URL=postgresql://x:x@localhost/x DIRECT_URL=postgresql://x:x@localhost/x \
+    prisma generate --schema=prisma/schema.prisma
+
+# Bake the embedding model into the image so cold starts never download it
+RUN python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5')"
+
+COPY app ./app
 
 EXPOSE 8000
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Render supplies $PORT; default to 8000 locally
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]

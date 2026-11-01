@@ -26,11 +26,9 @@ try:
     from langchain_core.prompts import ChatPromptTemplate
     from langchain_core.embeddings import Embeddings as LCEmbeddings
     from langchain_text_splitters import RecursiveCharacterTextSplitter
-    from langchain_pinecone import PineconeVectorStore
-    from pinecone import Pinecone, ServerlessSpec
     from app.core.config import settings
     from app.core.prompts import MINDMAP_PROMPT
-    from app.services.bedrock_service import get_bedrock_service
+    from app.services.ai_service import get_ai_service
 
     logger.info("✅ All imports successful (langchain_service)")
 except Exception as e:
@@ -39,57 +37,40 @@ except Exception as e:
     # langchain_service singleton will be None; routes return 503 gracefully.
 
 
-class _BedrockEmbeddingsAdapter(LCEmbeddings):
-    """Wraps BedrockService.embed_batch() as a LangChain Embeddings object for Pinecone.
-
-    Delegates to embed_batch() so the shared Semaphore + connection pool in
-    BedrockService are respected — avoids connection-pool exhaustion and
-    ThrottlingExceptions when many chunks are embedded in parallel.
-    """
+class _LocalEmbeddingsAdapter(LCEmbeddings):
+    """Wraps AIService.embed_batch() (local fastembed) as a LangChain Embeddings object for Pinecone."""
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         if not texts:
             return []
-        return get_bedrock_service().embed_batch(texts).tolist()
+        return get_ai_service().embed_batch(texts).tolist()
 
     def embed_query(self, text: str) -> List[float]:
-        return get_bedrock_service().embed(text).tolist()
+        return get_ai_service().embed(text).tolist()
 
 SPARK_PERSONALITY = """You are Spark, an enthusiastic AI learning companion! 🌟
 Format responses in clean Markdown with headings, lists, code blocks, and emphasis."""
 
 
 class LangChainService:
-    """Core LangChain service with RAG capabilities — Bedrock + Pinecone"""
+    """Core LangChain service with RAG capabilities — Groq + fastembed + Pinecone"""
     
     def __init__(self):
         try:
             logger.info("🔧 Initializing LangChain service...")
             
-            # Validate required config
-            if not settings.PINECONE_API_KEY:
-                raise ValueError("Missing PINECONE_API_KEY!")
-            
-            # LLM: use BedrockService directly (via adapter for LangChain invoke())
-            self._bedrock_svc = get_bedrock_service()
-            logger.info("✅ BedrockService ready")
+            # LLM: Groq via AIService (langchain-groq)
+            self._ai_svc = get_ai_service()
+            logger.info("✅ AIService (Groq) ready")
 
-            # Embeddings adapter (LangChain-compatible wrapper around BedrockService.embed)
-            self.embeddings = _BedrockEmbeddingsAdapter()
-            logger.info("✅ Bedrock Titan Embeddings adapter ready")
+            # Embeddings adapter (LangChain-compatible wrapper around AIService.embed_batch)
+            self.embeddings = _LocalEmbeddingsAdapter()
+            logger.info("✅ Local fastembed embeddings adapter ready")
 
-            # Initialize Pinecone Client
-            logger.info("Initializing Pinecone...")
-            self.pc = Pinecone(api_key=settings.PINECONE_API_KEY)
-            self.index_name = settings.PINECONE_INDEX_NAME
-
-            # Connect via host if configured (faster, skips list_indexes call)
-            if settings.PINECONE_HOST:
-                self.pinecone_index = self.pc.Index(host=settings.PINECONE_HOST)
-                logger.info(f"✅ Pinecone index connected via host: {settings.PINECONE_HOST}")
-            else:
-                self._ensure_pinecone_index()
-                self.pinecone_index = self.pc.Index(self.index_name)
+            # Vector storage lives in app.core.vector_store (Pinecone if configured, else Postgres)
+            from app.core.vector_store import get_vector_store
+            self.vector_store = get_vector_store()
+            logger.info("✅ Vector store backend: %s", self.vector_store.backend)
 
             # Initialize text splitter
             self.text_splitter = RecursiveCharacterTextSplitter(
@@ -108,53 +89,14 @@ class LangChainService:
             logger.exception("❌ INITIALIZATION FAILED: %s", e)
             raise
 
-    def _ensure_pinecone_index(self) -> None:
-        """Create the Pinecone index if it doesn't exist, or recreate it when
-        the stored dimension doesn't match EMBEDDING_DIMENSIONS.
-
-        A stale index (e.g. created with 768 dims but embeddings are now 1536)
-        causes a 400 Bad Request on every upsert. This method detects that and
-        deletes + recreates the index with the correct dimension automatically.
-        """
-        target_dim = settings.EMBEDDING_DIMENSIONS
-        existing = {i.name: i for i in self.pc.list_indexes()}
-
-        if self.index_name in existing:
-            # Describe the index to read its actual dimension
-            try:
-                info = self.pc.describe_index(self.index_name)
-                actual_dim = info.dimension
-                if actual_dim != target_dim:
-                    logger.warning(
-                        "Pinecone index '%s' has dimension %d but EMBEDDING_DIMENSIONS=%d. "
-                        "Deleting and recreating with correct dimension.",
-                        self.index_name, actual_dim, target_dim,
-                    )
-                    self.pc.delete_index(self.index_name)
-                    existing.pop(self.index_name)
-                else:
-                    logger.info(
-                        "✅ Pinecone index '%s' found (dim=%d)", self.index_name, actual_dim
-                    )
-                    return
-            except Exception as exc:
-                logger.warning("Could not describe Pinecone index: %s — will recreate", exc)
-                try:
-                    self.pc.delete_index(self.index_name)
-                except Exception:
-                    pass
-                existing.pop(self.index_name, None)
-
-        logger.info(
-            "Creating Pinecone index '%s' (dim=%d)...", self.index_name, target_dim
-        )
-        self.pc.create_index(
-            name=self.index_name,
-            dimension=target_dim,
-            metric="cosine",
-            spec=ServerlessSpec(cloud="aws", region=settings.PINECONE_ENV),
-        )
-        logger.info("✅ Pinecone index '%s' created (dim=%d)", self.index_name, target_dim)
+    async def _retrieve(self, namespace: str, query: str, k: int = 4) -> List["Document"]:
+        """Top-k chunks as LangChain Documents (empty list when nothing is stored or the store is down)."""
+        try:
+            hits = await self.vector_store.query(namespace, query, k)
+        except Exception as exc:
+            logger.warning("Retrieval failed for namespace=%s: %s", namespace, exc)
+            return []
+        return [Document(page_content=h["text"], metadata={**(h.get("metadata") or {}), "source": h.get("source", ""), "score": h.get("score", 0)}) for h in hits if h.get("text")]
 
     async def chat_with_fallback(
         self,
@@ -165,11 +107,11 @@ class LangChainService:
     ) -> Dict[str, Any]:
         """Bulletproof chat with RAG fallback"""
         try:
-            vector_store = self.load_vector_store(collection_name)
-            
-            if vector_store:
+            docs = await self._retrieve(collection_name, message, 4)
+
+            if docs:
                 logger.info("📖 Using RAG")
-                return await self.rag_chat(message, vector_store, system_prompt)
+                return await self.rag_chat(message, docs, system_prompt)
             else:
                 logger.info("💬 Using direct chat")
                 return await self.direct_chat(message, conversation_history, system_prompt)
@@ -181,24 +123,18 @@ class LangChainService:
     async def rag_chat(
         self,
         message: str,
-        vector_store: PineconeVectorStore,
+        docs: List["Document"],
         system_prompt: Optional[str] = None
     ) -> Dict[str, Any]:
-        """RAG chat using vector store retriever directly"""
+        """Answer from already-retrieved chunks"""
         try:
-            # Create retriever
-            retriever = vector_store.as_retriever(search_kwargs={"k": 4})
-            
-            # Get relevant documents
-            docs = retriever.invoke(message)
-            
             # Format context from documents
             context = "\n\n".join([doc.page_content for doc in docs])
             
-            # Build prompt and call Bedrock
+            # Build prompt and call the LLM
             system = system_prompt or SPARK_PERSONALITY
             prompt_text = f"Context:\n{context}\n\nQuestion: {message}\n\nAnswer:"
-            answer = self._bedrock_svc.generate(prompt_text, system=system)
+            answer = self._ai_svc.generate(prompt_text, system=system)
             
             # Format sources
             sources = [
@@ -221,76 +157,27 @@ class LangChainService:
         conversation_history: List[Dict[str, str]] = None,
         system_prompt: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Direct LLM chat via BedrockService"""
+        """Direct LLM chat via AIService"""
         system = system_prompt or SPARK_PERSONALITY
-        bedrock_msgs = []
+        chat_msgs = []
         if conversation_history:
             for msg in conversation_history:
                 if msg["role"] in ("user", "assistant"):
-                    bedrock_msgs.append({"role": msg["role"], "content": msg["content"]})
-        bedrock_msgs.append({"role": "user", "content": message})
-        answer = self._bedrock_svc.generate_with_history(bedrock_msgs, system=system)
+                    chat_msgs.append({"role": msg["role"], "content": msg["content"]})
+        chat_msgs.append({"role": "user", "content": message})
+        answer = self._ai_svc.generate_with_history(chat_msgs, system=system)
         return {"answer": answer, "sources": [], "mode": "direct"}
     
-    def load_vector_store(self, collection_name: str):
-        """Load vector store (Pinecone)"""
-        try:
-            # Connect to existing index
-            store = PineconeVectorStore(
-                index_name=self.index_name,
-                embedding=self.embeddings,
-                namespace=collection_name # Use 'collection_name' as namespace for separation
-            )
-            return store
-        except Exception as e:
-            logger.error(f"Load error: {e}")
-            return None
-    
     async def upsert_documents(self, documents, collection_name):
-        """Embed in parallel, then upsert directly to Pinecone in parallel batches."""
-        import asyncio
-        import uuid as _uuid
-        from concurrent.futures import ThreadPoolExecutor
-
-        logger.info(f"upsert_documents: namespace={collection_name} docs={len(documents)}")
-
-        texts     = [doc.page_content for doc in documents]
-        metadatas = [doc.metadata     for doc in documents]
-
-        # ── Step 1: embed all chunks in parallel ──────────────────────────────
-        embeddings = self.embeddings.embed_documents(texts)
-
-        # ── Step 2: build Pinecone vector records ─────────────────────────────
-        ALLOWED = (str, int, float, bool)      # Pinecone metadata value types
-        vectors = []
-        for text, emb, meta in zip(texts, embeddings, metadatas):
-            safe_meta = {k: v for k, v in meta.items() if isinstance(v, ALLOWED)}
-            safe_meta["text"] = text[:2000]    # kept for retrieval
-            vectors.append({
-                "id":       str(_uuid.uuid4()),
-                "values":   emb,
-                "metadata": safe_meta,
-            })
-
-        # ── Step 3: upsert in parallel batches of 100 ─────────────────────────
-        BATCH_SIZE = 100
-        batches = [vectors[i : i + BATCH_SIZE] for i in range(0, len(vectors), BATCH_SIZE)]
-
-        def _upsert_batch(batch):
-            self.pinecone_index.upsert(vectors=batch, namespace=collection_name)
-
-        loop = asyncio.get_event_loop()
-        with ThreadPoolExecutor(max_workers=min(10, len(batches))) as pool:
-            await asyncio.gather(*[
-                loop.run_in_executor(pool, _upsert_batch, batch)
-                for batch in batches
-            ])
-
-        logger.info(
-            f"✅ Upserted {len(vectors)} chunks to Pinecone namespace={collection_name} "
-            f"in {len(batches)} batch(es)"
+        """Embed and store chunks in the configured vector store (namespace = collection_name)."""
+        logger.info("upsert_documents: namespace=%s docs=%d backend=%s", collection_name, len(documents), self.vector_store.backend)
+        stored = await self.vector_store.upsert(
+            collection_name,
+            [d.page_content for d in documents],
+            [d.metadata for d in documents],
         )
-    
+        logger.info("✅ Stored %d chunks (namespace=%s)", stored, collection_name)
+
     def split_documents(self, documents):
         """Split documents"""
         return self.text_splitter.split_documents(documents)
@@ -449,35 +336,22 @@ class LangChainService:
             context_text = ""
             sources_meta = []
             try:
-                vector_store = self.load_vector_store("default")
-                if vector_store:
-                    retriever = vector_store.as_retriever(search_kwargs={"k": 6})
-                    docs = []
-                    # Try common retriever method names defensively
-                    if hasattr(retriever, "get_relevant_documents"):
-                        docs = retriever.get_relevant_documents(topic)
-                    elif hasattr(retriever, "retrieve"):
-                        docs = retriever.retrieve(topic)
-                    elif callable(retriever):
-                        try:
-                            docs = retriever(topic)
-                        except Exception:
-                            docs = []
-                    # Normalize docs and build context
-                    if docs:
-                        parts = []
+                docs = await self._retrieve("default", topic, 6)
+                # Normalize docs and build context
+                if docs:
+                    parts = []
+                    for d in docs:
+                        pc = getattr(d, "page_content", None)
+                        if pc:
+                            parts.append(pc)
+                    if parts:
+                        context_text = "\n\n---\n\n".join(parts)
                         for d in docs:
-                            pc = getattr(d, "page_content", None)
-                            if pc:
-                                parts.append(pc)
-                        if parts:
-                            context_text = "\n\n---\n\n".join(parts)
-                            for d in docs:
-                                sn = getattr(d, "page_content", "") or ""
-                                sources_meta.append({
-                                    "metadata": getattr(d, "metadata", {}) or {},
-                                    "snippet": (sn[:300] + "...") if sn else ""
-                                })
+                            sn = getattr(d, "page_content", "") or ""
+                            sources_meta.append({
+                                "metadata": getattr(d, "metadata", {}) or {},
+                                "snippet": (sn[:300] + "...") if sn else ""
+                            })
             except Exception as e:
                 logger.warning("Document retrieval failed: %s", e)
                 context_text = ""
@@ -884,12 +758,9 @@ class LangChainService:
             # Retrieval logic (optional)
             context_text = ""
             try:
-                vector_store = self.load_vector_store("default")
-                if vector_store:
-                    retriever = vector_store.as_retriever(search_kwargs={"k": 4})
-                    docs = retriever.invoke(topic) if hasattr(retriever, "invoke") else []
-                    if docs:
-                        context_text = "\n\n".join([getattr(d, "page_content", "") for d in docs if hasattr(d, "page_content")])
+                docs = await self._retrieve("default", topic, 4)
+                if docs:
+                    context_text = "\n\n".join(d.page_content for d in docs)
             except Exception as e:
                 logger.warning(f"Retrieval skipped: {e}")
             
@@ -1003,12 +874,9 @@ class LangChainService:
             # Retrieval logic
             context_text = ""
             try:
-                vector_store = self.load_vector_store(collection_name)
-                if vector_store:
-                    retriever = vector_store.as_retriever(search_kwargs={"k": 6})
-                    docs = retriever.invoke(topic)
-                    if docs:
-                        context_text = "\n\n".join([doc.page_content for doc in docs])
+                docs = await self._retrieve(collection_name, topic, 6)
+                if docs:
+                    context_text = "\n\n".join(d.page_content for d in docs)
             except Exception as e:
                 logger.warning(f"Quiz retrieval skipped: {e}")
 
@@ -1059,12 +927,9 @@ class LangChainService:
             # Retrieval logic
             context_text = ""
             try:
-                vector_store = self.load_vector_store(collection_name)
-                if vector_store:
-                    retriever = vector_store.as_retriever(search_kwargs={"k": 6})
-                    docs = retriever.invoke(topic)
-                    if docs:
-                        context_text = "\n\n".join([doc.page_content for doc in docs])
+                docs = await self._retrieve(collection_name, topic, 6)
+                if docs:
+                    context_text = "\n\n".join(d.page_content for d in docs)
             except Exception as e:
                 logger.warning(f"Flashcard retrieval skipped: {e}")
 

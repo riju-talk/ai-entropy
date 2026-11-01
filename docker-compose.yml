@@ -1,13 +1,20 @@
-version: '3.8'
+# Whole stack for local development and demos:  docker compose up --build
+#   web      http://localhost:5000   (Next.js)
+#   ai-tutor     http://localhost:8000  (Q&A, streaming)     ai-knowledge http://localhost:8001 (documents, graph, mastery)
+#   ai-studio    http://localhost:8002  (quiz, flashcards, mind maps)   each answers /health
+#   postgres localhost:5442          neo4j http://localhost:7474
+# Values below are local-only demo defaults. Real keys (GROQ_API_KEY, optional PINECONE_/TAVILY_)
+# are read from apps/ai-agent/.env if it exists; OAuth ids can be exported in your shell.
 
-# Development data services only.
-# Run apps locally: `npm run dev` (Next.js) and `npm run dev` inside apps/ai-agent (FastAPI).
+x-db: &db
+  DATABASE_URL: postgresql://entropy_user:entropy_pass@postgres:5432/entropy
+  DIRECT_URL: postgresql://entropy_user:entropy_pass@postgres:5432/entropy
 
 services:
   postgres:
     image: postgres:16-alpine
     ports:
-      - "5432:5432"
+      - "5442:5432"
     environment:
       POSTGRES_DB: entropy
       POSTGRES_USER: entropy_user
@@ -16,23 +23,9 @@ services:
       - entropy_db_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U entropy_user -d entropy"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes
-    volumes:
-      - entropy_redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
+      retries: 10
     restart: unless-stopped
 
   neo4j:
@@ -48,13 +41,121 @@ services:
       - entropy_neo4j_data:/data
     healthcheck:
       test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "entropy_neo4j", "RETURN 1"]
-      interval: 20s
+      interval: 15s
       timeout: 10s
-      retries: 5
+      retries: 8
       start_period: 30s
+    restart: unless-stopped
+
+  # One-shot: apply migrations, then seed demo users, communities and posts (idempotent)
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/app/Dockerfile
+    image: entropy-web
+    working_dir: /repo/apps/app
+    command: sh -c "npx prisma migrate deploy --schema=prisma/schema.prisma && npx tsx prisma/seed.ts"
+    environment:
+      <<: *db
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # One image, three roles (see apps/ai-agent/app/roles.py). Deploy, scale or restart them independently.
+  ai-tutor:
+    &ai-service
+    build: ./apps/ai-agent
+    image: entropy-ai-agent
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: ./apps/ai-agent/.env
+        required: false
+    environment:
+      <<: *db
+      SERVICE_ROLE: tutor
+      AI_BACKEND_TOKEN: demo-internal-token
+      DEBUG: "false"
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: entropy_neo4j
+      ALLOWED_ORIGINS: http://localhost:5000
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      neo4j:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    restart: unless-stopped
+
+  ai-knowledge:
+    <<: *ai-service
+    ports:
+      - "8001:8000"
+    environment:
+      <<: *db
+      SERVICE_ROLE: knowledge
+      AI_BACKEND_TOKEN: demo-internal-token
+      DEBUG: "false"
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: entropy_neo4j
+      ALLOWED_ORIGINS: http://localhost:5000
+
+  ai-studio:
+    <<: *ai-service
+    ports:
+      - "8002:8000"
+    environment:
+      <<: *db
+      SERVICE_ROLE: studio
+      AI_BACKEND_TOKEN: demo-internal-token
+      DEBUG: "false"
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: entropy_neo4j
+      ALLOWED_ORIGINS: http://localhost:5000
+
+  web:
+    image: entropy-web
+    ports:
+      - "5000:5000"
+    environment:
+      <<: *db
+      NEXTAUTH_URL: http://localhost:5000
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-local-demo-secret-do-not-use-in-production}
+      NEXT_PUBLIC_APP_URL: http://localhost:5000
+      AI_TUTOR_URL: http://ai-tutor:8000
+      AI_KNOWLEDGE_URL: http://ai-knowledge:8000
+      AI_STUDIO_URL: http://ai-studio:8000
+      AI_BACKEND_TOKEN: demo-internal-token
+      ENABLE_DEV_LOGIN: "true"
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_ID: ${GITHUB_ID:-}
+      GITHUB_SECRET: ${GITHUB_SECRET:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      ai-tutor:
+        condition: service_healthy
+      ai-knowledge:
+        condition: service_healthy
+      ai-studio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:5000/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
     restart: unless-stopped
 
 volumes:
   entropy_db_data:
-  entropy_redis_data:
   entropy_neo4j_data:

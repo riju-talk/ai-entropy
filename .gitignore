@@ -67,3 +67,8 @@ apps/ai-agent/env/
 # Database
 prisma/.env
 *.db-journal
+
+# DB dumps
+*.dump
+*.backup
+entropy_backup.sql

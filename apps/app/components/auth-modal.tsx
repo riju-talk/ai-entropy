@@ -14,6 +14,7 @@ import { AiOutlineLoading3Quarters } from "react-icons/ai"
 import { FcGoogle } from "react-icons/fc"
 import { FaGithub } from "react-icons/fa"
 import { signIn } from "next-auth/react"
+import { DevLogin } from "@/components/dev-login"
 import { Chrome, Github } from "lucide-react"
 
 interface AuthModalProps {
@@ -28,18 +29,6 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   const handleSignIn = async (provider: "google" | "github") => {
     setIsLoading(provider)
     try {
-      // Debug logs to help trace where auth requests are coming from in the browser.
-      try {
-        // eslint-disable-next-line no-console
-        console.log("auth-modal: starting sign-in", {
-          provider,
-          href: typeof window !== "undefined" ? window.location.href : null,
-          NEXT_PUBLIC_ENABLE_FIREBASE: process.env.NEXT_PUBLIC_ENABLE_FIREBASE,
-          NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-        })
-      } catch (e) {
-        /* ignore */
-      }
       // Use next-auth OAuth providers directly. This will redirect the user
       // to the provider's consent screen. After successful auth next-auth
       // will redirect back to the app. We pass a callbackUrl to send users
@@ -114,6 +103,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
               </>
             )}
           </Button>
+          <DevLogin />
           <p className="text-xs text-center text-muted-foreground">
             By continuing, you agree to our Terms of Service and Privacy Policy
           </p>

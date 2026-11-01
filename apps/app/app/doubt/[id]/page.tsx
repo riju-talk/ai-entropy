@@ -1,86 +1,63 @@
+import type { Metadata } from "next"
 import { notFound } from "next/navigation"
-import { PrismaClient } from "@prisma/client"
-import { DoubtDetail } from "@/components/doubt-detail"
-import { AnswersSection } from "@/components/answers-section"
+import { getServerSession } from "next-auth"
 
-const prisma = new PrismaClient()
+import { QuestionThread, type QuestionData } from "@/components/question-thread"
+import { authOptions } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { authorSelect, excerpt } from "@/lib/qa"
 
-async function getDoubt(id: string) {
-  try {
-    const doubt = await prisma.doubt.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        subject: true,
-        tags: true,
-        isAnonymous: true,
-        createdAt: true,
-        upvotes: true,
-        downvotes: true,
-        authorId: true,
-        isInCommunity: true, // Add this
-        author: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-          },
-        },
-        answers: {
-          include: {
-            author: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-        _count: {
-          select: {
-            answers: true,
-            votes: true,
-          },
-        },
-      },
-    })
+export const dynamic = "force-dynamic"
 
-    if (!doubt) {
-      notFound()
-    }
+async function getQuestion(id: string, viewerId: string | null): Promise<QuestionData | null> {
+  const doubt = await prisma.doubt.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      title: true,
+      content: true,
+      subject: true,
+      tags: true,
+      isAnonymous: true,
+      isResolved: true,
+      views: true,
+      upvotes: true,
+      downvotes: true,
+      createdAt: true,
+      authorId: true,
+      author: { select: { ...authorSelect, reputation: true } },
+    },
+  })
+  if (!doubt) return null
 
-    return doubt
-  } catch (error) {
-    console.error("Error fetching doubt:", error)
-    notFound()
-  }
+  const isMine = viewerId !== null && doubt.authorId === viewerId
+  const vote = viewerId
+    ? await prisma.doubtVote.findUnique({ where: { userId_doubtId: { userId: viewerId, doubtId: id } }, select: { type: true } })
+    : null
+
+  // Count the view in the background; a failure must not break the page.
+  prisma.doubt.update({ where: { id }, data: { views: { increment: 1 } } }).catch(() => {})
+
+  const { authorId, author, ...rest } = doubt
+  return JSON.parse(
+    JSON.stringify({
+      ...rest,
+      author: doubt.isAnonymous && !isMine ? null : author,
+      isMine,
+      viewerVote: vote?.type ?? null,
+    }),
+  )
 }
 
-export default async function DoubtPage({ params }: { params: { id: string } }) {
-  const doubt = await getDoubt(params.id)
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+  const d = await prisma.doubt.findUnique({ where: { id: params.id }, select: { title: true, content: true } }).catch(() => null)
+  return d ? { title: d.title, description: excerpt(d.content, 160) } : { title: "Question not found" }
+}
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-4xl mx-auto space-y-8">
-        {/* Doubt Detail */}
-        <DoubtDetail doubt={doubt} />
-
-        {/* Answers Section */}
-        <AnswersSection
-          doubtId={doubt.id}
-          initialAnswers={doubt.answers}
-          doubtAuthorId={doubt.authorId}
-          answersCount={doubt._count.answers}
-        />
-      </div>
-    </div>
-  )
+export default async function QuestionPage({ params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions)
+  const viewerId = (session?.user as { id?: string } | undefined)?.id ?? null
+  const question = await getQuestion(params.id, viewerId)
+  if (!question) notFound()
+  return <QuestionThread question={question} viewerId={viewerId} />
 }

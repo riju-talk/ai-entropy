@@ -2,13 +2,14 @@
 
 import { getServerSession } from "next-auth"
 import { PrismaClient } from "@prisma/client"
+import { prisma as sharedPrisma } from "@/lib/prisma"
 import { authOptions } from "@/lib/auth"
 import { PointEventType } from "@prisma/client"
 
 let __prisma__: PrismaClient | undefined;
 function getPrisma() {
   if (!__prisma__) {
-    __prisma__ = new PrismaClient({ log: ["error", "warn"] });
+    __prisma__ = sharedPrisma;
   }
   return __prisma__;
 }

@@ -23,7 +23,11 @@ class CacheClient:
         self._connected = False
     
     async def connect(self) -> bool:
-        """Connect to Redis server"""
+        """Connect to Redis server (optional: skipped when REDIS_HOST is empty)"""
+        if not self.host:
+            logger.info("Redis not configured; caching disabled")
+            self._connected = False
+            return False
         try:
             import redis.asyncio as redis
             

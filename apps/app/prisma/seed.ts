@@ -1,4 +1,5 @@
-﻿import { PrismaClient, AchievementType, AchievementRarity } from "@prisma/client";
+import { PrismaClient, AchievementType, AchievementRarity } from "@prisma/client";
+import { seedDemo } from "./seed-demo";
 
 const prisma = new PrismaClient();
 
@@ -59,6 +60,9 @@ async function main() {
     console.log("Seeding levels...");
     // Level bands (Initiate, Contributor, Authority, Luminary, Sage)
     // These mapping names could be used in the UI based on Level Number
+
+    // Demo accounts and content for local/Docker use. Skip with SEED_DEMO=false.
+    if (process.env.SEED_DEMO !== "false") await seedDemo(prisma);
 
     console.log("Seed complete.");
 }

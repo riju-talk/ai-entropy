@@ -97,7 +97,7 @@ export default function CommentSection({ doubtId, comments, currentUser, doubtAu
                 <Checkbox
                   id="anonymous-answer"
                   checked={isAnonymous}
-                  onCheckedChange={setIsAnonymous}
+                  onCheckedChange={(v) => setIsAnonymous(v === true)}
                   disabled={isSubmitting}
                 />
                 <Label htmlFor="anonymous-answer">Post anonymously</Label>

@@ -16,8 +16,8 @@ export default function NotFoundPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-            <FileQuestion className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+          <div className="mx-auto mb-4 h-12 w-12 rounded bg-secondary flex items-center justify-center">
+            <FileQuestion className="h-6 w-6 text-primary" />
           </div>
           <CardTitle>404 - Page Not Found</CardTitle>
           <CardDescription>

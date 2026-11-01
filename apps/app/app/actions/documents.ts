@@ -1,12 +1,13 @@
 "use server"
 
 import { PrismaClient } from "@prisma/client"
+import { prisma as sharedPrisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
-import exp from "constants"
+import { aiFetch } from "@/lib/ai-proxy"
 
 // Use a singleton for Prisma in development to avoid connection exhaustion
 const globalForPrisma = global as unknown as { prisma: PrismaClient }
-const prisma = globalForPrisma.prisma || new PrismaClient()
+const prisma = globalForPrisma.prisma || sharedPrisma
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma
 
 export async function createDocumentRecord(data: {
@@ -110,8 +111,7 @@ export async function deleteDocument(
             const params = new URLSearchParams({ user_id: userId })
             if (source) params.set("source", source)
             if (s3Key)  params.set("s3_key", s3Key)
-            const backendUrl = process.env.BACKEND_URL || "http://localhost:8000"
-            await fetch(`${backendUrl}/api/documents/by-source?${params.toString()}`, { method: "DELETE" })
+            await aiFetch(`/api/documents/by-source?${params.toString()}`, { method: "DELETE" }, userId)
         } catch {
             // non-fatal
         }
@@ -139,13 +139,12 @@ export async function deleteDocuments(
     })
 
     // 3. Best-effort: clean Pinecone + S3 + graph for each doc
-    const backendUrl = process.env.BACKEND_URL || "http://localhost:8000"
     await Promise.allSettled(
         docs.map(d => {
             const params = new URLSearchParams({ user_id: userId })
             if (d.title) params.set("source", d.title)
             if (d.url)   params.set("s3_key",  d.url)
-            return fetch(`${backendUrl}/api/documents/by-source?${params.toString()}`, { method: "DELETE" })
+            return aiFetch(`/api/documents/by-source?${params.toString()}`, { method: "DELETE" }, userId)
         })
     )
 

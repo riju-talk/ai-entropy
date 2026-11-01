@@ -1,93 +1,88 @@
 """
-Entropy AI Engine â€” Configuration
-"""
-import os
-from pathlib import Path
-from pydantic_settings import BaseSettings
-import logging
-import dotenv
+Entropy AI Engine - configuration (the only settings module).
 
+Every value comes from the environment or apps/ai-agent/.env.
+External services other than Groq are optional: the app starts without them
+and the affected features degrade.
+"""
+import logging
+from pathlib import Path
+
+import dotenv
+from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
 
-
-CONFIG_DIR = Path(__file__).parent
-APP_DIR = CONFIG_DIR.parent
-AI_AGENT_DIR = APP_DIR.parent
+AI_AGENT_DIR = Path(__file__).resolve().parent.parent.parent
 ENV_FILE_PATH = AI_AGENT_DIR / ".env"
 
-dotenv.load_dotenv(ENV_FILE_PATH, override=True)  # .env takes priority over stale system env vars
+# .env takes priority over stale system env vars
+dotenv.load_dotenv(ENV_FILE_PATH, override=False)
+
 
 class Settings(BaseSettings):
-    """Entropy AI Engine application settings — all values loaded from .env"""
-
-    # ── Google Gemini ────────────────────────────────────────────────────────
-    AWS_REGION: str = "eu-north-1"
-    BEDROCK_CLAUDE_MODEL: str = "anthropic.claude-3-sonnet-20240229-v1:0"
-    BEDROCK_TITAN_EMBED: str = "amazon.titan-embed-text-v2:0"
-    LLM_MODEL: str = "anthropic.claude-3-sonnet-20240229-v1:0"
+    # -- LLM (Groq via LangChain) ---------------------------------------------
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "openai/gpt-oss-20b"           # generation, reasoning
+    GROQ_FAST_MODEL: str = "openai/gpt-oss-20b"      # routing, classification, verification
+    GROQ_REASONING_EFFORT: str = "low"               # low | medium | high (gpt-oss models only)
     LLM_TEMPERATURE: float = 0.3
+    LLM_MAX_TOKENS: int = 4096                       # gpt-oss counts hidden reasoning tokens too
 
-    # ── AI Provider ──────────────────────────────────────────────────────────
-    AI_PROVIDER: str = "bedrock"
+    # -- Embeddings (local fastembed, ONNX) -----------------------------------
+    EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
+    EMBEDDING_DIMENSIONS: int = 384
 
-    # ── Neo4j Knowledge Graph ────────────────────────────────────────────────
+    # -- Neo4j knowledge graph (AuraDB Free) ----------------------------------
     NEO4J_URI: str = "bolt://localhost:7687"
     NEO4J_USER: str = "neo4j"
-    NEO4J_PASSWORD: str = "entropy123"
+    NEO4J_PASSWORD: str = ""
 
-    # ── PostgreSQL ───────────────────────────────────────────────────────────
+    # -- PostgreSQL (Supabase) ------------------------------------------------
     DATABASE_URL: str = ""
 
-    # ── Redis ────────────────────────────────────────────────────────────────
-    REDIS_HOST: str = "localhost"
+    # -- Redis (optional, e.g. Upstash) ---------------------------------------
+    REDIS_HOST: str = ""
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
     REDIS_PASSWORD: str = ""
 
-    # ── Server ───────────────────────────────────────────────────────────────
-    HOST: str = "0.0.0.0"
-    PORT: int = 8000
-
-    # ── Auth ─────────────────────────────────────────────────────────────────
-    AI_BACKEND_TOKEN: str = ""
-    JWT_SECRET_KEY: str = "entropy-jwt-secret-dev"
-    SECRET_KEY: str = "entropy-secret-change-in-prod"
-
-    # ── CORS ─────────────────────────────────────────────────────────────────
-    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5000,https://main.d1rs5mqd2d5gis.amplifyapp.com/"
-
-    # ── S3 Document Storage ──────────────────────────────────────────────────
-    S3_BUCKET_NAME: str = "entropy-doc-main"
-    S3_PRESIGN_EXPIRY_SECS: int = 3600
-
-    # ── Upload storage ───────────────────────────────────────────────────────
-    UPLOAD_DIR: str = "data/uploads"
-
-    # ── Debug ────────────────────────────────────────────────────────────────
-    DEBUG: bool = False
-    LOG_LEVEL: str = "INFO"
-
-    # ── Pinecone ─────────────────────────────────────────────────────────────
-    VECTOR_DB: str = "pinecone"
+    # -- Pinecone -------------------------------------------------------------
     PINECONE_API_KEY: str = ""
     PINECONE_ENV: str = "us-east-1"
     PINECONE_INDEX_NAME: str = "entropy-ai"
     PINECONE_HOST: str = ""
 
-    # ── Embeddings ───────────────────────────────────────────────────────────
-    EMBEDDING_MODEL: str = "amazon.titan-embed-text-v2:0"
-    EMBEDDING_DIMENSIONS: int = 1536
+    # -- Web search (optional) ------------------------------------------------
+    TAVILY_API_KEY: str = ""
 
-    # ── LangChain text splitting ─────────────────────────────────────────────
+    # -- Object storage (Supabase Storage, optional) --------------------------
+    SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_KEY: str = ""
+    STORAGE_BUCKET: str = "documents"
+
+    # -- Server ---------------------------------------------------------------
+    SERVICE_ROLE: str = "all"        # all | tutor | knowledge | studio (see app/roles.py)
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
+    DEBUG: bool = False
+    LOG_LEVEL: str = "INFO"
+
+    # -- Auth (BFF: only the Next.js server calls this service) ---------------
+    AI_BACKEND_TOKEN: str = ""
+
+    # -- CORS -----------------------------------------------------------------
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5000"
+
+    # -- Text splitting -------------------------------------------------------
     chunk_size: int = 1000
     chunk_overlap: int = 200
 
-    # ── Feature flags ────────────────────────────────────────────────────────
+    # -- Feature flags --------------------------------------------------------
     ENABLE_PERSISTENCE: bool = True
 
     def get_allowed_origins_list(self) -> list[str]:
-        return [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
+        return [o.strip().rstrip("/") for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
 
     model_config = {
         "env_file": str(ENV_FILE_PATH),
@@ -98,16 +93,16 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-logger.info("Entropy AI config loaded | LLM: %s | Neo4j: %s", settings.LLM_MODEL, settings.NEO4J_URI)
 
 
-def validate_settings():
-    issues = []
-    if not settings.AWS_REGION:
-        issues.append("AWS_REGION not set — Bedrock calls may fail")
+def validate_settings() -> bool:
+    """Log (never raise on) missing configuration."""
+    if not settings.GROQ_API_KEY:
+        logger.warning("GROQ_API_KEY not set - LLM calls will fail")
+    if not settings.AI_BACKEND_TOKEN:
+        logger.warning("AI_BACKEND_TOKEN not set - the service will reject all requests")
     if not settings.DATABASE_URL:
-        issues.append("DATABASE_URL not set â€” DB features disabled")
-    for issue in issues:
-        logger.warning("âš ï¸  %s", issue)
+        logger.warning("DATABASE_URL not set - database features disabled")
+    if not settings.PINECONE_API_KEY:
+        logger.warning("PINECONE_API_KEY not set - using the Postgres vector store")
     return True
-
