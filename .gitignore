@@ -72,3 +72,5 @@ prisma/.env
 *.dump
 *.backup
 entropy_backup.sql
+
+.env*

@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { ImageUpload } from "@/components/image-upload"
 import { useAuthModal } from "@/hooks/use-auth-modal"
 import { useToast } from "@/hooks/use-toast"
 import { apiFetch, ApiError } from "@/lib/client-api"
@@ -85,6 +86,7 @@ export function PostComposer({ communityId, isMember, onPosted }: { communityId:
       ) : (
         <Input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." aria-label="Link" required />
       )}
+      {kind === "text" && <ImageUpload onUploaded={(md) => setBody((b) => (b ? b + "\n\n" : "") + md)} />}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
           Cancel

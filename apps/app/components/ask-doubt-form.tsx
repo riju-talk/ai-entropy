@@ -13,6 +13,7 @@ import { Checkbox } from "./ui/checkbox"
 import { X, Plus } from "lucide-react"
 import { createDoubt } from "@/app/actions/doubts"
 import { useToast } from "@/hooks/use-toast"
+import { ImageUpload } from "@/components/image-upload"
 
 interface AskDoubtFormProps {
   user?: any
@@ -25,6 +26,7 @@ export default function AskDoubtForm({ user }: AskDoubtFormProps) {
   const [tags, setTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState("")
   const [isAnonymous, setIsAnonymous] = useState(false)
+  const [content, setContent] = useState("")
 
   const handleAddTag = () => {
     if (newTag.trim() && !tags.includes(newTag.trim()) && tags.length < 5) {
@@ -110,11 +112,14 @@ export default function AskDoubtForm({ user }: AskDoubtFormProps) {
             <Textarea
               id="content"
               name="content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
               placeholder="Describe your problem in detail. Include what you've tried, error messages, and expected behavior."
               className="min-h-[120px] sm:min-h-[150px] text-sm sm:text-base"
               required
               disabled={isPending}
             />
+            <ImageUpload disabled={isPending} onUploaded={(md) => setContent((c) => (c ? c + "\n\n" : "") + md)} />
             <p className="text-xs sm:text-sm text-muted-foreground">
               You can use markdown formatting. Include code snippets and what you've already tried.
             </p>
