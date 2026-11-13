@@ -40,11 +40,20 @@ export default async function HomePage() {
   return (
     <div className="mx-auto max-w-5xl">
       <header className="mb-10 border-b border-foreground/80 pb-8">
-        <p className="eyebrow mb-3">
-          {stats.learners > 0
-            ? `${stats.learners.toLocaleString()} ${stats.learners === 1 ? "learner" : "learners"} / ${stats.answers.toLocaleString()} ${stats.answers === 1 ? "answer" : "answers"}`
-            : "Open for questions"}
-        </p>
+        <dl className="stagger mb-8 grid grid-cols-3 gap-4 border-b pb-6 sm:max-w-md">
+          {(
+            [
+              ["Questions", stats.questions],
+              ["Answers", stats.answers],
+              ["Learners", stats.learners],
+            ] as const
+          ).map(([label, n]) => (
+            <div key={label}>
+              <dd className="stat-figure">{n.toLocaleString()}</dd>
+              <dt className="eyebrow mt-2">{label}</dt>
+            </div>
+          ))}
+        </dl>
         <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <h1 className="font-display text-4xl leading-[1.05] sm:text-6xl">
             Stuck on something?

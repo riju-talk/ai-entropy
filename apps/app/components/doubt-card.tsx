@@ -25,7 +25,7 @@ export function DoubtCard({ doubt }: { doubt: DoubtSummary }) {
   const answers = doubt._count.answers
 
   return (
-    <article className="group relative grid grid-cols-[3.25rem_1fr] gap-4 py-5">
+    <article className="group relative -mx-3 grid grid-cols-[3.25rem_1fr] gap-4 rounded px-3 py-5 transition-colors hover:bg-accent/40">
       <div className="flex flex-col items-center font-mono leading-none">
         <span className="text-lg tabular-nums">{score}</span>
         <span className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">votes</span>

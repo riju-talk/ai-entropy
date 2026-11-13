@@ -129,6 +129,40 @@
   .surface {
     @apply rounded border bg-card text-card-foreground;
   }
+
+  /* Skip link: first tab stop, visible only on focus (WCAG 2.4.1) */
+  .skip-link {
+    @apply fixed left-3 top-3 z-[100] -translate-y-20 rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground;
+    transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .skip-link:focus {
+    @apply translate-y-0;
+  }
+
+  /* Interactive affordance: lifts on hover, presses on click */
+  .interactive {
+    transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1), border-color 120ms;
+  }
+  .interactive:hover {
+    @apply border-foreground/60;
+    transform: translateY(-2px);
+  }
+  .interactive:active {
+    transform: translateY(0) scale(0.99);
+  }
+
+  /* Staggered entrance for lists */
+  .stagger > * {
+    animation: fade-in-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .stagger > *:nth-child(2) { animation-delay: 60ms; }
+  .stagger > *:nth-child(3) { animation-delay: 120ms; }
+  .stagger > *:nth-child(4) { animation-delay: 180ms; }
+  .stagger > *:nth-child(n + 5) { animation-delay: 240ms; }
+
+  .stat-figure {
+    @apply font-display text-4xl tabular-nums leading-none sm:text-5xl;
+  }
 }
 
 @layer utilities {
@@ -224,6 +258,22 @@
 }
 .animate-fade-in-up {
   animation: fade-in-up 0.25s ease-out both;
+}
+
+/* Skeleton shimmer shows loading progress better than a bare pulse */
+.animate-pulse {
+  background-image: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--accent)) 50%, hsl(var(--muted)) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* Page content fades in on every route change */
+main#main > * {
+  animation: fade-in-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {

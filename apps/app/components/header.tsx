@@ -95,8 +95,16 @@ export function Header() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search questions and topics"
               aria-label="Search"
-              className="h-9 border-0 border-b bg-transparent pl-9 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none"
+              className="h-9 rounded-none border-0 border-b bg-transparent pl-9 pr-16 transition-colors focus-visible:border-primary focus-visible:ring-0 focus-visible:ring-offset-0"
             />
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event("open-command-palette"))}
+              className="absolute right-1 top-1/2 -translate-y-1/2 rounded border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground transition-colors hover:border-foreground/60 hover:text-foreground"
+              aria-label="Open command palette"
+            >
+              Ctrl K
+            </button>
           </div>
         </form>
 

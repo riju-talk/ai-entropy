@@ -111,6 +111,7 @@ export default async function RootLayout({
         <link rel="icon" href="/favicon.ico" />
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased">
+        <a href="#main" className="skip-link">Skip to content</a>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <AuthProvider>
             <ErrorBoundary>
