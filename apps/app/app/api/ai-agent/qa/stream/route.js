@@ -5,6 +5,7 @@ import { loadHistory, persistExchange } from "@/lib/qa-history"
 
 export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
+export const maxDuration = 60 // seconds; long answers keep streaming (heartbeats) instead of hitting the platform default
 
 /**
  * POST /api/ai-agent/qa/stream

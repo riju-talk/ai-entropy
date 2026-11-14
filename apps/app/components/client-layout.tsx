@@ -1,5 +1,6 @@
 "use client"
 
+import { usePathname } from "next/navigation"
 import { SessionProvider } from "next-auth/react"
 
 import { CommandPalette } from "@/components/command-palette"
@@ -8,6 +9,8 @@ import { Header } from "@/components/header"
 import { Sidebar } from "@/components/sidebar"
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+  const hideFooter = pathname?.startsWith("/ai-agent")
   return (
     <SessionProvider>
       <div className="flex min-h-screen flex-col bg-background">
@@ -21,7 +24,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
             <main id="main" className="flex-1 px-4 py-8 sm:px-6 lg:px-10">
               {children}
             </main>
-            <Footer />
+            {!hideFooter && <Footer />}
           </div>
         </div>
       </div>

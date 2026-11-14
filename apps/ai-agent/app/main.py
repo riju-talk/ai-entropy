@@ -125,6 +125,15 @@ async def lifespan(fastapi_app: FastAPI):
     logger.info("🚀 Entropy AI Engine ready!")
     logger.info("=" * 70)
 
+    try:
+        import asyncio as _asyncio
+        from app.services.ai_service import get_ai_service as _svc
+
+        await _asyncio.get_running_loop().run_in_executor(None, _svc().warm_up)
+        logger.info("Groq client warmed up (model=%s)", settings.GROQ_MODEL)
+    except Exception as exc:  # never block startup on this
+        logger.warning("Groq warm-up skipped: %s", exc)
+
     yield  # app runs here
 
     # Shutdown
@@ -169,6 +178,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate limiting. add_middleware wraps the app, so the LAST one added is outermost: this is added BEFORE CORS so
+# CORS stays outermost and 429 responses still carry CORS headers.
+from app.middleware.rate_limit import RateLimitMiddleware  # noqa: E402
+
+app.add_middleware(RateLimitMiddleware)
+
 # CORS
 cors_origins = settings.get_allowed_origins_list()
 if "*" in cors_origins:
@@ -181,14 +196,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Rate Limiting (protect against abuse)
-try:
-    from app.middleware.rate_limit import RateLimitMiddleware
-    app.add_middleware(RateLimitMiddleware)
-    logger.info("✅ Rate limiting middleware enabled")
-except Exception as exc:
-    logger.warning("⚠️  Rate limiting failed to initialize: %s", exc)
 
 # ---------------------------------------------------------------------------
 # Route registry helper

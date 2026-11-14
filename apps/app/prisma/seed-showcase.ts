@@ -139,7 +139,7 @@ const QUESTIONS: [string, string, string, string[], string, string, number][] = 
   ["What is the difference between a process and a thread?", "I keep mixing them up on exams. What does each one share and what does it own?", "COMPUTER_SCIENCE", ["operating-systems"], "Noah Fischer", "Dr. Meera Iyer", 36],
 ]
 
-async function main() {
+export async function seedShowcase() {
   console.log("Base demo content (users, communities, posts, Q&A)...")
   await seedDemo(prisma)
 
@@ -326,9 +326,11 @@ async function main() {
   console.log("Done:", counts)
 }
 
-main()
-  .catch((e) => {
-    console.error(e)
-    process.exit(1)
-  })
-  .finally(() => prisma.$disconnect())
+if (process.argv[1]?.includes("seed-showcase")) {
+  seedShowcase()
+    .catch((e) => {
+      console.error(e)
+      process.exit(1)
+    })
+    .finally(() => prisma.$disconnect())
+}

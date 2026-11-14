@@ -1,6 +1,7 @@
 ﻿"use client"
 
-import { QAStreamError, streamQA } from "@/lib/stream-qa"
+import { QAStreamError, streamQA, type ToolEvent } from "@/lib/stream-qa"
+import { AgentTimeline, VerificationBadge, applyStage, applyTool, type TimelineStep } from "./agent-timeline"
 import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -11,7 +12,7 @@ import {
   Send, Loader2, User, BrainCircuit, Globe, Zap, Network,
   FlaskConical, ChevronDown, CheckCircle2, Layers, MessageSquare, Trophy,
   Atom, ScanLine, Mic, MicOff, PlusCircle, BookOpen, CalendarDays, Bell,
-  X, Link2, Tag, AlignLeft, ExternalLink,
+  X, Link2, Tag, AlignLeft, ExternalLink, Square, RotateCcw,
 } from "lucide-react"
 import dynamic from "next/dynamic"
 import type ReactMarkdownPreview from "@uiw/react-markdown-preview"
@@ -39,6 +40,14 @@ interface Message {
   isStreaming?: boolean
   stepIndex?: number          // used in structured mode
   stepValidated?: boolean
+  steps?: TimelineStep[]      // live activity timeline (server-supplied, student-safe summaries)
+  tools?: ToolEvent[]
+  continuations?: number
+  totalMs?: number
+  verification?: { verdict: string; supportedRatio: number | null; note: string }
+  truncated?: boolean         // the model hit its length limit even after automatic continuation
+  incomplete?: boolean        // the connection dropped before the answer finished
+  stopped?: boolean           // the student pressed Stop
 }
 
 interface ChatAgentProps {
@@ -144,7 +153,7 @@ function StepBadge({ index, validated }: { index: number; validated?: boolean })
   )
 }
 
-function MessageBubble({ msg, showTrace, selectedLanguage }: { msg: Message; showTrace: boolean; selectedLanguage: Language }) {
+function MessageBubble({ msg, showTrace, selectedLanguage, onContinue }: { msg: Message; showTrace: boolean; selectedLanguage: Language; onContinue?: () => void }) {
   const isUser = msg.role === "user"
   const detectedLang = detectLanguage(msg.content)
 
@@ -175,13 +184,16 @@ function MessageBubble({ msg, showTrace, selectedLanguage }: { msg: Message; sho
         {msg.stepIndex !== undefined && (
           <StepBadge index={msg.stepIndex} validated={msg.stepValidated} />
         )}
+        {(msg.steps?.length || msg.tools?.length) ? (
+          <AgentTimeline steps={msg.steps ?? []} tools={msg.tools ?? []} live={!!msg.isStreaming} totalMs={msg.totalMs} continuations={msg.continuations} />
+        ) : null}
         <div className={cn(
           "rounded rounded-tl-sm border px-4 py-3",
           "border-border",
           "transition-all duration-300",
           msg.isStreaming && "border-primary/20"
         )}>
-          {msg.isStreaming ? (
+          {msg.isStreaming && !msg.content ? (
             <TypingDots />
           ) : (
             <div className={cn(
@@ -201,6 +213,26 @@ function MessageBubble({ msg, showTrace, selectedLanguage }: { msg: Message; sho
             </div>
           )}
         </div>
+
+        {!msg.isStreaming && msg.verification && (
+          <VerificationBadge verdict={msg.verification.verdict} supportedRatio={msg.verification.supportedRatio} note={msg.verification.note} />
+        )}
+        {(msg.truncated || msg.incomplete || msg.stopped) && !msg.isStreaming && (
+          <div role="status" className="flex flex-wrap items-center gap-2 rounded border border-warning/30 bg-warning/5 px-3 py-1.5 text-[11px] text-foreground">
+            <span>
+              {msg.stopped
+                ? "You stopped this answer. What you see is everything written so far."
+                : msg.incomplete
+                  ? "The connection dropped before this answer finished, so it may be incomplete."
+                  : "This answer reached the length limit and may be incomplete."}
+            </span>
+            {onContinue && (msg.truncated || msg.incomplete || msg.stopped) && (
+              <button type="button" onClick={onContinue} className="inline-flex items-center gap-1 rounded border border-primary/40 px-2 py-0.5 text-primary hover:bg-primary/10">
+                <RotateCcw className="h-3 w-3" /> Continue
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center flex-wrap gap-2 pt-0.5">
           <p className="text-[8px] text-muted-foreground font-mono">
@@ -327,6 +359,8 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
   const [showStudyPlan, setShowStudyPlan] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
+  const inFlight = useRef(false) // synchronous guard: two rapid sends can never start two answers
   const { toast } = useToast()
   const { data: session } = useSession()
   const userId = session?.user?.id
@@ -422,9 +456,14 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
     }
   }, [mode])
 
-  const sendMessage = useCallback(async () => {
-    const text = input.trim()
-    if (!text || loading) return
+  const stopStreaming = useCallback(() => abortRef.current?.abort(), [])
+
+  const sendMessage = useCallback(async (override?: string) => {
+    const text = (typeof override === "string" ? override : input).trim()
+    if (!text || loading || inFlight.current) return
+    inFlight.current = true
+    const controller = new AbortController()
+    abortRef.current = controller
 
     // If userId present but no conversation yet, create one first
     if (userId && !conversationId) {
@@ -477,6 +516,18 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
       contextDoc ? `Context document: ${contextDoc.name || contextDoc.id}` : "",
     ].filter(Boolean).join(" ")
 
+    let pending = ""
+    let flushTimer: ReturnType<typeof setTimeout> | null = null
+    const flushTokens = () => {
+      if (flushTimer) clearTimeout(flushTimer)
+      flushTimer = null
+      if (!pending) return
+      const chunk = pending
+      pending = ""
+      setMessages((prev) => prev.map((m) => (m.id === placeholderId ? { ...m, content: m.content + chunk } : m)))
+    }
+    const startedAt = Date.now()
+
     try {
       // Stream the answer: tokens appear as they are generated; the final event carries the full result
       const data = await streamQA(
@@ -488,10 +539,20 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
           conversationId: conversationId || undefined,
         },
         {
-          token: (t) =>
-            setMessages((prev) => prev.map((m) => (m.id === placeholderId ? { ...m, content: m.content + t } : m))),
+          signal: controller.signal,
+          // Tokens arrive far faster than the Markdown renderer can repaint: batch them into one update per ~60 ms.
+          token: (t) => {
+            pending += t
+            if (!flushTimer) {
+              flushTimer = setTimeout(flushTokens, 60)
+            }
+          },
+          stage: (e) => setMessages((prev) => prev.map((m) => (m.id === placeholderId ? { ...m, steps: applyStage(m.steps ?? [], e) } : m))),
+          tool: (e) => setMessages((prev) => prev.map((m) => (m.id === placeholderId ? { ...m, tools: applyTool(m.tools ?? [], e) } : m))),
+          continuation: (n) => setMessages((prev) => prev.map((m) => (m.id === placeholderId ? { ...m, continuations: n } : m))),
         }
       )
+      flushTokens()
 
       // Track conversation ID returned by the server
       if (data.conversationId && !conversationId) {
@@ -551,6 +612,11 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
                 content: data.answer || "Reasoning complete.",
                 isStreaming: false,
                 trace,
+                totalMs: Date.now() - startedAt,
+                truncated: !!data.completion?.truncated,
+                verification: data.nli?.verdict
+                  ? { verdict: data.nli.verdict, supportedRatio: data.nli.supported_ratio ?? null, note: data.answer_note || data.nli.qualification || "" }
+                  : undefined,
                 masteryDelta: delta,
                 stepIndex: mode === "structured" ? structuredStep : undefined,
                 stepValidated: mode === "structured" ? true : undefined,
@@ -562,19 +628,40 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
       // Notify Cognitive Studio panels to refresh mastery data in real time
       window.dispatchEvent(new CustomEvent("mastery-updated"))
     } catch (err) {
+      flushTokens()
+      const e = err instanceof QAStreamError ? err : null
+      const code = e?.code
+      // Keep whatever the student already read; only replace the bubble when nothing arrived.
+      const kept = (e?.partial ?? "").trim()
+      const fallback =
+        code === "rate_limited"
+          ? `${e?.message}${e?.retryAfter ? ` (try again in about ${e.retryAfter}s)` : ""}`
+          : e?.message || "The AI tutor ran into a problem. Please try again."
       setMessages((prev) =>
         prev.map((m) =>
           m.id === placeholderId
             ? {
                 ...m,
-                content: err instanceof QAStreamError ? err.message : "The AI tutor ran into a problem. Please try again.",
+                content: m.content.trim() ? m.content : kept || fallback,
                 isStreaming: false,
+                stopped: code === "aborted" && !!(m.content.trim() || kept),
+                incomplete: (code === "interrupted" || code === "incomplete") && !!(m.content.trim() || kept),
+                totalMs: Date.now() - startedAt,
               }
             : m
         )
       )
-      toast({ title: "AI tutor unavailable", description: err instanceof QAStreamError ? err.message : "Could not reach the AI service.", variant: "destructive" })
+      if (code !== "aborted") {
+        toast({
+          title: code === "rate_limited" ? "Slow down a little" : "AI tutor unavailable",
+          description: e?.message || "Could not reach the AI service.",
+          variant: "destructive",
+        })
+      }
     } finally {
+      if (flushTimer) clearTimeout(flushTimer)
+      abortRef.current = null
+      inFlight.current = false
       setLoading(false)
     }
   }, [input, loading, mode, language, structuredStep, contextDoc, toast, userId, conversationId, startNewChat])
@@ -729,7 +816,13 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
           <EmptyState />
         ) : (
           messages.map((msg) => (
-            <MessageBubble key={msg.id} msg={msg} showTrace={showTrace} selectedLanguage={language} />
+            <MessageBubble
+              key={msg.id}
+              msg={msg}
+              showTrace={showTrace}
+              selectedLanguage={language}
+              onContinue={msg.id === messages[messages.length - 1]?.id && !loading ? () => sendMessage("Please continue your previous answer from exactly where it stopped. Do not repeat what you already wrote.") : undefined}
+            />
           ))
         )}
       </div>
@@ -873,8 +966,19 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
             />
           </div>
 
+          {loading && (
+            <button
+              type="button"
+              onClick={stopStreaming}
+              aria-label="Stop generating"
+              title="Stop generating"
+              className="flex-shrink-0 w-10 h-10 rounded flex items-center justify-center border border-destructive/40 text-destructive hover:bg-destructive/10"
+            >
+              <Square className="h-4 w-4 fill-current" />
+            </button>
+          )}
           <button
-            onClick={sendMessage}
+            onClick={() => sendMessage()}
             disabled={loading || !input.trim() || mode === "exam"}
             className={cn(
               "flex-shrink-0 w-10 h-10 rounded flex items-center justify-center transition-all",

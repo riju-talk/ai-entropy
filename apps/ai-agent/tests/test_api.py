@@ -34,7 +34,10 @@ def test_validation_errors_are_422():
     assert r.status_code == 422
 
 
-def test_missing_groq_key_is_503_not_500():
+def test_missing_groq_key_is_503_not_500(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "GROQ_API_KEY", "")  # a developer's real key in .env must not leak into this test
     r = client.post("/api/flashcards/", json={"topic": "photosynthesis", "count": 3}, headers=AUTH)
     assert r.status_code == 503
 
@@ -61,17 +64,17 @@ def test_flashcards_empty_model_output_is_502(monkeypatch):
     assert client.post("/api/flashcards/", json={"topic": "t"}, headers=AUTH).status_code == 502
 
 
-def test_rate_limit_keys_on_forwarded_user_not_ip():
-    from app.middleware.rate_limit import RATE_LIMITS, rate_limiter
+def test_rate_limit_keys_on_forwarded_user_not_ip(monkeypatch):
+    from app.api.routes import flashcards
 
-    cfg = RATE_LIMITS["/api/flashcards"]
-    rate_limiter.requests.clear()
-    # user-1 exhausts their own budget...
-    for _ in range(cfg.requests):
-        client.post("/api/flashcards/", json={"topic": "x"}, headers=AUTH)
-    over = client.post("/api/flashcards/", json={"topic": "x"}, headers=AUTH)
-    assert over.status_code == 429
-    # ...while another user on the same IP is unaffected
-    other = client.post("/api/flashcards/", json={"topic": "x"}, headers={**AUTH, "X-User-Id": "user-2"})
+    async def fake(prompt, system_prompt=""):  # never touch the network, whatever key a developer has in .env
+        return {"flashcards": [{"front": "Q", "back": "A"}]}
+
+    monkeypatch.setattr(flashcards, "generate_json", fake)
+    # user-1 exhausts their own budget on a limited route...
+    codes = [client.post("/api/flashcards/", json={"topic": "x"}, headers={**AUTH, "X-User-Id": "rl-user-1"}).status_code for _ in range(12)]
+    assert codes[-1] == 429 and 429 not in codes[:10]
+    # ...while another user behind the same proxy IP is unaffected
+    other = client.post("/api/flashcards/", json={"topic": "x"}, headers={**AUTH, "X-User-Id": "rl-user-2"})
     assert other.status_code != 429
-    rate_limiter.requests.clear()
+

@@ -3,10 +3,18 @@
 import { useState } from "react"
 import { NotebookLayout } from "@/components/ai-agent/notebook/notebook-layout"
 import { ChatAgent } from "@/components/ai-agent/chat-agent"
-import { QuizAgent } from "@/components/ai-agent/quiz-agent"
-import { MindMapAgent } from "@/components/ai-agent/mindmap-agent"
-import { ChartsAgent } from "@/components/ai-agent/charts-agent"
-import { FlashcardsAgent } from "@/components/ai-agent/flashcards-agent"
+import dynamic from "next/dynamic"
+
+// Each tool is only needed when its tab is opened, so load it on demand instead of with the page.
+const TabLoading = () => (
+  <div className="flex h-full items-center justify-center text-sm text-muted-foreground" role="status">
+    Loading...
+  </div>
+)
+const QuizAgent = dynamic(() => import("@/components/ai-agent/quiz-agent").then((m) => m.QuizAgent), { ssr: false, loading: TabLoading })
+const MindMapAgent = dynamic(() => import("@/components/ai-agent/mindmap-agent").then((m) => m.MindMapAgent), { ssr: false, loading: TabLoading })
+const ChartsAgent = dynamic(() => import("@/components/ai-agent/charts-agent").then((m) => m.ChartsAgent), { ssr: false, loading: TabLoading })
+const FlashcardsAgent = dynamic(() => import("@/components/ai-agent/flashcards-agent").then((m) => m.FlashcardsAgent), { ssr: false, loading: TabLoading })
 
 export default function AIAgentPage() {
   const [activeTab, setActiveTab] = useState("qa")

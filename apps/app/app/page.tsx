@@ -13,7 +13,6 @@ export const runtime = "nodejs"
 
 async function loadHome(viewerId: string | null) {
   const empty = { doubts: [], total: 0, page: 1, totalPages: 1, hasMore: false }
-  if (process.env.SKIP_DB === "true") return { feed: empty, communities: [], stats: { questions: 0, answers: 0, learners: 0 } }
   try {
     const [feed, communities, answers, learners] = await Promise.all([
       listDoubts({ page: 1, limit: 10, viewerId }),

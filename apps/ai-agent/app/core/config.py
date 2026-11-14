@@ -23,11 +23,35 @@ dotenv.load_dotenv(ENV_FILE_PATH, override=False)
 class Settings(BaseSettings):
     # -- LLM (Groq via LangChain) ---------------------------------------------
     GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "openai/gpt-oss-20b"           # generation, reasoning
-    GROQ_FAST_MODEL: str = "openai/gpt-oss-20b"      # routing, classification, verification
-    GROQ_REASONING_EFFORT: str = "low"               # low | medium | high (gpt-oss models only)
-    LLM_TEMPERATURE: float = 0.3
-    LLM_MAX_TOKENS: int = 4096                       # gpt-oss counts hidden reasoning tokens too
+    GROQ_MODEL: str = "qwen/qwen3.8-27b"             # tutor answers (any Groq chat model id works)
+    GROQ_FAST_MODEL: str = "openai/gpt-oss-20b"      # routing, classification, NLI checks
+    GROQ_REASONING_EFFORT: str = "default"           # main model: default | low | medium | high
+    GROQ_FAST_REASONING_EFFORT: str = "low"          # fast model (gpt-oss): low | medium | high
+    LLM_TEMPERATURE: float = 0.6
+    LLM_TOP_P: float = 0.95
+    LLM_MAX_TOKENS: int = 2048                       # per generation segment (see LLM_MAX_CONTINUATIONS)
+    LLM_MAX_CONTINUATIONS: int = 3                   # extra segments when a reply stops at the token limit
+    LLM_TIMEOUT_SECONDS: float = 60.0
+    LLM_MAX_RETRIES: int = 3
+    LLM_CONTEXT_CHAR_BUDGET: int = 24000             # prompt budget (chars) before history/sources are trimmed
+
+    # -- Tutor harness: tools, MCP, NLI, guardrails ---------------------------
+    MCP_SERVER_URLS: str = ""                        # comma-separated MCP (streamable HTTP) endpoints; empty = none
+    MCP_TOOL_ALLOWLIST: str = ""                     # comma-separated tool names MCP may expose; empty = none
+    MCP_TIMEOUT_SECONDS: float = 8.0
+    NLI_ENABLED: bool = True
+    NLI_ENTAIL_THRESHOLD: float = 0.6                # a claim counts as supported at/above this entailment confidence
+    NLI_CONTRADICT_THRESHOLD: float = 0.5            # a claim counts as contradicted at/above this confidence
+    NLI_MIN_SUPPORTED_RATIO: float = 0.5             # below this share of supported claims the answer is qualified
+    INPUT_MAX_CHARS: int = 4000
+
+    # -- Rate limiting (see app/middleware/rate_limit.py) ---------------------
+    RATE_LIMIT_ENABLED: bool = True
+    TUTOR_RATE_PER_MINUTE: int = 12                  # per user, tutor questions
+    TUTOR_RATE_PER_HOUR: int = 120
+    TUTOR_MAX_CONCURRENT_STREAMS: int = 2            # open answer streams per user
+    GLOBAL_LLM_RATE_PER_MINUTE: int = 90             # whole service, protects the Groq quota
+    TRUST_PROXY_HEADERS: bool = True                 # use X-Forwarded-For for anonymous callers (Render, Vercel)
 
     # -- Embeddings (local fastembed, ONNX) -----------------------------------
     EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"

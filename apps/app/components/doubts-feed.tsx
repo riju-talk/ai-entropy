@@ -34,6 +34,7 @@ export function DoubtsFeed({ initial }: { initial: Page }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
   const first = useRef(true)
+  const sentinel = useRef<HTMLDivElement>(null)
 
   const fetchPage = useCallback(async (nextPage: number, nextSort: Sort) => {
     setLoading(true)
@@ -60,6 +61,20 @@ export function DoubtsFeed({ initial }: { initial: Page }) {
     }
     void fetchPage(1, sort)
   }, [sort, fetchPage])
+
+  // Infinite scroll: fetch the next page shortly before the "Load more" row scrolls into view.
+  useEffect(() => {
+    const el = sentinel.current
+    if (!el || !hasMore || loading || error) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) void fetchPage(page + 1, sort)
+      },
+      { rootMargin: "300px" }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [hasMore, loading, error, page, sort, fetchPage])
 
   return (
     <section aria-label="Questions">
@@ -115,7 +130,7 @@ export function DoubtsFeed({ initial }: { initial: Page }) {
       )}
 
       {hasMore && (
-        <div className="mt-6 flex justify-center">
+        <div ref={sentinel} className="mt-6 flex justify-center">
           <Button variant="outline" disabled={loading} onClick={() => fetchPage(page + 1, sort)}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Load more
           </Button>

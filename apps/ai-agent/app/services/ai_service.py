@@ -63,23 +63,31 @@ class AIService:
             from langchain_groq import ChatGroq
 
             kwargs: Dict[str, Any] = {}
-            extra: Dict[str, Any] = {}
+            extra: Dict[str, Any] = {"top_p": s.LLM_TOP_P}  # via model_kwargs: a field on newer langchain-groq, extra on older
             if json_mode:
                 extra["response_format"] = {"type": "json_object"}
-            if model.startswith("openai/gpt-oss"):
-                kwargs["reasoning_effort"] = s.GROQ_REASONING_EFFORT  # fewer hidden tokens = faster answers
-            if extra:
-                kwargs["model_kwargs"] = extra
+            effort = s.GROQ_FAST_REASONING_EFFORT if fast else s.GROQ_REASONING_EFFORT
+            if model.startswith(("openai/gpt-oss", "qwen/")) and effort:
+                kwargs["reasoning_effort"] = effort  # reasoning models: fewer hidden tokens = faster answers
+            kwargs["model_kwargs"] = extra
             self._chat_models[key] = ChatGroq(
                 model=model,
                 api_key=s.GROQ_API_KEY,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                max_retries=1 if fast else 3,  # a stalled helper call should fall back, not sleep through rate limits
-                timeout=60,
+                max_retries=1 if fast else s.LLM_MAX_RETRIES,  # a stalled helper call should fall back, not sleep through rate limits
+                timeout=s.LLM_TIMEOUT_SECONDS,
                 **kwargs,
             )
         return self._chat_models[key]
+
+    def warm_up(self) -> None:
+        """Import the Groq client and build both chat models now, so the first student does not pay ~5 s for it."""
+        s = _settings()
+        if not s.GROQ_API_KEY:
+            return
+        self._chat(False, self.temperature, self.max_tokens)
+        self._chat(True, 0.2, 300, json_mode=True)
 
     @staticmethod
     def _to_lc_messages(messages: List[Dict[str, Any]], system: Optional[str]):
@@ -158,6 +166,35 @@ class AIService:
 
     # -- Native async (used by the pipeline harness: no thread hop, real token streaming) --------
 
+    async def astream_segments(
+        self,
+        messages: List[Dict[str, Any]],
+        system: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        fast: bool = False,
+    ):
+        """Yield ("token", text) for each piece and a final ("finish", reason) for ONE generation call.
+
+        `reason` is Groq's finish_reason: "stop" (complete) or "length" (hit max_tokens, so the answer is cut off).
+        Closing the generator (client disconnect, task cancel) closes the HTTP stream to Groq.
+        """
+        chat = self._chat(fast, self.temperature if temperature is None else temperature, max_tokens or self.max_tokens)
+        stream = chat.astream(self._to_lc_messages(messages, system))
+        finish = "stop"
+        try:
+            async for chunk in stream:
+                if chunk.content:
+                    yield "token", chunk.content
+                reason = (getattr(chunk, "response_metadata", None) or {}).get("finish_reason")
+                if reason:
+                    finish = reason
+        finally:
+            aclose = getattr(stream, "aclose", None)
+            if aclose:
+                await aclose()
+        yield "finish", finish
+
     async def astream(
         self,
         messages: List[Dict[str, Any]],
@@ -166,11 +203,67 @@ class AIService:
         max_tokens: Optional[int] = None,
         fast: bool = False,
     ):
-        """Yield the reply token by token."""
-        chat = self._chat(fast, self.temperature if temperature is None else temperature, max_tokens or self.max_tokens)
-        async for chunk in chat.astream(self._to_lc_messages(messages, system)):
-            if chunk.content:
-                yield chunk.content
+        """Yield the full reply token by token, continuing across token-limit cut-offs (see astream_complete)."""
+        async for kind, value in self.astream_complete(messages, system, temperature, max_tokens, fast):
+            if kind == "token":
+                yield value
+
+    async def astream_complete(
+        self,
+        messages: List[Dict[str, Any]],
+        system: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        fast: bool = False,
+    ):
+        """Stream a reply and never silently clip it.
+
+        When a segment ends with finish_reason == "length", ask the model to continue from exactly where it
+        stopped (the text so far is sent back as an assistant turn) up to LLM_MAX_CONTINUATIONS times.
+        Yields ("token", text), ("continuation", n) before each extra segment, and ("done", info) at the end where
+        info = {"finish_reason", "continuations", "truncated"}. `truncated` is True only when the cap was reached
+        and the answer is still unfinished, so callers can tell the user instead of pretending it is complete.
+        """
+        limit = _settings().LLM_MAX_CONTINUATIONS
+        produced = ""            # everything the caller has been given
+        convo = list(messages)
+        finish, continuations = "stop", 0
+        while True:
+            held = ""            # trailing partial word of this segment, not yet shown
+            fresh_segment = True
+            async for kind, value in self.astream_segments(convo, system, temperature, max_tokens, fast):
+                if kind != "token":
+                    finish = value
+                    continue
+                # Show only whole words. If this segment stops at the token limit, its last word is almost always
+                # cut mid-way ("...12, 1" for 13); a model asked to continue from there garbles the splice. So the
+                # last partial word is held back and either flushed (clean stop) or dropped and regenerated (cut).
+                text = held + value
+                cut = max(text.rfind(" "), text.rfind(chr(10)), text.rfind(chr(9))) + 1  # last space / newline / tab
+                held, text = text[cut:], text[:cut]
+                if continuations and fresh_segment and text:
+                    text = _strip_overlap(produced, text)       # the model sometimes re-writes the tail it was given
+                if text:
+                    fresh_segment = False
+                    produced += text
+                    yield "token", text
+            if finish != "length":
+                if held:
+                    yield "token", held if not (continuations and fresh_segment) else _strip_overlap(produced, held)
+                    produced += held
+                break
+            if continuations >= limit:
+                if held:                     # out of continuations: show the partial word rather than silently lose it
+                    yield "token", held
+                    produced += held
+                break
+            continuations += 1
+            yield "continuation", continuations
+            convo = list(messages) + [
+                {"role": "assistant", "content": produced},
+                {"role": "user", "content": "Continue exactly where you stopped. Do not repeat anything already written and do not restart."},
+            ]
+        yield "done", {"finish_reason": finish, "continuations": continuations, "truncated": finish == "length"}
 
     async def agenerate_json(
         self,
@@ -397,6 +490,15 @@ class AIService:
         e1, e2 = self.embed(text1), self.embed(text2)
         denom = np.linalg.norm(e1) * np.linalg.norm(e2)
         return float(np.dot(e1, e2) / denom) if denom > 0 else 0.0
+
+
+def _strip_overlap(produced: str, fresh: str, window: int = 60) -> str:
+    """Remove a repeated prefix: if `fresh` starts with text that already ends `produced`, cut it off."""
+    tail = produced[-window:]
+    for k in range(min(len(tail), len(fresh)), 7, -1):
+        if tail.endswith(fresh[:k]):
+            return fresh[k:]
+    return fresh
 
 
 @lru_cache(maxsize=1)

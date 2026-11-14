@@ -8,6 +8,7 @@ Both return the same final payload, including a `cognitive_trace` block for the 
 per-stage `pipeline` timing trace. Mastery and gamification updates go to the in-process message bus so
 they never block the response.
 """
+import asyncio
 import json
 import logging
 import math
@@ -75,7 +76,7 @@ async def _finish(p: QAInput, r: Dict[str, Any], t0: float) -> Dict[str, Any]:
     confidence = float(r.get("confidence_score") or 0.8)
     concept = r.get("concept") or ""
 
-    if p.userId:
+    if p.userId and r.get("mode") != "refused":
         bus = get_bus()
         if concept:
             await bus.publish(TOPIC_MASTERY, {"user_id": p.userId, "concept": concept, "confidence": confidence, "event_type": "chat"})
@@ -115,6 +116,12 @@ async def _finish(p: QAInput, r: Dict[str, Any], t0: float) -> Dict[str, Any]:
         "nli_flags": int(r.get("nli_flags") or 0),
         "nli_issues": r.get("nli_issues", []),
         "graph": r.get("graph"),
+        "nli": r.get("nli"),
+        "answer_note": r.get("answer_note", ""),
+        "completion": r.get("completion", {}),
+        "tools": r.get("tools", []),
+        "guardrails": r.get("guardrails", {}),
+        "steps": r.get("steps", []),
         "pipeline": r.get("trace", []),
         "cognitive_trace": {
             "intent": r.get("intent_detected", "Learning"),
@@ -149,23 +156,66 @@ def _sse(event: str, data: Any) -> str:
     return f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
 
 
+HEARTBEAT_SECONDS = 10  # comment frames keep proxies (Render, Vercel, nginx) from closing an idle-looking stream
+
+
 @router.post("/stream", summary="Ask a question, streamed as Server-Sent Events")
 async def post_qa_stream(payload: QAInput):
+    """SSE contract (what the browser relies on):
+
+        event: stage | tool | meta | token | continuation   progress, safe to render as they arrive
+        event: final                                        the complete, validated result
+        event: error                                        the run failed; no final follows
+        event: done                                         ALWAYS last. {"ok": true|false}
+
+    A stream that ends without `done` was cut off in transit (network, proxy timeout, deploy) and the client must
+    treat it as incomplete rather than show the partial text as a finished answer. Lines starting with ":" are
+    heartbeats and carry no data. If the client disconnects, the generator is closed, which cancels the harness
+    tasks and closes the upstream Groq stream - nothing keeps burning tokens for a gone reader.
+    """
     if not payload.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
     t0 = time.time()
 
     async def events() -> AsyncIterator[str]:
+        source = harness.run(**_kwargs(payload)).__aiter__()
+        pending: Optional[asyncio.Future] = None
+        ok = False
         try:
-            async for ev in harness.run(**_kwargs(payload)):
+            while True:
+                if pending is None:
+                    pending = asyncio.ensure_future(source.__anext__())
+                finished, _ = await asyncio.wait({pending}, timeout=HEARTBEAT_SECONDS)
+                if not finished:
+                    yield ": ping\n\n"
+                    continue
+                try:
+                    ev = pending.result()
+                except StopAsyncIteration:
+                    break
+                finally:
+                    pending = None
                 kind = ev["type"]
                 if kind == "final":
                     yield _sse("final", await _finish(payload, ev["result"], t0))
+                    ok = True
+                elif kind == "error":
+                    yield _sse("error", {"message": ev.get("message", "The reasoning engine could not answer."), "code": ev.get("code", "internal")})
                 else:
                     yield _sse(kind, {k: v for k, v in ev.items() if k != "type"})
+        except asyncio.CancelledError:
+            raise  # client went away: finally below still runs
         except Exception:
             logger.exception("QA stream failed")
             yield _sse("error", {"message": "The reasoning engine hit an unexpected error.", "code": "internal"})
+        finally:
+            if pending is not None and not pending.done():
+                pending.cancel()
+            try:
+                await source.aclose()
+            except Exception:  # already closing
+                pass
+        yield _sse("done", {"ok": ok})
 
     return StreamingResponse(
         events(),

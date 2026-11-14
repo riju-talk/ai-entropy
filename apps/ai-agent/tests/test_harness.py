@@ -9,9 +9,10 @@ from app.services import harness
 class FakeAI:
     """Streams a canned answer; JSON calls fail, like a rate-limited or unavailable fast model."""
 
-    async def astream(self, messages, system=None, **_):
+    async def astream_complete(self, messages, system=None, **_):
         for tok in ["**Hi.** ", "Binary search halves the range."]:
-            yield tok
+            yield "token", tok
+        yield "done", {"finish_reason": "stop", "continuations": 0, "truncated": False}
 
     async def agenerate_json(self, *_, **__):
         raise RuntimeError("fast model unavailable")
@@ -72,7 +73,7 @@ def test_missing_llm_key_surfaces_as_not_configured(monkeypatch):
     from app.services.ai_service import AINotConfigured
 
     class Broken(FakeAI):
-        async def astream(self, *a, **k):
+        async def astream_complete(self, *a, **k):
             raise AINotConfigured("GROQ_API_KEY is not configured.")
             yield  # pragma: no cover
 
