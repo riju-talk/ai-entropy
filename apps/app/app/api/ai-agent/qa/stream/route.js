@@ -24,27 +24,36 @@ export async function POST(req) {
 
   const { conversationId, history } = await loadHistory(userId, body.conversationId)
 
+  const payload = JSON.stringify({
+    question,
+    system_prompt: body.system_prompt || body.systemPrompt || undefined,
+    userId, // verified session user; anything in the request body is ignored
+    language: body.language || "en",
+    collection_name: body.collection_name || userId, // each learner's uploads live in their own namespace
+    conversation_history: history.length ? history : undefined,
+  })
+
+  // The AI service may be waking from sleep (free hosting). Retry network errors and gateway errors a couple of times;
+  // never retry a real answer from the service (including its own 503 "not configured", which carries a JSON body).
+  const WAKING = new Set([502, 504])
   let upstream
-  try {
-    upstream = await aiFetch(
-      "/api/qa/stream",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question,
-          system_prompt: body.system_prompt || body.systemPrompt || undefined,
-          userId, // verified session user; anything in the request body is ignored
-          language: body.language || "en",
-          collection_name: body.collection_name || userId, // each learner's uploads live in their own namespace
-          conversation_history: history.length ? history : undefined,
-        }),
-        signal: req.signal,
-      },
-      userId
-    )
-  } catch {
-    return NextResponse.json({ error: "The AI service is not reachable right now. Please try again in a moment." }, { status: 503 })
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      upstream = await aiFetch(
+        "/api/qa/stream",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, signal: req.signal },
+        userId
+      )
+    } catch (e) {
+      if (req.signal?.aborted) return new Response(null, { status: 499 })
+      upstream = null
+    }
+    const retryable = !upstream || WAKING.has(upstream.status)
+    if (!retryable || attempt === 3) break
+    await new Promise((r) => setTimeout(r, 6000))
+  }
+  if (!upstream) {
+    return NextResponse.json({ error: "The AI service is waking up or not reachable right now. Please try again in a moment." }, { status: 503 })
   }
 
   if (!upstream.ok || !upstream.body) {

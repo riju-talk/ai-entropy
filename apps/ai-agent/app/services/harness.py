@@ -293,7 +293,13 @@ async def learner(ctx: Ctx) -> None:
 
 async def documents(ctx: Ctx) -> None:
     """5. The learner's own material (Pinecone, or Postgres when Pinecone isn't configured)."""
+    from app.core.config import settings
     from app.core.vector_store import get_vector_store
+
+    if not settings.DATABASE_URL and not settings.PINECONE_API_KEY:
+        # No Postgres and no Pinecone: nothing to search. Say so at once instead of waiting for a connection to fail.
+        ctx.details["documents"] = "Document search is not configured"
+        return
 
     t0 = time.perf_counter()
     ctx.emit and ctx.emit({"type": "tool", "id": "docs", "name": "search_documents", "kind": "builtin", "status": "running"})
@@ -486,7 +492,9 @@ async def verify(ctx: Ctx) -> None:
     async def judge() -> Optional[nli.NLIResult]:
         if not settings.NLI_ENABLED:
             return None
-        return await nli.validate(ai, ctx.working_question, ctx.answer, evidence_lines, settings)
+        # Ground the check in retrieved sources only. A calculator result is an exact fact about one expression, not
+        # evidence about the rest of the answer; counting it would label every other claim "not backed by sources".
+        return await nli.validate(ai, ctx.working_question, ctx.answer, list(ctx.evidence), settings)
 
     check, tier, verdict_nli = await asyncio.gather(ai.agenerate_json(prompt, REVIEW_SYSTEM, fast=True, max_tokens=900), trust(), judge(), return_exceptions=True)
     tier = tier if isinstance(tier, str) else None
