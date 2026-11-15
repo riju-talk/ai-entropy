@@ -44,6 +44,7 @@ Entropy answers a learner's questions from **their own resources, trusted commun
 | **Quizzes, flashcards, assessments** | Generated questions and flashcards, with rubric-based grading and explainable scores |
 | **Focus timer** | Pomodoro sessions tied to a topic; focus time per topic is kept in the learner profile |
 | **Mind maps** | Concept maps generated from a question or a document |
+| **Knowledge Atlas** | Every discipline the tutor covers (27, about 285 concepts), how deep each goes, how they depend on each other, and your mastery. Click a discipline to see its prerequisite map |
 | **Slides and artifacts** *(milestone 2)* | Generated slide decks and interactive artifacts, rendered in a sandbox |
 | **Communities** | Reddit-style communities: join, post, threaded comments, up/down votes, hot/new/top ranking, moderators, and rules. Plus Q&A with accepted answers, reputation, achievements, and leaderboards |
 
@@ -75,7 +76,8 @@ Browser -> Next.js (UI, auth, API routes, Prisma)       [Vercel]
 - **Skills.** Ask/explain, quiz, flashcards, mind map, and study plan. A unified skill registry with an intent router is planned.
 - **Queues.** Mastery updates, XP, and memory consolidation run on in-process message queues, with events persisted so a restart does not lose them. There is no SQS or Lambda.
 - **Auth.** The browser talks only to Next.js. Next.js verifies the session and calls the AI service with a server-side token.
-- **Concept graph.** On first start the AI service seeds about 285 concepts and keeps growing the graph from the questions asked.
+- **Concept graph.** On first start the AI service seeds about 285 concepts across 27 disciplines and keeps growing the graph from the questions asked. Neo4j AuraDB is the source of truth; if it is unreachable, the built-in in-process graph answers, and the Knowledge Atlas shows which store it is reading.
+- **Document ingestion.** Files are read, chunked, and embedded concurrently, and the upload button shows live progress ("Uploading", then "Chunking & indexing") until the server confirms the document is searchable.
 
 ## Scope
 
@@ -111,12 +113,12 @@ A simulation script signs in and plays out the community and AI flows in **68 ch
 | Variable | Purpose |
 |---|---|
 | `DATABASE_URL`, `DIRECT_URL` | Postgres (both the web app and the AI service) |
-| `NEO4J_URI` / `NEO4J_USER` / `NEO4J_PASSWORD` | Concept graph (AI service) |
+| `NEO4J_URI` / `NEO4J_USERNAME` / `NEO4J_PASSWORD` / `NEO4J_DATABASE` | Concept graph (AI service). For AuraDB, username and database are both the instance id; `NEO4J_USER` works for a self-hosted server |
 | `AI_BACKEND_TOKEN` | Shared secret between web and AI service; must be identical in both |
 | `NEXTAUTH_URL` / `NEXT_PUBLIC_APP_URL` / `NEXTAUTH_SECRET` | Auth and app URL |
 | `BACKEND_URL` | Where the web app reaches the AI service |
 | `GROQ_API_KEY` | Free key from console.groq.com; without it the tutor returns a clear "not configured" error |
-| `PINECONE_API_KEY` | Optional; without it document search runs on Postgres |
+| `PINECONE_API_KEY` | Optional; without it document search runs on Postgres. The `entropy-ai` index (384 dimensions, cosine) is created on first use. `apps/ai-agent/scripts/reset_pinecone.py` empties it (dry run unless `--yes`) |
 
 Hosting is covered in [DEPLOYMENT.md](DEPLOYMENT.md).
 
