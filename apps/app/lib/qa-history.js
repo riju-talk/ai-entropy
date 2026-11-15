@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { sessionCapReached } from "@/lib/sessions"
 
 /**
  * Recent turns of the user's active conversation, for context. Never throws: if the database is
@@ -30,13 +31,20 @@ export async function loadHistory(userId, conversationId) {
 /** Save the question and answer. Fire-and-forget: a failure here must never lose the answer the user already saw. */
 export async function persistExchange({ userId, conversationId, question, answer, concept }) {
   try {
-    const conv = conversationId
-      ? await prisma.conversation.upsert({
-          where: { id: conversationId },
-          create: { id: conversationId, userId, title: question.slice(0, 80) },
-          update: { updatedAt: new Date() },
-        })
-      : await prisma.conversation.create({ data: { userId, title: question.slice(0, 80) } })
+    const title = question.slice(0, 80)
+    // Only ever write into the caller's own conversation (an id alone proves nothing about ownership)
+    let conv = conversationId ? await prisma.conversation.findFirst({ where: { id: conversationId, userId } }) : null
+    if (conv) {
+      conv = await prisma.conversation.update({
+        where: { id: conv.id },
+        data: { updatedAt: new Date(), ...(!conv.title || conv.title === "New Chat" ? { title } : {}) },
+      })
+    } else if (await sessionCapReached(userId)) {
+      // At the demo limit a new session cannot be created: add to the most recent one instead of dropping the answer
+      conv = await prisma.conversation.findFirst({ where: { userId }, orderBy: { updatedAt: "desc" } })
+    } else {
+      conv = await prisma.conversation.create({ data: { userId, title } })
+    }
     await prisma.message.createMany({
       data: [
         { conversationId: conv.id, role: "user", content: question },

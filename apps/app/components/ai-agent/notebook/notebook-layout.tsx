@@ -352,10 +352,10 @@ export function NotebookLayout({
                                         <div className="h-44">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <RadarChart data={masteryData} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
-                                                    <PolarGrid stroke="rgba(255,255,255,0.05)" />
-                                                    <PolarAngleAxis dataKey="subject" tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 9, fontFamily: "monospace" }} />
+                                                    <PolarGrid stroke="hsl(var(--foreground) / 0.20)" />
+                                                    <PolarAngleAxis dataKey="subject" tick={{ fill: "hsl(var(--foreground) / 0.68)", fontSize: 9, fontFamily: "monospace" }} />
                                                     <Radar name="Mastery" dataKey="value" stroke="#22d3ee" fill="#22d3ee" fillOpacity={0.12} strokeWidth={1.5} />
-                                                    <Tooltip contentStyle={{ background: "#0f0f1a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 10 }} formatter={(v: any) => [`${v}%`, "Mastery"]} />
+                                                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--foreground) / 0.25)", borderRadius: 8, fontSize: 10 }} formatter={(v: any) => [`${v}%`, "Mastery"]} />
                                                 </RadarChart>
                                             </ResponsiveContainer>
                                         </div>
@@ -395,7 +395,7 @@ export function NotebookLayout({
                                     <div className="flex items-center gap-4">
                                         <div className="relative flex-shrink-0">
                                             <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                                                <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="4" />
+                                                <circle cx="32" cy="32" r="26" fill="none" stroke="hsl(var(--foreground) / 0.20)" strokeWidth="4" />
                                                 <circle cx="32" cy="32" r="26" fill="none" stroke={examReadiness >= 70 ? "#22d3ee" : examReadiness >= 50 ? "#f59e0b" : "#ef4444"} strokeWidth="4" strokeDasharray={`${(examReadiness / 100) * 163.4} 163.4`} strokeLinecap="round" />
                                             </svg>
                                             <div className="absolute inset-0 flex items-center justify-center">
@@ -458,10 +458,10 @@ export function NotebookLayout({
                                     <div className="h-44">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <RadarChart data={masteryData} margin={{ top: 5, right: 10, bottom: 5, left: 10 }}>
-                                                <PolarGrid stroke="rgba(255,255,255,0.05)" />
-                                                <PolarAngleAxis dataKey="subject" tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 9, fontFamily: "monospace" }} />
+                                                <PolarGrid stroke="hsl(var(--foreground) / 0.20)" />
+                                                <PolarAngleAxis dataKey="subject" tick={{ fill: "hsl(var(--foreground) / 0.68)", fontSize: 9, fontFamily: "monospace" }} />
                                                 <Radar name="Coverage" dataKey="value" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.12} strokeWidth={1.5} />
-                                                <Tooltip contentStyle={{ background: "#0f0f1a", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 10 }} formatter={(v: any) => [`${v}%`, "Coverage"]} />
+                                                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--foreground) / 0.25)", borderRadius: 8, fontSize: 10 }} formatter={(v: any) => [`${v}%`, "Coverage"]} />
                                             </RadarChart>
                                         </ResponsiveContainer>
                                     </div>

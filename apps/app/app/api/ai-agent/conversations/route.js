@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { prisma as sharedPrisma } from "@/lib/prisma"
 import { requireUser } from "@/lib/ai-proxy";
+import { sessionLimit, sessionCapReached } from "@/lib/sessions";
 
 let __prisma__;
 function getPrisma() {
@@ -58,7 +59,7 @@ export async function GET(req) {
       },
     });
 
-    return NextResponse.json({ conversations });
+    return NextResponse.json({ conversations, limit: sessionLimit() });
   } catch (err) {
     console.error("[API][CONVERSATIONS] GET error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -77,6 +78,13 @@ export async function POST(req) {
     const { userId: sessionUserId } = auth;
     const userId = sessionUserId;
 
+    if (await sessionCapReached(userId)) {
+      const limit = sessionLimit();
+      return NextResponse.json(
+        { error: `Demo accounts can keep ${limit} chat sessions. Delete one to start a new one.`, code: "SESSION_LIMIT", limit },
+        { status: 409 }
+      );
+    }
     const conv = await getPrisma().conversation.create({
       data: { userId, title: "New Chat" },
     });

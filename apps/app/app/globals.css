@@ -239,6 +239,26 @@
   color: hsl(var(--muted-foreground));
 }
 
+/* AI answers (@uiw/react-markdown-preview): its palette is bound to our theme tokens, so text, rules, code
+   blocks and links follow light and dark mode instead of the library's fixed dark/light palettes. */
+.ai-markdown-response .wmde-markdown,
+.ai-markdown-response .wmde-markdown-var {
+  --color-fg-default: hsl(var(--foreground));
+  --color-fg-muted: hsl(var(--muted-foreground));
+  --color-canvas-default: transparent;
+  --color-canvas-subtle: hsl(var(--muted));
+  --color-neutral-muted: hsl(var(--muted));
+  --color-border-default: hsl(var(--border));
+  --color-border-muted: hsl(var(--border));
+  --color-accent-fg: hsl(var(--primary));
+  background: transparent;
+  color: hsl(var(--foreground));
+}
+.ai-markdown-response .wmde-markdown h1,
+.ai-markdown-response .wmde-markdown h2 {
+  border-bottom-color: hsl(var(--border));
+}
+
 .code-editor {
   font-family: var(--font-mono), ui-monospace, monospace;
   font-size: 0.875rem;

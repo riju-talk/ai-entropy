@@ -4,6 +4,7 @@ import { QAStreamError, streamQA, type ToolEvent } from "@/lib/stream-qa"
 import { AgentTimeline, VerificationBadge, applyStage, applyTool, type TimelineStep } from "./agent-timeline"
 import React, { useState, useRef, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
+import { useTheme } from "next-themes"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
@@ -19,6 +20,7 @@ import type ReactMarkdownPreview from "@uiw/react-markdown-preview"
 import { ModeSelector, type LearningMode } from "./mode-selector"
 import { CognitiveTraceCard, type CognitiveTrace } from "./cognitive-trace-card"
 import { ExamModeOverlay } from "./exam-mode-overlay"
+import { ChatSessions } from "./chat-sessions"
 
 // Markdown renderer — loaded client-side only (SSR disabled)
 const MDPreview = dynamic<React.ComponentProps<typeof ReactMarkdownPreview>>(
@@ -155,6 +157,8 @@ function StepBadge({ index, validated }: { index: number; validated?: boolean })
 
 function MessageBubble({ msg, showTrace, selectedLanguage, onContinue }: { msg: Message; showTrace: boolean; selectedLanguage: Language; onContinue?: () => void }) {
   const isUser = msg.role === "user"
+  const { resolvedTheme } = useTheme()
+  const colorMode = resolvedTheme === "light" ? "light" : "dark"
   const detectedLang = detectLanguage(msg.content)
 
   if (isUser) {
@@ -202,7 +206,7 @@ function MessageBubble({ msg, showTrace, selectedLanguage, onContinue }: { msg: 
             )}>
               <MDPreview
                 source={stripEmojis(msg.content)}
-                wrapperElement={{ "data-color-mode": "dark" } as any}
+                wrapperElement={{ "data-color-mode": colorMode } as any}
                 style={{ backgroundColor: "transparent" }}
                 components={{
                   a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
@@ -351,6 +355,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
   const [structuredStep, setStructuredStep] = useState(0)
   const [voiceActive, setVoiceActive] = useState(false)
   const [conversationId, setConversationId] = useState<string | undefined>()
+  const [sessionsRefresh, setSessionsRefresh] = useState(0)
   const [reviewQueue, setReviewQueue] = useState<{ concept: string; mastery: number; urgency: string; suggested_prompt: string }[]>([])
   const [studyPlanGoal, setStudyPlanGoal] = useState("")
   const [studyPlanDays, setStudyPlanDays] = useState(7)
@@ -365,31 +370,38 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
   const { data: session } = useSession()
   const userId = session?.user?.id
 
+  // Open one conversation (its saved messages replace what is on screen)
+  const loadConversation = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/ai-agent/conversations?id=${encodeURIComponent(id)}`)
+      if (!res.ok) return
+      const conv = await res.json()
+      const msgs: Message[] = (conv.messages || []).map((m: any) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        timestamp: new Date(m.createdAt),
+      }))
+      setConversationId(id)
+      setMessages(msgs)
+      setStructuredStep(0)
+      setActiveConceptId(undefined)
+    } catch {
+      toast({ title: "Could not open that session", variant: "destructive" })
+    }
+  }, [toast])
+
   // Load most recent conversation on mount
   useEffect(() => {
     if (!userId) return
-    fetch(`/api/ai-agent/conversations?user_id=${encodeURIComponent(userId)}`)
+    fetch("/api/ai-agent/conversations")
       .then(r => r.json())
       .then(data => {
-        const convs: any[] = data.conversations || []
-        if (convs.length === 0) return
-        const latest = convs[0]
-        setConversationId(latest.id)
-        // Load messages for this conversation
-        return fetch(`/api/ai-agent/conversations?user_id=${encodeURIComponent(userId)}&id=${latest.id}`)
-          .then(r => r.json())
-          .then(conv => {
-            const msgs: Message[] = (conv.messages || []).map((m: any) => ({
-              id: m.id,
-              role: m.role as "user" | "assistant",
-              content: m.content,
-              timestamp: new Date(m.createdAt),
-            }))
-            if (msgs.length > 0) setMessages(msgs)
-          })
+        const latest = (data.conversations || [])[0]
+        if (latest) return loadConversation(latest.id)
       })
       .catch(() => {/* offline — start fresh */})
-  }, [userId])
+  }, [userId, loadConversation])
 
   // Fetch spaced repetition review queue
   useEffect(() => {
@@ -419,7 +431,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
     finally { setStudyPlanLoading(false) }
   }, [userId, studyPlanGoal, studyPlanDays])
 
-  // Start a new chat session
+  // Start a new chat session. The server enforces the demo cap and answers 409 when it is reached.
   const startNewChat = useCallback(async () => {
     if (!userId) return
     try {
@@ -429,15 +441,21 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
         body: JSON.stringify({ userId }),
       })
       const conv = await res.json()
+      if (!res.ok) {
+        toast({ title: res.status === 409 ? "Session limit reached" : "Could not start a new session", description: conv?.error, variant: "destructive" })
+        return
+      }
       setConversationId(conv.id)
       setMessages([])
       setStructuredStep(0)
       setActiveConceptId(undefined)
     } catch {
-      setConversationId(undefined)
-      setMessages([])
+      toast({ title: "Could not start a new session", description: "Check your connection and try again.", variant: "destructive" })
     }
-  }, [userId])
+  }, [userId, toast])
+
+  // An answer finishing changes the session's title and order: refresh the sessions menu
+  useEffect(() => { if (!loading) setSessionsRefresh((n) => n + 1) }, [loading])
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -833,16 +851,20 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
         {/* Control strip */}
         <div className="flex items-center gap-2 px-4 py-2 border-b border-border overflow-x-auto">
 
-          {/* New Chat button — under progress */}
+          {/* Chat sessions: switch, delete, new (demo accounts are capped server-side) */}
           {userId && (
-            <button
-              onClick={() => toast({ title: "New Chat", description: "New session management is still under progress — coming soon." })}
-              title="New Chat"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-border bg-card text-[9px] font-bold uppercase tracking-widest text-muted-foreground hover:text-muted-foreground hover:border-border transition-all flex-shrink-0"
-            >
-              <PlusCircle className="h-3 w-3" />
-              <span className="hidden sm:inline">New</span>
-            </button>
+            <ChatSessions
+              activeId={conversationId}
+              refreshKey={sessionsRefresh}
+              disabled={loading}
+              onSelect={loadConversation}
+              onNew={startNewChat}
+              onDeleted={(_id, wasActive, remaining) => {
+                if (!wasActive) return
+                if (remaining[0]) loadConversation(remaining[0].id)
+                else { setConversationId(undefined); setMessages([]) }
+              }}
+            />
           )}
 
           {/* Mode selector */}
@@ -1272,7 +1294,7 @@ function ChatConceptGraph({ messages, className }: { messages: Message[]; classN
         {uniquePairs.map(([a, b], i) => {
           const pa = posMap.get(a); const pb = posMap.get(b)
           if (!pa || !pb) return null
-          return <line key={i} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="rgba(255,255,255,0.06)" strokeWidth={1.5} />
+          return <line key={i} x1={pa.x} y1={pa.y} x2={pb.x} y2={pb.y} stroke="hsl(var(--foreground) / 0.22)" strokeWidth={1.5} />
         })}
         {/* Nodes */}
         {nodePos.map((n, i) => {
@@ -1285,7 +1307,7 @@ function ChatConceptGraph({ messages, className }: { messages: Message[]; classN
               <text
                 x={n.x} y={n.y + r + 9}
                 textAnchor="middle"
-                fill="rgba(255,255,255,0.45)"
+                fill="hsl(var(--foreground) / 0.84)"
                 fontSize={8}
                 fontFamily="monospace"
               >

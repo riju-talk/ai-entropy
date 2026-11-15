@@ -314,7 +314,7 @@ export function LiveKnowledgeGraph({
       >
         <defs>
           <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L6,3 z" fill="rgba(255,255,255,0.15)" />
+            <path d="M0,0 L0,6 L6,3 z" fill="hsl(var(--foreground) / 0.36)" />
           </marker>
           <marker id="arrowhead-active" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
             <path d="M0,0 L0,6 L6,3 z" fill="rgba(34,211,238,0.7)" />
@@ -348,7 +348,7 @@ export function LiveKnowledgeGraph({
                 x1={sx} y1={sy} x2={ex} y2={ey}
                 stroke={isActive
                   ? (edge.strong ? "rgba(34,211,238,0.55)" : "rgba(34,211,238,0.25)")
-                  : (edge.strong ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.04)")}
+                  : (edge.strong ? "hsl(var(--foreground) / 0.28)" : "hsl(var(--foreground) / 0.18)")}
                 strokeWidth={edge.strong ? 1.5 : 0.8}
                 markerEnd={isActive ? "url(#arrowhead-active)" : "url(#arrowhead)"}
               />
@@ -437,7 +437,7 @@ export function LiveKnowledgeGraph({
                   fontSize="6.5"
                   fontFamily="monospace"
                   fontWeight="bold"
-                  fill={active ? color : "rgba(255,255,255,0.45)"}
+                  fill={active ? color : "hsl(var(--foreground) / 0.84)"}
                 >
                   {node.label.length > 14 ? node.label.slice(0, 13) + "…" : node.label}
                 </text>
