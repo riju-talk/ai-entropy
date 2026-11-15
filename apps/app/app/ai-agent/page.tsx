@@ -16,6 +16,8 @@ const MindMapAgent = dynamic(() => import("@/components/ai-agent/mindmap-agent")
 const ChartsAgent = dynamic(() => import("@/components/ai-agent/charts-agent").then((m) => m.ChartsAgent), { ssr: false, loading: TabLoading })
 const FlashcardsAgent = dynamic(() => import("@/components/ai-agent/flashcards-agent").then((m) => m.FlashcardsAgent), { ssr: false, loading: TabLoading })
 
+const KnowledgeAtlas = dynamic(() => import("@/components/ai-agent/knowledge-atlas").then((m) => m.KnowledgeAtlas), { ssr: false, loading: TabLoading })
+
 export default function AIAgentPage() {
   const [activeTab, setActiveTab] = useState("qa")
   const [selectedDoc, setSelectedDoc] = useState<any | null>(null)
@@ -34,6 +36,7 @@ export default function AIAgentPage() {
           {activeTab === "assessments" && <QuizAgent />}
           {activeTab === "flashcards" && <FlashcardsAgent />}
           {activeTab === "mindmap" && <MindMapAgent contextDoc={selectedDoc} />}
+          {activeTab === "knowledge" && <KnowledgeAtlas />}
           {activeTab === "charts" && <ChartsAgent contextDoc={selectedDoc} />}
         </div>
       </NotebookLayout>

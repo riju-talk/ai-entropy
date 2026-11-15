@@ -5,6 +5,8 @@ Traverses Neo4j knowledge graph to build context around concepts.
 Reference: docs/AI_BRAIN_ARCHITECTURE.md Layer 3
 """
 import logging
+
+from app.core.config import settings
 from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
 
@@ -63,7 +65,7 @@ async def traverse_prerequisites(
                distance
         """.replace("{max_depth}", str(max_depth))
         
-        async with driver.session() as session:
+        async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
             result = await session.run(query, concept_id=concept_id)
             records = await result.data()
         
@@ -134,7 +136,7 @@ async def find_related_concepts(
         LIMIT $max_results
         """
         
-        async with driver.session() as session:
+        async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
             result = await session.run(query, concept_id=concept_id, max_results=max_results)
             records = await result.data()
         
@@ -186,7 +188,7 @@ async def find_dependent_concepts(
         LIMIT $max_results
         """
         
-        async with driver.session() as session:
+        async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
             result = await session.run(query, concept_id=concept_id, max_results=max_results)
             records = await result.data()
         
@@ -237,7 +239,7 @@ async def compute_learning_path(
         ORDER BY distance DESC
         """
         
-        async with driver.session() as session:
+        async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
             result = await session.run(query, concept_id=concept_id)
             records = await result.data()
         
@@ -309,7 +311,7 @@ async def build_graph_context(
         RETURN c.name AS name, c.description AS description, c.difficulty AS difficulty
         """
         
-        async with driver.session() as session:
+        async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
             result = await session.run(query, concept_id=concept_id)
             record = await result.single()
         

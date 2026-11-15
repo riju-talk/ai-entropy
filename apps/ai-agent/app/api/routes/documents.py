@@ -23,6 +23,7 @@ import logging
 import io
 import mimetypes
 import re
+import time
 
 from app.core.config import settings
 
@@ -193,6 +194,13 @@ async def _extract_and_update_graph(text: str, user_id: str, filename: str) -> N
     except Exception as exc:
         logger.warning("[GRAPH] knowledge-graph update failed for '%s': %s", filename, exc)
 
+async def _store_processed(s3_svc, namespace: str, doc_id: str, text: str) -> None:
+    try:
+        await asyncio.to_thread(s3_svc.store_processed_text, namespace, doc_id, text)
+    except Exception as exc:
+        logger.warning("[STORAGE] Could not store processed text: %s", exc)
+
+
 # ── Route handlers ────────────────────────────────────────────────────────────
 
 @router.get("/")
@@ -235,14 +243,14 @@ async def upload_documents(
     s3_svc    = _get_s3()
     namespace = user_id or "anonymous"
 
-    embedded_count: int        = 0
-    s3_uploads:     List[dict] = []
-    errors:         List[str]  = []
+    s3_uploads: List[dict] = []
+    errors:     List[str]  = []
 
+    # Read and validate everything first so a bad file fails the request before any work starts.
+    payloads = []
     for f in files:
         if not f.filename:
             continue
-
         suffix = Path(f.filename).suffix.lower()
         if suffix not in ALLOWED_EXT:
             raise HTTPException(
@@ -250,78 +258,68 @@ async def upload_documents(
                 f"Unsupported file type '{suffix}'. "
                 f"Allowed: {', '.join(sorted(ALLOWED_EXT))}",
             )
+        content = await f.read()
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(400, f"'{f.filename}' exceeds 20 MB limit.")
+        payloads.append((f, suffix, content))
 
-        try:
-            content = await f.read()
-            if len(content) > MAX_FILE_SIZE:
-                raise HTTPException(400, f"'{f.filename}' exceeds 20 MB limit.")
+    async def process(f, suffix: str, content: bytes) -> bool:
+        """One file: storage backup and text extraction run together; chunking is off the event loop."""
+        t0 = time.perf_counter()
 
-            # ── Step 1: back up raw bytes to storage ──────────────────────────────
-            s3_info: dict = {}
-            if s3_svc:
-                try:
-                    s3_info = s3_svc.upload_fileobj(
-                        file_obj     = io.BytesIO(content),
-                        filename     = f.filename,
-                        user_id      = namespace,
-                        content_type = f.content_type or "application/octet-stream",
-                    )
-                    s3_uploads.append(s3_info)
-                    logger.info(
-                        "[STORAGE] %s → %s/%s",
-                        f.filename, s3_info.get("bucket"), s3_info.get("s3_key"),
-                    )
-                except Exception as s3_exc:
-                    logger.warning(
-                        "[STORAGE] Upload failed for '%s': %s  (processing continues)",
-                        f.filename, s3_exc,
-                    )
+        async def backup() -> dict:
+            if not s3_svc:
+                return {}
+            try:
+                info = await asyncio.to_thread(
+                    s3_svc.upload_fileobj,
+                    file_obj=io.BytesIO(content), filename=f.filename, user_id=namespace,
+                    content_type=f.content_type or "application/octet-stream",
+                )
+                logger.info("[STORAGE] %s -> %s/%s", f.filename, info.get("bucket"), info.get("s3_key"))
+                return info
+            except Exception as s3_exc:
+                logger.warning("[STORAGE] Upload failed for '%s': %s  (processing continues)", f.filename, s3_exc)
+                return {}
 
-            # ── Step 2: extract plain text ────────────────────────────────────
-            text = _extract_text(content, f.filename)
-            if not text.strip():
-                logger.warning("[UPLOAD] No text extracted from '%s' — skipping", f.filename)
-                continue
+        s3_info, text = await asyncio.gather(backup(), asyncio.to_thread(_extract_text, content, f.filename))
+        if s3_info:
+            s3_uploads.append(s3_info)
+        if not text.strip():
+            logger.warning("[UPLOAD] No text extracted from '%s' - skipping", f.filename)
+            return False
 
-            # ── Step 3: store extracted text back to storage (processed/ prefix) ──
-            if s3_svc and s3_info.get("doc_id"):
-                try:
-                    s3_svc.store_processed_text(namespace, s3_info["doc_id"], text)
-                except Exception as exc:
-                    logger.warning("[STORAGE] Could not store processed text: %s", exc)
+        meta = {
+            "source":       f.filename,
+            "user_id":      namespace,
+            "content_type": f.content_type or "unknown",
+            "file_type":    suffix.lstrip("."),
+        }
+        if s3_info.get("s3_key"):
+            meta["s3_key"]    = s3_info["s3_key"]
+            meta["s3_bucket"] = s3_info.get("bucket", "")
 
-            # ── Step 4: build LangChain Document ─────────────────────────────
-            meta = {
-                "source":       f.filename,
-                "user_id":      namespace,
-                "content_type": f.content_type or "unknown",
-                "file_type":    suffix.lstrip("."),
-            }
-            if s3_info.get("s3_key"):
-                meta["s3_key"]    = s3_info["s3_key"]
-                meta["s3_bucket"] = s3_info.get("bucket", "")
+        chunks = await asyncio.to_thread(lc_svc.split_documents, [LCDocument(page_content=text, metadata=meta)])
+        t_chunk = time.perf_counter()
+        await lc_svc.upsert_documents(chunks, collection_name=namespace)
+        logger.info(
+            "[UPLOAD] '%s' -> %d chunks (chunk %.2fs, embed+store %.2fs) namespace='%s'",
+            f.filename, len(chunks), t_chunk - t0, time.perf_counter() - t_chunk, namespace,
+        )
 
-            doc = LCDocument(page_content=text, metadata=meta)
+        if s3_info.get("doc_id"):  # processed-text copy and graph enrichment never hold up the response
+            background_tasks.add_task(_store_processed, s3_svc, namespace, s3_info["doc_id"], text)
+        background_tasks.add_task(_extract_and_update_graph, text, namespace, f.filename)
+        return True
 
-            # ── Step 5: chunk + upsert to Pinecone ───────────────────────────
-            chunks = lc_svc.split_documents([doc])
-            logger.info(
-                "[UPLOAD] '%s' → %d chunks → Pinecone namespace='%s'",
-                f.filename, len(chunks), namespace,
-            )
-            await lc_svc.upsert_documents(chunks, collection_name=namespace)
+    results = await asyncio.gather(*(process(*p) for p in payloads), return_exceptions=True)
+    embedded_count = 0
+    for (f, _s, _c), res in zip(payloads, results):
+        if isinstance(res, Exception):
+            logger.error("[UPLOAD] Failed to process '%s': %s", f.filename, res)
+            errors.append(f"{f.filename}: {res!s}")
+        elif res:
             embedded_count += 1
-
-            # ── Step 6: update knowledge graph (background — non-blocking) ───
-            background_tasks.add_task(
-                _extract_and_update_graph, text, namespace, f.filename
-            )
-
-        except HTTPException:
-            raise
-        except Exception as exc:
-            logger.error("[UPLOAD] Failed to process '%s': %s", f.filename, exc)
-            errors.append(f"{f.filename}: {exc!s}")
 
     if errors and embedded_count == 0:
         raise HTTPException(500, f"All uploads failed: {'; '.join(errors)}")

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -30,16 +31,21 @@ async def _embed(texts: List[str]) -> np.ndarray:
     return await asyncio.to_thread(get_ai_service().embed_batch, texts)
 
 
+def _d(x: Any) -> Any:
+    """Pinecone v7 returns response objects; read them as plain dicts."""
+    return x.to_dict() if hasattr(x, "to_dict") else x
+
+
 class VectorStore:
     def __init__(self) -> None:
         self._index: Any = None
-        self._pinecone_failed = False
+        self._pinecone_failed_until = 0.0  # monotonic time; Pinecone is retried after this, not abandoned for good
 
     # -- backend selection ---------------------------------------------------------------------
 
     @property
     def backend(self) -> str:
-        return "pinecone" if (settings.PINECONE_API_KEY and not self._pinecone_failed) else "postgres"
+        return "pinecone" if (settings.PINECONE_API_KEY and time.monotonic() >= self._pinecone_failed_until) else "postgres"
 
     def _pinecone_index(self):
         if self._index is None:
@@ -50,21 +56,30 @@ class VectorStore:
                 self._index = pc.Index(host=settings.PINECONE_HOST)
             else:
                 name = settings.PINECONE_INDEX_NAME
-                existing = {i["name"] for i in pc.list_indexes()}
-                if name not in existing:
+                if not pc.has_index(name):
                     logger.info("Creating Pinecone index %s (dim=%d)", name, settings.EMBEDDING_DIMENSIONS)
-                    pc.create_index(
-                        name=name,
-                        dimension=settings.EMBEDDING_DIMENSIONS,
-                        metric="cosine",
-                        spec=ServerlessSpec(cloud="aws", region=settings.PINECONE_ENV),
-                    )
-                self._index = pc.Index(name)
+                    try:
+                        pc.create_index(
+                            name=name,
+                            dimension=settings.EMBEDDING_DIMENSIONS,
+                            metric="cosine",
+                            spec=ServerlessSpec(cloud="aws", region=settings.PINECONE_ENV),
+                        )
+                    except Exception as exc:  # another service created it first: fine
+                        if "ALREADY_EXISTS" not in str(exc) and "already exists" not in str(exc).lower():
+                            raise
+                    for _ in range(60):  # a new index needs a few seconds before it accepts vectors
+                        if pc.describe_index(name).status["ready"]:
+                            break
+                        time.sleep(1)
+                # connect by host: skips the control-plane lookup on every later call
+                self._index = pc.Index(host=pc.describe_index(name).host)
         return self._index
 
     def _degrade(self, exc: Exception) -> None:
         logger.warning("Pinecone unavailable (%s); using the Postgres vector store", exc)
-        self._pinecone_failed = True
+        self._index = None  # rebuild the client on the next try
+        self._pinecone_failed_until = time.monotonic() + 60
 
     # -- API -----------------------------------------------------------------------------------
 
@@ -110,7 +125,7 @@ class VectorStore:
     async def stats(self) -> Dict[str, Any]:
         if self.backend == "pinecone":
             try:
-                s = await asyncio.to_thread(lambda: self._pinecone_index().describe_index_stats())
+                s = await asyncio.to_thread(lambda: _d(self._pinecone_index().describe_index_stats()))
                 return {"backend": "pinecone", "total_vectors": s.get("total_vector_count", 0), "namespaces": list((s.get("namespaces") or {}).keys())}
             except Exception as exc:
                 self._degrade(exc)
@@ -134,13 +149,21 @@ class VectorStore:
             md["text"] = text[:2000]
             records.append({"id": str(uuid.uuid4()), "values": vec.tolist(), "metadata": md})
         index = self._pinecone_index()
-        for i in range(0, len(records), 100):
-            index.upsert(vectors=records[i : i + 100], namespace=namespace)
+        batches = [records[i : i + 100] for i in range(0, len(records), 100)]
+        if len(batches) == 1:
+            index.upsert(vectors=batches[0], namespace=namespace)
+            return
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=min(4, len(batches))) as pool:  # batches are independent: send them together
+            for _ in pool.map(lambda b: index.upsert(vectors=b, namespace=namespace), batches):
+                pass
 
     def _pinecone_query(self, namespace, qv, k) -> List[Dict[str, Any]]:
-        res = self._pinecone_index().query(vector=qv.tolist(), top_k=k, namespace=namespace, include_metadata=True)
+        res = _d(self._pinecone_index().query(vector=qv.tolist(), top_k=k, namespace=namespace, include_metadata=True))
         out = []
         for m in res.get("matches", []):
+            m = _d(m)
             md = dict(m.get("metadata") or {})
             out.append({"text": md.pop("text", ""), "source": md.get("source", ""), "score": float(m.get("score", 0)), "metadata": md})
         return out

@@ -26,7 +26,7 @@ async def get_driver() -> AsyncDriver:
     if _driver is None:
         _driver = AsyncGraphDatabase.driver(
             settings.NEO4J_URI,
-            auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD),
+            auth=(settings.neo4j_user, settings.NEO4J_PASSWORD),
         )
         logger.info("Neo4j driver initialised â†’ %s", settings.NEO4J_URI)
     return _driver
@@ -44,6 +44,16 @@ async def close_driver() -> None:
 # Concept management
 # ---------------------------------------------------------------------------
 
+async def canonical(name: str) -> str:
+    """The exact spelling add_concept stores, so MATCH-by-name finds nodes created from any spelling."""
+    name = (name or "").strip()
+    try:
+        from app.services import multilingual_service as _ml
+        return await _ml.normalize_concept_to_english(name) or name
+    except Exception:
+        return name
+
+
 async def add_concept(
     name: str,
     description: str = "",
@@ -58,7 +68,7 @@ async def add_concept(
     except Exception:
         pass
     driver = await get_driver()
-    async with driver.session() as session:
+    async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
         result = await session.run(
             """
             MERGE (c:Concept {name: $name})
@@ -88,8 +98,9 @@ async def link_prerequisite(concept: str, prerequisite: str) -> bool:
     Create: (prerequisite)-[:PREREQUISITE_OF]->(concept)
     Meaning: you must know `prerequisite` before learning `concept`.
     """
+    prerequisite, concept = await canonical(prerequisite), await canonical(concept)
     driver = await get_driver()
-    async with driver.session() as session:
+    async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
         await session.run(
             """
             MATCH (pre:Concept {name: $pre}), (con:Concept {name: $con})
@@ -109,7 +120,7 @@ async def link_prerequisite(concept: str, prerequisite: str) -> bool:
 async def ensure_schema() -> None:
     """Idempotent: uniqueness, lookup index, and a stable `id` on every Concept (older nodes had none)."""
     driver = await get_driver()
-    async with driver.session() as session:
+    async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
         for stmt in (
             "CREATE CONSTRAINT concept_name_unique IF NOT EXISTS FOR (c:Concept) REQUIRE c.name IS UNIQUE",
             "CREATE INDEX concept_id_idx IF NOT EXISTS FOR (c:Concept) ON (c.id)",
@@ -129,7 +140,7 @@ async def resolve_concept(name: str) -> Optional[dict]:
     if len(q) < 2:
         return None
     driver = await get_driver()
-    async with driver.session() as session:
+    async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
         result = await session.run(
             """
             MATCH (c:Concept)
@@ -155,7 +166,7 @@ async def get_graph_context(name: str, user_id: Optional[str] = None) -> Optiona
     if not node:
         return None
     driver = await get_driver()
-    async with driver.session() as session:
+    async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
         result = await session.run(
             """
             MATCH (c:Concept {name: $name})
@@ -193,19 +204,20 @@ async def grow_graph(concept: str, prerequisites: List[str], related: List[str],
     if len(concept) < 2:
         return
     await add_concept(concept, domain=domain)
+    concept_c = await canonical(concept)
     driver = await get_driver()
-    async with driver.session() as session:
+    async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
         for pre in [p for p in prerequisites if p and p.strip().lower() != concept.lower()][:5]:
             await add_concept(pre.strip(), domain=domain)
             await session.run(
                 "MATCH (a:Concept {name: $a}), (b:Concept {name: $b}) MERGE (a)-[:PREREQUISITE_OF]->(b)",
-                a=pre.strip(), b=concept,
+                a=await canonical(pre), b=concept_c,
             )
         for rel in [r for r in related if r and r.strip().lower() != concept.lower()][:5]:
             await add_concept(rel.strip(), domain=domain)
             await session.run(
                 "MATCH (a:Concept {name: $a}), (b:Concept {name: $b}) MERGE (a)-[:RELATED_TO]->(b)",
-                a=concept, b=rel.strip(),
+                a=concept_c, b=await canonical(rel),
             )
 
 
@@ -219,7 +231,7 @@ async def fetch_concept_context(concept: str) -> dict:
     Used by the reasoning engine to enrich prompts.
     """
     driver = await get_driver()
-    async with driver.session() as session:
+    async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
         result = await session.run(
             """
             OPTIONAL MATCH (pre:Concept)-[:PREREQUISITE_OF]->(c:Concept {name: $name})
@@ -257,7 +269,7 @@ async def record_mastery(user_id: str, concept: str, mastery_score: float) -> No
     except Exception:
         pass
     driver = await get_driver()
-    async with driver.session() as session:
+    async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
         await session.run(
             """
             MERGE (u:User {id: $user_id})
@@ -277,7 +289,7 @@ async def get_user_weak_nodes(user_id: str, threshold: float = 0.5) -> List[str]
     ordered by difficulty (hardest first so they tackle blockers).
     """
     driver = await get_driver()
-    async with driver.session() as session:
+    async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
         result = await session.run(
             """
             MATCH (u:User {id: $user_id})-[r:MASTERED_BY]->(c:Concept)
@@ -299,7 +311,7 @@ async def get_recommended_path(user_id: str, target_concept: str) -> List[str]:
     Uses Neo4j shortestPath over PREREQUISITE_OF relationships.
     """
     driver = await get_driver()
-    async with driver.session() as session:
+    async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
         result = await session.run(
             """
             MATCH (target:Concept {name: $target})
@@ -331,7 +343,7 @@ async def link_document_concept(source: str, user_id: str, concept_name: str) ->
     when the document is deleted.
     """
     driver = await get_driver()
-    async with driver.session() as session:
+    async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
         await session.run(
             """
             MERGE (d:Document {source: $source, user_id: $user_id})
@@ -360,7 +372,7 @@ async def remove_document_from_graph(source: str, user_id: str) -> dict:
     cleaned = 0
     removed = False
     try:
-        async with driver.session() as session:
+        async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
             # 1. Find concepts only this doc provides for this user
             result = await session.run(
                 """
@@ -415,13 +427,88 @@ async def remove_document_from_graph(source: str, user_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Disciplines overview (the "what the platform knows" view)
+# ---------------------------------------------------------------------------
+
+async def get_disciplines(user_id: Optional[str] = None) -> dict:
+    """
+    One row per discipline (Concept.domain): how many concepts it holds, how deep it goes, how it connects to
+    other disciplines, and - when `user_id` is given - how much of it that learner has mastered.
+
+    {"disciplines": [{"name", "concepts", "avg_difficulty", "max_difficulty", "internal_links", "cross_links",
+                      "learner": {"studied", "mastered", "avg_mastery"}}],
+     "bridges": [{"from", "to", "links"}],         # prerequisite edges that cross disciplines
+     "totals": {"concepts", "disciplines", "relationships"}}
+    """
+    driver = await get_driver()
+    async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
+        rows = await (await session.run(
+            """
+            MATCH (c:Concept) WHERE coalesce(c.domain, '') <> ''
+            OPTIONAL MATCH (u:User {id: $uid})-[m:MASTERED_BY]->(c)
+            RETURN c.domain AS name, count(c) AS concepts,
+                   avg(toFloat(coalesce(c.difficulty, 1))) AS avg_difficulty,
+                   max(coalesce(c.difficulty, 1)) AS max_difficulty,
+                   count(m) AS studied,
+                   sum(CASE WHEN m.score >= 0.7 THEN 1 ELSE 0 END) AS mastered,
+                   avg(m.score) AS avg_mastery
+            ORDER BY concepts DESC, name
+            """,
+            uid=user_id or "",
+        )).data()
+        links = await (await session.run(
+            """
+            MATCH (a:Concept)-[r:PREREQUISITE_OF|RELATED_TO]->(b:Concept)
+            RETURN coalesce(a.domain, '') AS src, coalesce(b.domain, '') AS dst, count(r) AS n
+            """
+        )).data()
+
+    internal: dict = {}
+    cross: dict = {}
+    bridges: dict = {}
+    total_rel = 0
+    for l in links:
+        total_rel += l["n"]
+        if not l["src"] or not l["dst"]:
+            continue
+        if l["src"] == l["dst"]:
+            internal[l["src"]] = internal.get(l["src"], 0) + l["n"]
+        else:
+            for d in (l["src"], l["dst"]):
+                cross[d] = cross.get(d, 0) + l["n"]
+            bridges[(l["src"], l["dst"])] = bridges.get((l["src"], l["dst"]), 0) + l["n"]
+
+    disciplines = [
+        {
+            "name": r["name"],
+            "concepts": int(r["concepts"]),
+            "avg_difficulty": round(float(r["avg_difficulty"] or 0), 1),
+            "max_difficulty": int(r["max_difficulty"] or 0),
+            "internal_links": internal.get(r["name"], 0),
+            "cross_links": cross.get(r["name"], 0),
+            "learner": {
+                "studied": int(r["studied"] or 0),
+                "mastered": int(r["mastered"] or 0),
+                "avg_mastery": round(float(r["avg_mastery"] or 0) * 100, 1),
+            },
+        }
+        for r in rows
+    ]
+    return {
+        "disciplines": disciplines,
+        "bridges": [{"from": a, "to": b, "links": n} for (a, b), n in sorted(bridges.items(), key=lambda kv: -kv[1])[:40]],
+        "totals": {"concepts": sum(d["concepts"] for d in disciplines), "disciplines": len(disciplines), "relationships": total_rel},
+    }
+
+
+# ---------------------------------------------------------------------------
 # Health check
 # ---------------------------------------------------------------------------
 
 async def ping() -> bool:
     try:
         driver = await get_driver()
-        async with driver.session() as session:
+        async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
             await session.run("RETURN 1")
         return True
     except ServiceUnavailable:
@@ -432,7 +519,7 @@ async def count_concepts() -> int:
     """Return the number of Concept nodes in the graph."""
     try:
         driver = await get_driver()
-        async with driver.session() as session:
+        async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
             result = await session.run("MATCH (c:Concept) RETURN count(c) as count")
             record = await result.single()
             return record["count"] if record else 0
@@ -450,7 +537,7 @@ async def get_concepts_matching_question(question: str) -> dict:
     """
     try:
         driver = await get_driver()
-        async with driver.session() as session:
+        async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
             result = await session.run(
                 """
                 MATCH (c:Concept)
@@ -508,7 +595,7 @@ async def get_user_graph(user_id: str) -> dict:
     nodes: list = []
     edges: list = []
 
-    async with driver.session() as session:
+    async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
         # Fetch only the user's concepts with mastery scores
         result = await session.run(
             """
@@ -577,7 +664,7 @@ async def get_all_nodes(user_id: Optional[str] = None) -> dict:
     nodes: list = []
     edges: list = []
 
-    async with driver.session() as session:
+    async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
         # Fetch all concept nodes with optional mastery scores
         if user_id:
             result = await session.run(

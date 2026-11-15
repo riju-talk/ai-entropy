@@ -467,6 +467,17 @@ export function NotebookLayout({
                                     </div>
                                 </StudioSection>
                                 <button
+                                    onClick={() => onTabChange("knowledge")}
+                                    className="w-full flex items-center gap-2 px-3 py-3 rounded bg-card border border-primary/20 hover:border-primary/40 transition-all group"
+                                >
+                                    <Layers className="h-4 w-4 text-primary" />
+                                    <div className="flex-1 text-left">
+                                        <div className="text-[10px] font-bold text-primary uppercase tracking-widest">Knowledge Atlas</div>
+                                        <div className="text-[8px] text-muted-foreground">All disciplines and how they connect</div>
+                                    </div>
+                                    <ChevronRight className="h-3 w-3 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </button>
+                                <button
                                     onClick={() => onTabChange("mindmap")}
                                     className="w-full flex items-center gap-2 px-3 py-3 rounded bg-card border border-primary/20 hover:border-primary/40 transition-all group"
                                 >

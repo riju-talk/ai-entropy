@@ -298,6 +298,7 @@ async def health():
         "llm_model": settings.GROQ_MODEL,
         "embedding_model": settings.EMBEDDING_MODEL,
         "neo4j_connected": neo4j_ok,
+        "vector_backend": "pinecone" if settings.PINECONE_API_KEY else "postgres",
         "postgres_connected": postgres_ok,
         "event_bus_active": event_bus_ok,
         "message_bus": _bus_stats(),

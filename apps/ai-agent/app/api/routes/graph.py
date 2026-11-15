@@ -7,9 +7,11 @@ GET  /api/graph/context/{concept}        â†’ fetch concept context
 GET  /api/graph/weak/{user_id}           â†’ get user weak nodes
 GET  /api/graph/path/{user_id}/{concept} â†’ recommended learning path
 """
-from fastapi import APIRouter, HTTPException
-from typing import Optional
+import asyncio
 import logging
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException
 
 from app.schemas.graph import (
     AddConceptRequest,
@@ -66,16 +68,41 @@ async def get_user_graph(user_id: str) -> dict:
         raise HTTPException(status_code=500, detail="Graph read error")
 
 
+async def _neo4j_or_local(neo4j_call, local_call, what: str) -> dict:
+    """Neo4j is the source of truth; if it is not configured or not reachable, the seeded in-process graph answers."""
+    from app.core.config import settings
+    from app.services import graph_local
+
+    if settings.NEO4J_PASSWORD:
+        try:
+            out = await asyncio.wait_for(neo4j_call(), timeout=6)
+            if out.get("nodes") or out.get("disciplines"):
+                return {**out, "source": "neo4j"}
+        except Exception as exc:
+            logger.warning("%s: Neo4j unavailable, serving the local graph: %s", what, exc)
+    return {**local_call(graph_local.get_local_graph()), "source": "local"}
+
+
 @router.get("/nodes", summary="All concept nodes + prerequisite edges (LiveKnowledgeGraph feed)")
 async def get_all_nodes(user_id: Optional[str] = None) -> dict:
     """
     Returns every Concept node with mastery percentage (0-100) and all
     PREREQUISITE_OF edges.  Optionally scoped to a user's mastery scores.
+    `source` says which store answered ("neo4j" or "local").
     """
     try:
-        return await kg.get_all_nodes(user_id=user_id)
+        return await _neo4j_or_local(lambda: kg.get_all_nodes(user_id=user_id), lambda g: g.all_nodes(), "get_all_nodes")
     except Exception as exc:
         logger.exception("get_all_nodes failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Graph read error")
+
+
+@router.get("/disciplines", summary="Every discipline the platform covers, with size, depth, links and the learner's progress")
+async def get_disciplines(user_id: Optional[str] = None) -> dict:
+    try:
+        return await _neo4j_or_local(lambda: kg.get_disciplines(user_id=user_id), lambda g: g.disciplines(), "get_disciplines")
+    except Exception as exc:
+        logger.exception("get_disciplines failed: %s", exc)
         raise HTTPException(status_code=500, detail="Graph read error")
 
 

@@ -4,6 +4,7 @@ import { aiFetch, requireUser } from "@/lib/ai-proxy"
 /**
  * GET /api/ai-agent/graph
  *   ?action=nodes               → /api/graph/nodes  (default)
+ *   ?action=disciplines         → /api/graph/disciplines (per-discipline size, depth, links, learner progress)
  *   ?action=context&concept=X   → /api/graph/context/{concept}
  *   ?action=weak&user_id=X      → /api/graph/weak/{user_id}
  *   ?action=path&user_id=X&concept=Y → /api/graph/path/{user_id}/{concept}
@@ -24,6 +25,9 @@ export async function GET(req) {
       case "user-graph":
         if (!userId) return NextResponse.json({ error: "user_id is required" }, { status: 400 })
         upstreamPath = `/api/graph/user-graph/${encodeURIComponent(userId)}`
+        break
+      case "disciplines":
+        upstreamPath = `/api/graph/disciplines${userId ? `?user_id=${encodeURIComponent(userId)}` : ""}`
         break
       case "context":
         if (!concept) return NextResponse.json({ error: "concept is required" }, { status: 400 })
@@ -49,7 +53,7 @@ export async function GET(req) {
     const text = await res.text()
     if (!res.ok) {
       console.error("[API][GRAPH] Backend error:", res.status, text)
-      return NextResponse.json({ nodes: [], edges: [] }, { status: res.status })
+      return NextResponse.json({ nodes: [], edges: [], disciplines: [], bridges: [] }, { status: res.status })
     }
 
     try {

@@ -7,8 +7,26 @@ import { useToast } from "@/hooks/use-toast"
 import { createDocumentRecord, updateDocumentRecord, checkDocumentLimit } from "@/app/actions/documents"
 import { useRouter } from "next/navigation"
 
+/** multipart POST that reports upload progress (fetch cannot). Resolves with the parsed JSON body. */
+function postWithProgress(url: string, body: FormData, onProgress: (pct: number) => void): Promise<any> {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open("POST", url)
+        xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(Math.round((e.loaded / e.total) * 100))
+        xhr.upload.onload = () => onProgress(100)
+        xhr.onload = () => {
+            if (xhr.status < 200 || xhr.status >= 300) return reject(new Error(`HTTP ${xhr.status}`))
+            try { resolve(JSON.parse(xhr.responseText)) } catch { resolve({}) }
+        }
+        xhr.onerror = () => reject(new Error("network error"))
+        xhr.send(body)
+    })
+}
+
 export function DocumentUpload({ userId, onUploaded }: { userId?: string; onUploaded?: () => void }) {
     const [isUploading, setIsUploading] = useState(false)
+    const [stage, setStage] = useState<"uploading" | "chunking">("uploading")
+    const [progress, setProgress] = useState(0)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const { toast } = useToast()
     const router = useRouter()
@@ -60,18 +78,18 @@ export function DocumentUpload({ userId, onUploaded }: { userId?: string; onUplo
             //    We fire-and-forget with a generous timeout so the UI stays responsive.
             let s3Key: string | undefined
             let namespace: string | undefined
+            let processed = false
+            setStage("uploading")
             try {
-                const res = await fetch("/api/ai-agent/documents", {
-                    method: "POST",
-                    body: formData,
+                const aiData = await postWithProgress("/api/ai-agent/documents", formData, (pct) => {
+                    setProgress(pct)
+                    if (pct >= 100) setStage("chunking") // bytes are with the server; it is now reading, chunking and embedding
                 })
-                if (res.ok) {
-                    const aiData = await res.json()
-                    s3Key     = aiData?.s3_uploads?.[0]?.s3_key
-                    namespace = aiData?.namespace
-                }
+                s3Key     = aiData?.s3_uploads?.[0]?.s3_key
+                namespace = aiData?.namespace
+                processed = (aiData?.count ?? 0) > 0
             } catch {
-                // Backend may still be processing — the record is already saved, ignore timeout
+                // Backend may still be processing: the record is already saved, so this is reported below, not thrown
             }
 
             // 5. Update the record with s3/pinecone info if we got it back in time
@@ -82,7 +100,8 @@ export function DocumentUpload({ userId, onUploaded }: { userId?: string; onUplo
                 })
             }
 
-            toast({ title: "Success", description: "Document uploaded and is being processed!" })
+            if (processed) toast({ title: "Ready", description: `${file.name} is chunked and searchable.` })
+            else toast({ title: "Still processing", description: "The server did not confirm yet. The document will appear once indexing finishes.", variant: "destructive" })
             onUploaded?.()
             router.refresh()
 
@@ -91,6 +110,7 @@ export function DocumentUpload({ userId, onUploaded }: { userId?: string; onUplo
             toast({ title: "Upload Failed", description: "Could not upload document.", variant: "destructive" })
         } finally {
             setIsUploading(false)
+            setProgress(0)
             if (fileInputRef.current) fileInputRef.current.value = ""
         }
     }
@@ -120,8 +140,18 @@ export function DocumentUpload({ userId, onUploaded }: { userId?: string; onUplo
                     ? <Loader2 className="h-3 w-3 animate-spin text-primary" />
                     : <Plus className="h-3 w-3 text-primary" />
                 }
-                {isUploading ? "Processing..." : "Add Source"}
+                {isUploading
+                    ? stage === "uploading" ? `Uploading ${progress}%` : "Chunking & indexing..."
+                    : "Add Source"}
             </button>
+            {isUploading && (
+                <div className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-accent" role="progressbar" aria-label={stage === "uploading" ? "Uploading" : "Chunking and indexing"}>
+                    <div
+                        className={cn("h-full rounded-full bg-primary transition-all", stage === "chunking" && "w-1/3 animate-pulse")}
+                        style={stage === "uploading" ? { width: `${progress}%` } : undefined}
+                    />
+                </div>
+            )}
         </div>
     )
 }

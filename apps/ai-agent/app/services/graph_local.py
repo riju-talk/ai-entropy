@@ -245,6 +245,51 @@ class LocalGraph:
         hits = [n.name for k, n in self.nodes.items() if len(k) >= 4 and f" {k} " in q]
         return sorted(set(hits), key=lambda x: -len(x))[:limit]
 
+    def all_nodes(self) -> dict:
+        """Same shape as knowledge_graph_service.get_all_nodes (no per-learner mastery: the local graph has none)."""
+        self.seed()
+        return {
+            "nodes": [{"id": n.name, "label": n.name, "mastery": 0.0, "domain": n.domain, "difficulty": n.difficulty} for n in self.nodes.values()],
+            "edges": [{"from": self.nodes[a].name, "to": self.nodes[b].name, "strength": 1.0} for (a, b, r) in self.edges if r == PREREQ],
+        }
+
+    def disciplines(self) -> dict:
+        """Same shape as knowledge_graph_service.get_disciplines."""
+        self.seed()
+        by: Dict[str, List[Node]] = {}
+        for n in self.nodes.values():
+            if n.domain:
+                by.setdefault(n.domain, []).append(n)
+        internal: Dict[str, int] = {}
+        cross: Dict[str, int] = {}
+        bridges: Dict[Tuple[str, str], int] = {}
+        for (a, b, _r) in self.edges:
+            da, db = self.nodes[a].domain, self.nodes[b].domain
+            if not da or not db:
+                continue
+            if da == db:
+                internal[da] = internal.get(da, 0) + 1
+            else:
+                for d in (da, db):
+                    cross[d] = cross.get(d, 0) + 1
+                bridges[(da, db)] = bridges.get((da, db), 0) + 1
+        rows = [
+            {
+                "name": d, "concepts": len(ns),
+                "avg_difficulty": round(sum(n.difficulty or 0 for n in ns) / len(ns), 1),
+                "max_difficulty": max(n.difficulty or 0 for n in ns),
+                "internal_links": internal.get(d, 0), "cross_links": cross.get(d, 0),
+                "learner": {"studied": 0, "mastered": 0, "avg_mastery": 0.0},
+            }
+            for d, ns in by.items()
+        ]
+        rows.sort(key=lambda r: (-r["concepts"], r["name"]))
+        return {
+            "disciplines": rows,
+            "bridges": [{"from": a, "to": b, "links": n} for (a, b), n in sorted(bridges.items(), key=lambda kv: -kv[1])[:40]],
+            "totals": {"concepts": sum(r["concepts"] for r in rows), "disciplines": len(rows), "relationships": len(self.edges)},
+        }
+
     def stats(self) -> Dict[str, int]:
         self.seed()
         return {"concepts": len(self.nodes), "edges": len(self.edges)}

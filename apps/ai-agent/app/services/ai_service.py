@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -296,7 +297,7 @@ class AIService:
 
                     name = _settings().EMBEDDING_MODEL
                     logger.info("Loading embedding model %s", name)
-                    self._embedder = TextEmbedding(model_name=name, threads=1)  # keep RAM low on small hosts
+                    self._embedder = TextEmbedding(model_name=name, threads=max(1, min(os.cpu_count() or 1, _settings().EMBED_THREADS)))
         return self._embedder
 
     def embed(self, text: str) -> np.ndarray:

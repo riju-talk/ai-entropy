@@ -5,6 +5,8 @@ Maps user questions to relevant concept nodes in the knowledge graph.
 Reference: docs/AI_BRAIN_ARCHITECTURE.md Layer 2
 """
 import logging
+
+from app.core.config import settings
 from typing import List, Optional
 from dataclasses import dataclass
 
@@ -116,7 +118,7 @@ async def resolve_concepts_to_graph(concept_matches: List[ConceptMatch]) -> List
             LIMIT 1
             """
             
-            async with driver.session() as session:
+            async with driver.session(database=settings.NEO4J_DATABASE or None) as session:
                 result = await session.run(query, concept_name=match.concept_name)
                 record = await result.single()
                 

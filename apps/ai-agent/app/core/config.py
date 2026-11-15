@@ -56,11 +56,14 @@ class Settings(BaseSettings):
     # -- Embeddings (local fastembed, ONNX) -----------------------------------
     EMBEDDING_MODEL: str = "BAAI/bge-small-en-v1.5"
     EMBEDDING_DIMENSIONS: int = 384
+    EMBED_THREADS: int = 4                           # ONNX threads for embedding (capped at the CPU count)
 
     # -- Neo4j knowledge graph (AuraDB Free) ----------------------------------
     NEO4J_URI: str = "bolt://localhost:7687"
     NEO4J_USER: str = "neo4j"
+    NEO4J_USERNAME: str = ""                         # what the Aura console calls it; wins over NEO4J_USER when set
     NEO4J_PASSWORD: str = ""
+    NEO4J_DATABASE: str = ""                         # Aura: same as the instance id; empty = the server's default database
 
     # -- PostgreSQL (Supabase) ------------------------------------------------
     DATABASE_URL: str = ""
@@ -104,6 +107,10 @@ class Settings(BaseSettings):
 
     # -- Feature flags --------------------------------------------------------
     ENABLE_PERSISTENCE: bool = True
+
+    @property
+    def neo4j_user(self) -> str:
+        return self.NEO4J_USERNAME or self.NEO4J_USER
 
     def get_allowed_origins_list(self) -> list[str]:
         return [o.strip().rstrip("/") for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
