@@ -1,27 +1,61 @@
-# Entropy: a self-learning, context-gathering learning engine
+<div align="center">
+
+# entropy.
+
+### A self-learning, context-gathering learning engine.
+
+**Ask anything. Get answers from your own notes, trusted community answers, and the web, from a tutor that remembers what you know.**
+
+[**Live app → entropy-app-psi.vercel.app**](https://entropy-app-psi.vercel.app)
+
+![Next.js](https://img.shields.io/badge/Next.js_14-black?style=flat-square&logo=nextdotjs)
+![TypeScript](https://img.shields.io/badge/TypeScript-black?style=flat-square&logo=typescript&logoColor=3178C6)
+![FastAPI](https://img.shields.io/badge/FastAPI-black?style=flat-square&logo=fastapi&logoColor=009688)
+![LangChain](https://img.shields.io/badge/LangChain-black?style=flat-square&logo=langchain&logoColor=1C3C3C)
+![Groq](https://img.shields.io/badge/Groq-black?style=flat-square&logo=groq&logoColor=F55036)
+![Pinecone](https://img.shields.io/badge/Pinecone-black?style=flat-square&logo=pinecone)
+![Neo4j](https://img.shields.io/badge/Neo4j-black?style=flat-square&logo=neo4j&logoColor=4581C3)
+![Supabase](https://img.shields.io/badge/Supabase-black?style=flat-square&logo=supabase&logoColor=3FCF8E)
+![Prisma](https://img.shields.io/badge/Prisma-black?style=flat-square&logo=prisma)
+
+<img src="docs/screenshots/home.png" alt="Entropy home: questions feed, communities, and study tools" width="900">
+
+</div>
+
+---
 
 ## The problem
 
 Students learn from scattered sources (their own notes and PDFs, forum answers, the web) and get generic AI answers that know nothing about them.
 
 - **Answers ignore the learner.** A chatbot explains photosynthesis the same way to a beginner and an expert, and forgets everything next session.
-- **Answers ignore the learner's own material.** Notes, slides and PDFs sit in a folder, apart from the tool that answers questions.
+- **Answers ignore the learner's own material.** Notes, slides, and PDFs sit in a folder, apart from the tool that answers questions.
 - **Community knowledge is untrusted and unsearchable.** Good peer answers are buried, and bad ones look the same.
-- **Practice is disconnected from explanation.** Quizzes, timers and revision plans live in other apps and never feed back into what the learner studies next.
+- **Practice is disconnected from explanation.** Quizzes, timers, and revision plans live in other apps and never feed back into what the learner studies next.
 
 ## What Entropy does
 
-Entropy answers a learner's questions from **their own resources, trusted community answers and the web**, remembers what they know, and turns every interaction into practice.
+Entropy answers a learner's questions from **their own resources, trusted community answers, and the web**, remembers what they know, and turns every interaction into practice.
 
 | Capability | What the learner gets |
 |---|---|
-| Ask and learn | Answers with citations from uploaded resources, community answers and web search |
-| Learner memory | Concept mastery and focus time per topic are tracked; quiz difficulty and review queues follow mastery |
-| Quizzes, flashcards and assessments | Generated questions and flashcards, rubric-based grading with explainable scores |
-| Focus timer | Pomodoro sessions tied to a topic; focus time per topic is kept in the learner profile |
-| Mind maps | Concept maps generated from a question or a document |
-| Slides and artifacts *(milestone 2)* | Generated slide decks and interactive artifacts, rendered in a sandbox |
-| Communities | Reddit-style communities: join, post, threaded comments, up/down votes, hot/new/top ranking, moderators and rules. Plus Q&A with accepted answers, reputation, achievements and leaderboards |
+| **Ask and learn** | Answers with citations from uploaded resources, community answers, and web search |
+| **Learner memory** | Concept mastery and focus time per topic are tracked; quiz difficulty and review queues follow mastery |
+| **Quizzes, flashcards, assessments** | Generated questions and flashcards, with rubric-based grading and explainable scores |
+| **Focus timer** | Pomodoro sessions tied to a topic; focus time per topic is kept in the learner profile |
+| **Mind maps** | Concept maps generated from a question or a document |
+| **Slides and artifacts** *(milestone 2)* | Generated slide decks and interactive artifacts, rendered in a sandbox |
+| **Communities** | Reddit-style communities: join, post, threaded comments, up/down votes, hot/new/top ranking, moderators, and rules. Plus Q&A with accepted answers, reputation, achievements, and leaderboards |
+
+<div align="center">
+<img src="docs/screenshots/communities.png" alt="Entropy communities" width="900">
+<br><i>Communities: find your people, vote on what's useful, and join the discussion.</i>
+<br><br>
+<img src="docs/screenshots/leaderboard.png" alt="Entropy leaderboard" width="900">
+<br><i>Leaderboard: earn XP and Entropy Coins, keep a streak, and climb the ranks.</i>
+</div>
+
+---
 
 ## How it works
 
@@ -37,102 +71,59 @@ Browser -> Next.js (UI, auth, API routes, Prisma)       [Vercel]
               -> Supabase Postgres + Storage
 ```
 
-- **Memory:** working (current conversation), episodic (conversations, quiz attempts, study sessions in Postgres), semantic (documents in Pinecone, concepts in Neo4j), procedural (the learner profile). Automatic summarising of sessions into the profile is planned.
-- **Skills:** ask/explain, quiz, flashcards, mind map, study plan. A unified skill registry with an intent router is planned.
-- **Queues:** work such as mastery updates, XP and memory consolidation runs on in-process message queues, with events persisted so a restart does not lose them. There is no SQS or Lambda.
-- **Auth:** the browser talks only to Next.js. Next.js verifies the session and calls the AI service with a server-side token.
+- **Memory.** Four kinds: *working* (the current conversation), *episodic* (conversations, quiz attempts, and study sessions in Postgres), *semantic* (documents in Pinecone, concepts in Neo4j), and *procedural* (the learner profile). Automatic summarising of sessions into the profile is planned.
+- **Skills.** Ask/explain, quiz, flashcards, mind map, and study plan. A unified skill registry with an intent router is planned.
+- **Queues.** Mastery updates, XP, and memory consolidation run on in-process message queues, with events persisted so a restart does not lose them. There is no SQS or Lambda.
+- **Auth.** The browser talks only to Next.js. Next.js verifies the session and calls the AI service with a server-side token.
+- **Concept graph.** On first start the AI service seeds about 285 concepts and keeps growing the graph from the questions asked.
 
 ## Scope
 
-- **In scope:** the capabilities in the table above, running on free-tier hosting.
-- **Out of scope for now:** paid cloud services (AWS Bedrock, RDS, Lambda), native mobile apps, live video tutoring.
+- **In scope:** the capabilities above, running on free-tier hosting.
+- **Out of scope for now:** paid cloud services (AWS Bedrock, RDS, Lambda), native mobile apps, and live video tutoring.
 
-## Repository layout
+---
 
-```
-apps/app        Next.js 14 app (TypeScript pages, JavaScript API routes, Prisma schema)
-apps/ai-agent   FastAPI AI service (Python)
-packages/       shared lint and TypeScript configs
-docs/           architecture notes
-REQUIREMENTS.md problem statement and requirements
-```
+## Try the demo
 
-## Run locally
-
-### Everything in Docker (recommended)
-
-```bash
-cp apps/ai-agent/.env.example apps/ai-agent/.env   # add your GROQ_API_KEY (free at console.groq.com)
-docker compose up --build
-```
-
-That starts Postgres, Neo4j, the AI service and the web app, applies the migrations and seeds demo data.
-
-| Service | URL |
-|---|---|
-| Web app | http://localhost:5000 |
-| AI service | http://localhost:8000/health |
-| Postgres / Neo4j browser | `localhost:5442` / http://localhost:7474 (`neo4j` / `entropy_neo4j`) |
-
-**Demo accounts.** The compose stack turns on a password-free demo login (only ever offered when `NEXTAUTH_URL` is `localhost`, so it cannot be enabled on a real deployment). On the sign-in page pick one:
+The demo login is password-free and only ever offered when `NEXTAUTH_URL` is `localhost`, so it cannot be enabled on a real deployment. Pick an account on the sign-in page:
 
 | Account | What it is |
 |---|---|
-| `student@local.dev` | has joined most communities, has questions and answers |
-| `student2@local.dev` | a second learner, for testing interactions |
-| `mentor@local.dev` | admin of CS Fundamentals and ML From Scratch, has a mentor profile |
+| `student@local.dev` | Has joined most communities, has questions and answers |
+| `student2@local.dev` | A second learner, for testing interactions |
+| `mentor@local.dev` | Admin of CS Fundamentals and ML From Scratch, has a mentor profile |
 
-Any other `name@local.dev` also works and creates a fresh account. The seed also adds six communities with threaded discussion, votes and a few Q&A threads. Set `SEED_DEMO=false` on the `migrate` service to skip the demo content.
+Any other `name@local.dev` also works and creates a fresh account. The seed adds six communities with threaded discussion, votes, and a few Q&A threads (set `SEED_DEMO=false` on the `migrate` service to skip it).
 
-**The AI tutor** needs only the Groq key. Document search uses Postgres by default; set `PINECONE_API_KEY` to use Pinecone instead. Upload a document in AI study, then ask about it: answers cite it.
+**The AI tutor** needs only a free Groq key. Document search uses Postgres by default, or Pinecone when `PINECONE_API_KEY` is set. Upload a document in *AI study*, then ask about it, and the answer cites it.
 
-**Check it works end to end.** With the stack running:
+**Sign-in providers.** Google and GitHub are supported (callback `http://localhost:5000/api/auth/callback/<google|github>`). Providers without credentials are simply not shown.
 
-```bash
-node scripts/simulate.mjs             # signs in, plays out community + AI flows, 68 checks
-node scripts/simulate.mjs --skip-ai   # community and auth only (no LLM calls)
-```
+### Tested end to end
 
-Groq's free tier rate-limits (HTTP 429). The tutor then slows down or skips optional steps rather than failing; repeated simulation runs in a minute can trigger it.
+A simulation script signs in and plays out the community and AI flows in **68 checks**, with a `--skip-ai` mode that covers community and auth only (no LLM calls).
 
-Sign in with Google or GitHub by exporting `GOOGLE_CLIENT_ID/SECRET` or `GITHUB_ID/SECRET` before `docker compose up` (callback `http://localhost:5000/api/auth/callback/<google|github>`). Providers without credentials are simply not shown.
+> Groq's free tier rate-limits (HTTP 429). The tutor then slows down or skips optional steps rather than failing, and repeated simulation runs inside a minute can trigger it.
 
-### Apps outside Docker
+## Configuration
 
-Run only the databases in Docker and the two apps on your machine:
-
-```bash
-docker compose up -d postgres neo4j
-
-npm install
-cp apps/app/.env.example apps/app/.env.local      # set ENABLE_DEV_LOGIN=true for the demo login
-npm run db:deploy && npx tsx apps/app/prisma/seed.ts
-
-cd apps/ai-agent                                   # Python 3.12
-python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env
-prisma generate
-uvicorn app.main:app --port 8000
-
-npm run dev:app                                    # in another terminal, http://localhost:5000
-```
-
-Local values for the two env files:
-
-| Variable | Value |
+| Variable | Purpose |
 |---|---|
-| `DATABASE_URL`, `DIRECT_URL` (both files) | `postgresql://entropy_user:entropy_pass@localhost:5442/entropy` |
-| `NEO4J_URI` / `NEO4J_USER` / `NEO4J_PASSWORD` (ai-agent) | `bolt://localhost:7687` / `neo4j` / `entropy_neo4j` |
-| `AI_BACKEND_TOKEN` (both files) | any string, identical in both |
-| `NEXTAUTH_URL` / `NEXT_PUBLIC_APP_URL` | `http://localhost:5000` |
-| `NEXTAUTH_SECRET` | any random string (a fixed development fallback is used if unset outside production) |
-| `BACKEND_URL` (web) | `http://localhost:8000` |
-| `GROQ_API_KEY` (ai-agent) | free key from console.groq.com; without it the tutor returns a clear "not configured" error |
-| `PINECONE_API_KEY` (ai-agent) | optional; without it document search runs on Postgres |
+| `DATABASE_URL`, `DIRECT_URL` | Postgres (both the web app and the AI service) |
+| `NEO4J_URI` / `NEO4J_USER` / `NEO4J_PASSWORD` | Concept graph (AI service) |
+| `AI_BACKEND_TOKEN` | Shared secret between web and AI service; must be identical in both |
+| `NEXTAUTH_URL` / `NEXT_PUBLIC_APP_URL` / `NEXTAUTH_SECRET` | Auth and app URL |
+| `BACKEND_URL` | Where the web app reaches the AI service |
+| `GROQ_API_KEY` | Free key from console.groq.com; without it the tutor returns a clear "not configured" error |
+| `PINECONE_API_KEY` | Optional; without it document search runs on Postgres |
 
-On first start the AI service seeds the concept graph (about 285 concepts) and keeps growing it from the questions asked. Hosting is covered in [DEPLOYMENT.md](DEPLOYMENT.md).
+Hosting is covered in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Status
 
-Deployable: the web app builds with type and lint checks on, the AI service ships as a Docker image, and CI runs both. Slides and sandboxed artifacts are next. Requirements are in `REQUIREMENTS.md`.
+**Deployable.** The web app builds with type and lint checks on, the AI service ships as a Docker image, and CI runs both. Slides and sandboxed artifacts are next. Requirements are in [`REQUIREMENTS.md`](REQUIREMENTS.md).
+
+## Go deeper
+
+[Architecture](docs/ARCHITECTURE.md) · [AI brain](docs/AI_BRAIN_ARCHITECTURE.md) · [Gamification](docs/GAMIFICATION.md) · [Trust & abuse model](docs/TRUST_AND_ABUSE_MODEL.md) · [Requirements](REQUIREMENTS.md)
