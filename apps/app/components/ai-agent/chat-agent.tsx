@@ -20,7 +20,6 @@ import type ReactMarkdownPreview from "@uiw/react-markdown-preview"
 import { ModeSelector, type LearningMode } from "./mode-selector"
 import { CognitiveTraceCard, type CognitiveTrace } from "./cognitive-trace-card"
 import { ExamModeOverlay } from "./exam-mode-overlay"
-import { ChatSessions } from "./chat-sessions"
 
 // Markdown renderer — loaded client-side only (SSR disabled)
 const MDPreview = dynamic<React.ComponentProps<typeof ReactMarkdownPreview>>(
@@ -54,6 +53,11 @@ interface Message {
 
 interface ChatAgentProps {
   contextDoc?: any
+  /** The open chat. Owned by the page so the sidebar's chat list and this view always agree. */
+  conversationId?: string
+  onConversationChange?: (id: string | undefined) => void
+  /** Called when an answer finishes, so the sidebar can refresh titles and order. */
+  onActivity?: () => void
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -340,7 +344,7 @@ function LanguageToggle({ value, onChange }: { value: Language; onChange: (v: La
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export function ChatAgent({ contextDoc }: ChatAgentProps) {
+export function ChatAgent({ contextDoc, conversationId, onConversationChange, onActivity }: ChatAgentProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
@@ -354,8 +358,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
   const [masteryUpdate, setMasteryUpdate] = useState<{ conceptId: string; delta: number } | undefined>()
   const [structuredStep, setStructuredStep] = useState(0)
   const [voiceActive, setVoiceActive] = useState(false)
-  const [conversationId, setConversationId] = useState<string | undefined>()
-  const [sessionsRefresh, setSessionsRefresh] = useState(0)
+  const loadedRef = useRef<string | undefined>(undefined) // the chat whose messages are on screen
   const [reviewQueue, setReviewQueue] = useState<{ concept: string; mastery: number; urgency: string; suggested_prompt: string }[]>([])
   const [studyPlanGoal, setStudyPlanGoal] = useState("")
   const [studyPlanDays, setStudyPlanDays] = useState(7)
@@ -370,38 +373,47 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
   const { data: session } = useSession()
   const userId = session?.user?.id
 
-  // Open one conversation (its saved messages replace what is on screen)
-  const loadConversation = useCallback(async (id: string) => {
-    try {
-      const res = await fetch(`/api/ai-agent/conversations?id=${encodeURIComponent(id)}`)
-      if (!res.ok) return
-      const conv = await res.json()
-      const msgs: Message[] = (conv.messages || []).map((m: any) => ({
-        id: m.id,
-        role: m.role as "user" | "assistant",
-        content: m.content,
-        timestamp: new Date(m.createdAt),
-      }))
-      setConversationId(id)
-      setMessages(msgs)
-      setStructuredStep(0)
-      setActiveConceptId(undefined)
-    } catch {
-      toast({ title: "Could not open that session", variant: "destructive" })
-    }
-  }, [toast])
+  // This view created or learned of a chat itself (first message, server-assigned id): tell the page, without reloading
+  const setConversationId = useCallback((id: string | undefined) => {
+    loadedRef.current = id
+    onConversationChange?.(id)
+  }, [onConversationChange])
 
-  // Load most recent conversation on mount
+  // The page picked a chat (sidebar click, new chat, delete): show its saved messages, or a blank screen
   useEffect(() => {
-    if (!userId) return
+    if (conversationId === loadedRef.current) return
+    loadedRef.current = conversationId
+    setStructuredStep(0)
+    setActiveConceptId(undefined)
+    if (!conversationId) { setMessages([]); return }
+    let stale = false
+    fetch(`/api/ai-agent/conversations?id=${encodeURIComponent(conversationId)}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(conv => {
+        if (stale || !conv) return
+        setMessages((conv.messages || []).map((m: any) => ({
+          id: m.id,
+          role: m.role as "user" | "assistant",
+          content: m.content,
+          timestamp: new Date(m.createdAt),
+        })))
+      })
+      .catch(() => toast({ title: "Could not open that chat", variant: "destructive" }))
+    return () => { stale = true }
+  }, [conversationId, toast])
+
+  // First visit: open the most recent chat
+  useEffect(() => {
+    if (!userId || conversationId) return
     fetch("/api/ai-agent/conversations")
-      .then(r => r.json())
+      .then(r => (r.ok ? r.json() : null))
       .then(data => {
-        const latest = (data.conversations || [])[0]
-        if (latest) return loadConversation(latest.id)
+        const latest = data?.conversations?.[0]
+        if (latest) onConversationChange?.(latest.id)
       })
       .catch(() => {/* offline — start fresh */})
-  }, [userId, loadConversation])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
 
   // Fetch spaced repetition review queue
   useEffect(() => {
@@ -431,31 +443,8 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
     finally { setStudyPlanLoading(false) }
   }, [userId, studyPlanGoal, studyPlanDays])
 
-  // Start a new chat session. The server enforces the demo cap and answers 409 when it is reached.
-  const startNewChat = useCallback(async () => {
-    if (!userId) return
-    try {
-      const res = await fetch("/api/ai-agent/conversations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-      })
-      const conv = await res.json()
-      if (!res.ok) {
-        toast({ title: res.status === 409 ? "Session limit reached" : "Could not start a new session", description: conv?.error, variant: "destructive" })
-        return
-      }
-      setConversationId(conv.id)
-      setMessages([])
-      setStructuredStep(0)
-      setActiveConceptId(undefined)
-    } catch {
-      toast({ title: "Could not start a new session", description: "Check your connection and try again.", variant: "destructive" })
-    }
-  }, [userId, toast])
-
-  // An answer finishing changes the session's title and order: refresh the sessions menu
-  useEffect(() => { if (!loading) setSessionsRefresh((n) => n + 1) }, [loading])
+  // An answer finishing changes the chat's title and order: let the sidebar refresh
+  useEffect(() => { if (!loading) onActivity?.() }, [loading, onActivity])
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -492,7 +481,8 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
           body: JSON.stringify({ userId }),
         })
         const conv = await res.json()
-        setConversationId(conv.id)
+        if (res.ok && conv.id) setConversationId(conv.id)
+        else if (res.status === 409) toast({ title: "Session limit reached", description: conv?.error, variant: "destructive" })
       } catch { /* continue without persisting */ }
     }
 
@@ -682,7 +672,7 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
       inFlight.current = false
       setLoading(false)
     }
-  }, [input, loading, mode, language, structuredStep, contextDoc, toast, userId, conversationId, startNewChat])
+  }, [input, loading, mode, language, structuredStep, contextDoc, toast, userId, conversationId, setConversationId])
 
   // Dismiss a review item by auto-asking the suggested prompt
   const triggerReview = useCallback((item: typeof reviewQueue[0]) => {
@@ -850,22 +840,6 @@ export function ChatAgent({ contextDoc }: ChatAgentProps) {
 
         {/* Control strip */}
         <div className="flex items-center gap-2 px-4 py-2 border-b border-border overflow-x-auto">
-
-          {/* Chat sessions: switch, delete, new (demo accounts are capped server-side) */}
-          {userId && (
-            <ChatSessions
-              activeId={conversationId}
-              refreshKey={sessionsRefresh}
-              disabled={loading}
-              onSelect={loadConversation}
-              onNew={startNewChat}
-              onDeleted={(_id, wasActive, remaining) => {
-                if (!wasActive) return
-                if (remaining[0]) loadConversation(remaining[0].id)
-                else { setConversationId(undefined); setMessages([]) }
-              }}
-            />
-          )}
 
           {/* Mode selector */}
           <ModeSelector mode={mode} onChange={setMode} disabled={loading} />

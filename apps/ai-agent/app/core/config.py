@@ -102,8 +102,9 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5000"
 
     # -- Text splitting -------------------------------------------------------
-    chunk_size: int = 1000
-    chunk_overlap: int = 200
+    chunk_size: int = 1200                           # fewer, larger chunks = fewer vectors to embed (faster ingestion)
+    chunk_overlap: int = 100
+    MAX_CHUNKS_PER_DOC: int = 1500                   # a single huge file must not stall a small host; the rest is skipped
 
     # -- Feature flags --------------------------------------------------------
     ENABLE_PERSISTENCE: bool = True

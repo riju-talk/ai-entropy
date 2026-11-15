@@ -310,8 +310,13 @@ class AIService:
         """Embed many texts; returns an (N, dimensions) array. `max_workers` is ignored (kept for callers)."""
         if not texts:
             raise ValueError("embed_batch expects a non-empty list.")
-        vectors = list(self._get_embedder().embed(texts, batch_size=32))
-        return np.stack(vectors).astype(np.float32)
+        # Embed in length order: each batch is padded to its longest text, so similar lengths waste far less compute.
+        order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
+        vectors = list(self._get_embedder().embed([texts[i] for i in order], batch_size=64))
+        out = np.empty((len(texts), len(vectors[0])), dtype=np.float32)
+        for pos, i in enumerate(order):
+            out[i] = vectors[pos]
+        return out
 
     # -- Chunking and Pinecone ---------------------------------------------------
 

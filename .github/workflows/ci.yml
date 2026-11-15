@@ -40,6 +40,8 @@ jobs:
         run: |
           npx prisma migrate deploy
           npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+      - name: Generate Prisma client
+        run: npm run db:generate --workspace=@entropy/app
       - name: Type-check
         run: npm run type-check --workspace=@entropy/app
       - name: Build

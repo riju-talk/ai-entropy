@@ -245,6 +245,7 @@ async def upload_documents(
 
     s3_uploads: List[dict] = []
     errors:     List[str]  = []
+    truncated:  List[str]  = []
 
     # Read and validate everything first so a bad file fails the request before any work starts.
     payloads = []
@@ -300,6 +301,10 @@ async def upload_documents(
             meta["s3_bucket"] = s3_info.get("bucket", "")
 
         chunks = await asyncio.to_thread(lc_svc.split_documents, [LCDocument(page_content=text, metadata=meta)])
+        if len(chunks) > settings.MAX_CHUNKS_PER_DOC:
+            logger.warning("[UPLOAD] '%s' has %d chunks; indexing the first %d", f.filename, len(chunks), settings.MAX_CHUNKS_PER_DOC)
+            truncated.append(f.filename)
+            chunks = chunks[: settings.MAX_CHUNKS_PER_DOC]
         t_chunk = time.perf_counter()
         await lc_svc.upsert_documents(chunks, collection_name=namespace)
         logger.info(
@@ -330,6 +335,7 @@ async def upload_documents(
         "message":    f"Successfully embedded {embedded_count} document(s).",
         "s3_uploads": s3_uploads,
         "errors":     errors,
+        "truncated":  truncated,  # files whose tail was not indexed (over MAX_CHUNKS_PER_DOC)
     }
 
 

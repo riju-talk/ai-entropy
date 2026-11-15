@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils"
 import { getUserDocuments } from "@/app/actions/documents"
 import { getCognitiveProfile, type CognitiveProfile, type ConceptRecord } from "@/app/actions/cognitive"
 import { DocumentList } from "./document-list"
+import { ChatSessions } from "../chat-sessions"
 import {
     RadarChart,
     Radar,
@@ -98,6 +99,10 @@ interface NotebookLayoutProps {
     onTabChange: (tab: string) => void
     selectedDocId?: string
     onDocSelect: (doc: any | null) => void
+    /** Chat sessions shown at the top of the sidebar (state lives in the page). */
+    conversationId?: string
+    onConversationSelect?: (id: string | undefined) => void
+    sessionsRefresh?: number
 }
 
 export function NotebookLayout({
@@ -105,7 +110,10 @@ export function NotebookLayout({
     activeTab,
     onTabChange,
     selectedDocId,
-    onDocSelect
+    onDocSelect,
+    conversationId,
+    onConversationSelect,
+    sessionsRefresh = 0,
 }: NotebookLayoutProps) {
     const { data: session } = useSession()
     const [docCount, setDocCount] = useState(0)
@@ -202,6 +210,15 @@ export function NotebookLayout({
 
                 <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
                     <div className="p-3 space-y-4 w-full min-w-0">
+
+                        {onConversationSelect && (
+                            <ChatSessions
+                                userId={session?.user?.id}
+                                activeId={conversationId}
+                                refreshKey={sessionsRefresh}
+                                onSelect={(id) => { onTabChange("qa"); onConversationSelect(id) }}
+                            />
+                        )}
 
                         {/* Active Concepts */}
                         <div>

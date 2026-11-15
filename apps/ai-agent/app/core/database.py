@@ -33,13 +33,38 @@ async def connect_db():
         import asyncio
         _prisma_client = Prisma()
         try:
-            await asyncio.wait_for(_prisma_client.connect(), timeout=5.0)
+            # A cold Supabase pooler can take >5 s to accept the first connection
+            await asyncio.wait_for(_prisma_client.connect(), timeout=20.0)
             logger.info("Database connected via Prisma")
         except BaseException as exc:
             # BaseException catches SystemExit which Prisma's Rust binary raises
             # on Windows when Postgres is unreachable
             logger.error("PostgreSQL connection failed (will continue without DB): %s", exc)
             _prisma_client = None
+
+
+_reconnecting: Optional["asyncio.Task"] = None  # type: ignore[name-defined]
+
+
+def ensure_db_in_background(interval: float = 20.0) -> None:
+    """
+    Startup connects once; if that fails the service used to stay without a database until the next restart
+    (every mastery / gamification call then failed). This keeps retrying in the background until it connects.
+    """
+    import asyncio
+
+    global _reconnecting
+    if _reconnecting is not None and not _reconnecting.done():
+        return
+
+    async def loop():
+        while _prisma_client is None and _prisma_available:
+            await asyncio.sleep(interval)
+            await connect_db()
+            if _prisma_client is not None:
+                logger.info("Database reconnected after earlier failure")
+
+    _reconnecting = asyncio.get_event_loop().create_task(loop())
 
 
 async def disconnect_db():
@@ -92,6 +117,8 @@ async def health_check() -> bool:
     Returns:
         True if healthy, False otherwise
     """
+    if _prisma_client is None:
+        ensure_db_in_background()  # a probe (or the keep-alive ping) also nudges a reconnect
     try:
         db = get_db()
         # Simple query to test connection

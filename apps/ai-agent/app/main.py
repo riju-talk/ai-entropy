@@ -46,8 +46,9 @@ async def lifespan(fastapi_app: FastAPI):
 
     # Connect to PostgreSQL via Prisma (non-fatal — AI routes don't need Postgres to start)
     try:
-        from app.core.database import connect_db
+        from app.core.database import connect_db, ensure_db_in_background
         await connect_db()  # logs its own success/failure
+        ensure_db_in_background()  # no-op when connected; otherwise retries until it is
     except BaseException as exc:
         # Catch BaseException (incl. SystemExit/KeyboardInterrupt) because Prisma's
         # Rust query engine calls sys.exit() when Postgres is unreachable on Windows,

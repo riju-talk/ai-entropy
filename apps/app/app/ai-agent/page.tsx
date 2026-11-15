@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { NotebookLayout } from "@/components/ai-agent/notebook/notebook-layout"
 import { ChatAgent } from "@/components/ai-agent/chat-agent"
 import dynamic from "next/dynamic"
@@ -21,6 +21,10 @@ const KnowledgeAtlas = dynamic(() => import("@/components/ai-agent/knowledge-atl
 export default function AIAgentPage() {
   const [activeTab, setActiveTab] = useState("qa")
   const [selectedDoc, setSelectedDoc] = useState<any | null>(null)
+  // The open chat is shared by the sidebar's chat list and the chat view
+  const [conversationId, setConversationId] = useState<string | undefined>()
+  const [sessionsRefresh, setSessionsRefresh] = useState(0)
+  const refreshSessions = useCallback(() => setSessionsRefresh((n) => n + 1), [])
 
   // Fills the area beside the sidebar (header is 3.5rem); negative margins cancel the layout's page padding
   return (
@@ -30,9 +34,12 @@ export default function AIAgentPage() {
         onTabChange={setActiveTab}
         selectedDocId={selectedDoc?.id}
         onDocSelect={setSelectedDoc}
+        conversationId={conversationId}
+        onConversationSelect={setConversationId}
+        sessionsRefresh={sessionsRefresh}
       >
         <div className="h-full w-full">
-          {activeTab === "qa" && <ChatAgent contextDoc={selectedDoc} />}
+          {activeTab === "qa" && <ChatAgent contextDoc={selectedDoc} conversationId={conversationId} onConversationChange={setConversationId} onActivity={refreshSessions} />}
           {activeTab === "assessments" && <QuizAgent />}
           {activeTab === "flashcards" && <FlashcardsAgent />}
           {activeTab === "mindmap" && <MindMapAgent contextDoc={selectedDoc} />}

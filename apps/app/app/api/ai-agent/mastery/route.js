@@ -117,10 +117,15 @@ export async function GET(req) {
 
     try {
       const res = await tryUpstream(path, {}, sessionUserId)
-      if ((res).raw) return new NextResponse(String(res.body), { status: res.status })
-      return NextResponse.json(res.body, { status: res.status })
+      // A 5xx means the AI service is up but broken (e.g. its database is down) or a proxy answered for it (502/503
+      // while it wakes). Both are "unavailable": answer from our own database instead of passing the error on.
+      if (res.status < 500) {
+        if ((res).raw) return new NextResponse(String(res.body), { status: res.status })
+        return NextResponse.json(res.body, { status: res.status })
+      }
+      console.warn("[API][MASTERY] upstream", res.status, "- using the database fallback")
     } catch {
-      // AI backend unavailable — fall back to DB
+      // AI backend unreachable or too slow: fall back to DB
     }
 
     switch (action) {
