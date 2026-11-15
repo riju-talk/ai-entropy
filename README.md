@@ -1,6 +1,6 @@
 <div align="center">
 
-# entropy.
+<img src="docs/brand/logo.png" alt="entropy." width="420">
 
 ### A self-learning, context-gathering learning engine.
 
